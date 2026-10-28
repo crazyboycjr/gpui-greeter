@@ -18,10 +18,10 @@ fonts = ["fonts/NotoSerifDisplay-Light.ttf"]
 # What every text inherits unless a layer sets its own.
 [text]
 font = "Inter"
-size = 31
+size = 25
 weight = 500
 color = "#a8917c"
-tracking = 7
+tracking = 5.6
 
 [strings.en]
 date = "{date:%A, %-d %B}"
@@ -62,8 +62,8 @@ kind = "svg"
 file = "art/ticks.svg"
 tint = true
 anchor = "center"
-y = -120
-width = 1240
+y = -96
+width = 992
 color = "#4a3d33"
 transition = 300
 
@@ -79,8 +79,8 @@ kind = "svg"
 file = "art/hand.svg"
 tint = true
 anchor = "center"
-y = -120
-width = 1240
+y = -96
+width = 992
 color = "#e8a33d"
 motion = { property = "rotate", from = 0, to = 360, duration = 60000, easing = "steps(60)", repeat = "infinite", sync = "clock" }
 
@@ -95,9 +95,9 @@ color = "#e8d5c0"
 id = "clock"
 layout = "column"
 align = "center"
-gap = 6
+gap = 4.8
 anchor = "center"
-y = -150
+y = -120
 transition = { duration = 500, easing = "ease-out" }
 
 [layer.on.rest]
@@ -109,8 +109,8 @@ kind = "text"
 text = "{time}"
 font = "Noto Serif Display"
 weight = 300
-size = 330
-tracking = -4
+size = 264
+tracking = -3.2
 color = "#ece4d8"
 features = ["lnum", "tnum"]
 
@@ -121,19 +121,19 @@ text = "{t.date}"
 case = "upper"
 
 [layer.on.zh-CN]
-tracking = 4
+tracking = 3.2
 
 # What the machine is, in the top left corner.
 [[layer]]
 id = "facts"
 layout = "column"
-gap = 12
+gap = 9.6
 anchor = "top-left"
-x = 130
-y = 120
-size = 29
+x = 104
+y = 96
+size = 23
 weight = 400
-tracking = 3
+tracking = 2.4
 color = "#7d6c5d"
 
 [[layer]]
@@ -156,9 +156,9 @@ text = "{t.up} {uptime}"
 id = "form"
 layout = "column"
 align = "center"
-gap = 34
+gap = 27
 anchor = "center"
-y = 640
+y = 512
 transition = { duration = 300, easing = "ease" }
 
 [layer.on.rest]
@@ -169,10 +169,10 @@ id = "line"
 parent = "form"
 layout = "row"
 align = "center"
-gap = 30
-width = 840
-padding = [0, 4, 18, 4]
-border = [0, 0, 3.6, 0]
+gap = 24
+width = 672
+padding = [0, 3.2, 14, 3.2]
+border = [0, 0, 2.9, 0]
 border_color = "#e8d5c047"
 transition = 200
 
@@ -181,7 +181,7 @@ border_color = "#e8a33d"
 
 [layer.on.error]
 border_color = "#e5703b"
-motion = { property = "x", keyframes = [[0, 0], [0.2, -10], [0.4, 17], [0.6, -17], [0.8, 10], [1, 0]], duration = 450, easing = "cubic-bezier(.36, .07, .19, .97)" }
+motion = { property = "x", keyframes = [[0, 0], [0.2, -8], [0.4, 14], [0.6, -14], [0.8, 8], [1, 0]], duration = 450, easing = "cubic-bezier(.36, .07, .19, .97)" }
 
 [[layer]]
 parent = "line"
@@ -193,9 +193,9 @@ case = "upper"
 parent = "line"
 kind = "field"
 grow = 1
-size = 48
+size = 38
 weight = 400
-tracking = 10
+tracking = 8
 color = "#ece4d8"
 caret_color = "#e8a33d"
 
@@ -216,7 +216,7 @@ text = "{t.wrong}"
 color = "#e5703b"
 
 [layer.on.zh-CN]
-tracking = 3
+tracking = 2.4
 
 # At rest, a hint at the bottom that breathes.
 [[layer]]
@@ -225,7 +225,7 @@ text = "{t.wake}"
 case = "upper"
 color = "#8f7d6c"
 anchor = "bottom"
-y = -150
+y = -120
 visible = false
 transition = 300
 motion = { property = "opacity", keyframes = [[0, 0.45], [0.5, 1], [1, 0.45]], duration = 2400, easing = "ease-in-out", repeat = "infinite" }
@@ -238,10 +238,10 @@ visible = true
 id = "session"
 layout = "row"
 align = "center"
-gap = 22
+gap = 18
 anchor = "bottom-left"
-x = 130
-y = -120
+x = 104
+y = -96
 action = "next-session"
 color = "#a8917c"
 
@@ -259,24 +259,24 @@ parent = "session"
 kind = "svg"
 file = "art/chevron.svg"
 tint = true
-width = 24
+width = 19
 
 # Sleep, restart and shut down, bottom right. The first press arms an
 # action; a second within four seconds runs it.
 [[layer]]
 id = "power"
 layout = "row"
-gap = 64
+gap = 51
 anchor = "bottom-right"
-x = -130
-y = -120
+x = -104
+y = -96
 color = "#a8917c"
 
 [[layer]]
 id = "sleep"
 parent = "power"
 layout = "row"
-gap = 16
+gap = 13
 action = "suspend"
 
 [layer.on.hover]
@@ -301,7 +301,7 @@ case = "upper"
 id = "restart"
 parent = "power"
 layout = "row"
-gap = 16
+gap = 13
 action = "reboot"
 
 [layer.on.hover]
@@ -326,7 +326,7 @@ case = "upper"
 id = "shut-down"
 parent = "power"
 layout = "row"
-gap = 16
+gap = 13
 action = "poweroff"
 
 [layer.on.hover]
@@ -354,8 +354,8 @@ text = "{t.confirm}"
 case = "upper"
 color = "#e8a33d"
 anchor = "bottom-right"
-x = -130
-y = -200
+x = -104
+y = -160
 visible = false
 
 [layer.on.armed]

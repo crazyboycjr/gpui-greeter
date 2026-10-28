@@ -39,7 +39,7 @@ choices the user can react to:
 - Languages: English, Chinese, or both (`[strings.en]`, `[strings.zh-CN]`).
 
 Agree on the design with the user before writing much theme.toml. If they
-bring a mockup drawn for a 1600 by 900 frame, every length becomes 2.4
+bring a mockup drawn for a 1600 by 900 frame, every length becomes 1.75
 times as large.
 
 ## 2. Gather the files lawfully
@@ -110,35 +110,40 @@ language lines up, and set a row of text on one line with `align =
 "baseline"`. Give each state its look with `[layer.on.<state>]` tables, and
 keep transitions short (150 to 500 ms).
 
-A mockup drawn on a 1600 by 900 frame carries over in three parts:
+Size everything as a native interface on a 4K monitor would be, where one
+frame pixel is one pixel: body text about 24 to 28 pixels, labels 20 to
+24, a clock 200 to 320. Larger looks clumsy, as if the screen were small.
 
-- The composition, such as the clock and the form, goes in a box 3840 by
-  2160 anchored to the centre, each layer in it at the mockup's position
-  and size times 2.4, measured from the mockup's top left.
-- What sits in a corner or along an edge, such as a logo or a footer,
-  anchors to that corner or edge of the screen itself, at the mockup's
-  distance from it times 2.4.
+A mockup drawn on a 1600 by 900 frame carries over at 1.75 times its
+lengths, each part anchored where the mockup anchors it:
+
+- What sits at a margin from an edge or a corner, such as a logo, a clock
+  at the top right, a column of text at the left or a footer, anchors to
+  that edge or corner of the screen, at the mockup's distance from it
+  times 1.75.
+- What the mockup centres, such as a panel or a dial, anchors to the
+  centre, moved by its offset from the middle times 1.75. Keep what goes
+  together, such as a clock over a form, in one column so it stays whole.
 - What spans the screen, such as a bar or a band, takes `width = "100%"`
   or `anchor = "fill"` with an `inset`.
 
 ```toml
 [[layer]]
-id = "stage"            # the mockup's frame, kept whole in the middle
-anchor = "center"
-width = 3840
-height = 2160
-
-[[layer]]
-parent = "stage"
 kind = "text"
 text = "{time}"
-x = 268.8               # 112 by 64 in the mockup
-y = 153.6
+anchor = "top-left"
+x = 196                 # 112 by 64 in the mockup
+y = 112
 ```
 
-On a 16:9 screen all three land where the mockup has them; on another
-shape the composition stays whole in the middle while the corners and the
-bands follow the screen's edges.
+Never put the whole composition in one 3840 by 2160 box in the middle:
+on a screen of another shape, or with a `scale`, it moves away from the
+edges as one block, while the mockup's parts keep to theirs.
+
+`scale` at the top of theme.toml multiplies every length around its
+anchor, so a theme drawn too large or too small is resized without
+rewriting its numbers: one whose lengths are 2.4 times a 1600 by 900
+mockup's takes `scale = 0.73`. The settings' own `scale` applies on top.
 
 ## 4. Check it
 
@@ -186,7 +191,9 @@ control's hover look.
 To lay a screenshot over a mockup, make what changes match it: preview a
 copy of the theme whose clock and date say what the mockup's do, such as
 `text = "22:41"` in place of `{time}`, with the mockup's names for
-`--user` and `--host`, and compare the two at one size.
+`--user` and `--host`, and its `scale` 1.37 times as large (2.4 / 1.75):
+the mockup's frame then fills a 3840 by 2160 screenshot, and the mockup,
+enlarged 2.4 times, lies over it part for part.
 
 Previews keep the SVGs they draw in `~/.cache/gpui-greeter/themes/<name>/`,
 33 MB for each full-screen SVG and screen size; remove the folder when the

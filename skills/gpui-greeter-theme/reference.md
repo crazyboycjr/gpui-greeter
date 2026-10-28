@@ -24,10 +24,13 @@ monitor one frame pixel is half a pixel, on a 2560 by 1440 one two thirds.
 On a monitor of another shape the window is wider or taller than the scaled
 frame, so place layers against the screen's edges or its centre (see
 `anchor`) rather than at fixed distances from the top left, and they keep
-their places on 16:10, 21:9 and 4:3 too. A mockup drawn on a 1600 by 900
-frame converts by multiplying every length by 2.4; a box of 3840 by 2160
-anchored to the centre keeps its composition whole on any screen, while
-what belongs to the screen's corners and edges anchors to them.
+their places on 16:10, 21:9 and 4:3 too.
+
+On a 4K monitor a frame pixel is a pixel, so a theme should be as dense as
+a native interface there: body text about 24 to 28 pixels, labels 20 to
+24, a clock 200 to 320. A mockup drawn on a 1600 by 900 frame converts by
+multiplying every length by 1.75, each part anchored to the edge, the
+corner or the centre the mockup keeps it to.
 
 `scale` multiplies every length of the theme around its anchor: sizes,
 offsets, gaps, paddings, borders, radii, text and its tracking. A layer
@@ -50,7 +53,7 @@ scale = 1                  # every length multiplied by this, 0.25 to 4
 
 [text]                     # the text style every layer inherits
 font = "Inter"
-size = 31
+size = 25
 color = "#a8917c"
 
 [strings.en]               # the theme's words: {t.hint}
@@ -262,7 +265,7 @@ frame pixels and scaled to fit the pane less its `pane_border` and its
 `padding` on every side, between `min_scale` (0.3) and `max_scale` (1);
 `max_scale_full` is the largest scale in the Full layout. The padding does
 not include the border: where a mockup insets content 28 CSS pixels from
-the pane's outer edge, 2 of them its border, `padding` is 26 × 2.4 = 62.4.
+the pane's outer edge, 2 of them its border, `padding` is 26 × 1.75 = 45.5.
 `content = "fill"` lays the content out on the whole pane instead,
 unscaled. `title` is the pane's title, a template, shown by
 `{tiles.title}`. Typing focuses the pane holding the field. A theme has one
