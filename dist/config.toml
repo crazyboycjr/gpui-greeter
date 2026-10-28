@@ -8,6 +8,12 @@ theme = "paper"
 # "en" or "zh-CN".
 language = "en"
 
+# What every look's sizes are multiplied by, from 0.5 to 1.5: more for a
+# larger login screen, less for a denser one. At 1 the looks are as dense as
+# a native interface, on any monitor in proportion to its size; theme
+# folders take it on top of their own scale.
+scale = 1.0
+
 [paper]
 # The caret and the session menu's mark. The mockup offered
 # "#B0612E", "#3E6E8E", "#5B7F4F" and "#8A5BA6".

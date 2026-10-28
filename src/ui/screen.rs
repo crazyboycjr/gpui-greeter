@@ -161,7 +161,8 @@ impl Screen {
 impl Render for Screen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport = window.viewport_size();
-        let unit = design_unit(viewport.width.as_f32(), viewport.height.as_f32());
+        let scale = self.greeter.read(cx).scale();
+        let unit = design_unit(viewport.width.as_f32(), viewport.height.as_f32()) * scale;
         window.set_rem_size(px(DESIGN_REM * unit));
         let now = Instant::now();
         let screen = cx.entity();

@@ -86,10 +86,15 @@ fn shrink(image: &RgbaImage, (width, height): (u32, u32)) -> Result<RgbaImage> {
     Ok(out)
 }
 
-/// Draws the SVGs shown in their own colours for a monitor of `pixels`, or
-/// reads them back from `cache`.
-pub fn draw(folder: &Folder, pixels: (u32, u32), cache: Option<&Path>) -> MonitorPictures {
-    let unit = (pixels.0 as f32 / FRAME.0).min(pixels.1 as f32 / FRAME.1);
+/// Draws the SVGs shown in their own colours for a monitor of `pixels`, the
+/// theme's lengths multiplied by `scale`, or reads them back from `cache`.
+pub fn draw(
+    folder: &Folder,
+    pixels: (u32, u32),
+    scale: f32,
+    cache: Option<&Path>,
+) -> MonitorPictures {
+    let unit = (pixels.0 as f32 / FRAME.0).min(pixels.1 as f32 / FRAME.1) * scale;
     let mut wanted: Vec<(AssetId, (u32, u32), Picture)> = Vec::new();
     for (index, layer) in folder.layers.iter().enumerate() {
         let Kind::Svg {

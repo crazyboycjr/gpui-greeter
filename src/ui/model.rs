@@ -315,6 +315,12 @@ impl Greeter {
         &self.config.theme
     }
 
+    /// What the look's lengths are multiplied by: the settings' scale, and
+    /// a theme folder's own.
+    pub fn scale(&self) -> f32 {
+        self.config.scale * self.folder.as_ref().map_or(1.0, |folder| folder.scale)
+    }
+
     /// Where the login stands, in a theme's terms.
     pub fn state(&self) -> State {
         if self.locked {

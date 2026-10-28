@@ -9,17 +9,36 @@ use serde::Deserialize;
 
 pub const DEFAULT_PATH: &str = "/etc/gpui-greeter/config.toml";
 
-#[derive(Debug, Clone, Default, PartialEq, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Config {
     pub theme: Theme,
     pub language: Language,
+    /// What every look's lengths are multiplied by, for a larger or a
+    /// denser login screen than the looks' own.
+    pub scale: f32,
     pub paper: Paper,
     pub frost: Frost,
     pub neon: Neon,
     pub wallpaper: Wallpaper,
     pub sessions: Sessions,
     pub themes: Themes,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            theme: Theme::default(),
+            language: Language::default(),
+            scale: 1.0,
+            paper: Paper::default(),
+            frost: Frost::default(),
+            neon: Neon::default(),
+            wallpaper: Wallpaper::default(),
+            sessions: Sessions::default(),
+            themes: Themes::default(),
+        }
+    }
 }
 
 /// One of the built-in looks, or the name of a theme folder.
@@ -299,6 +318,12 @@ impl Config {
     }
 
     fn clamped(mut self) -> Self {
+        // Beyond 1.5 the looks' parts crowd into one another.
+        self.scale = if self.scale.is_finite() {
+            self.scale.clamp(0.5, 1.5)
+        } else {
+            1.0
+        };
         self.frost.blur = self.frost.blur.clamp(0.0, 64.0);
         self.frost.dim = self.frost.dim.clamp(0.0, 0.9);
         self
@@ -315,6 +340,7 @@ mod tests {
             r##"
             theme = "paper-night"
             language = "zh-CN"
+            scale = 1.2
             [paper]
             accent = "#3E6E8E"
             background = "drafting"
@@ -330,6 +356,7 @@ mod tests {
         .unwrap();
         assert_eq!(config.theme, Theme::PaperNight);
         assert_eq!(config.language, Language::Chinese);
+        assert_eq!(config.scale, 1.2);
         assert_eq!(config.paper.accent, Rgb(0x3E6E8E));
         assert_eq!(config.paper.background, PaperBackground::Drafting);
         assert_eq!(config.neon.background, NeonBackground::Horizon);
@@ -338,6 +365,15 @@ mod tests {
         assert!(!config.neon.scanlines);
         assert_eq!(config.wallpaper.pick, Pick::File("lake.jpg".into()));
         assert_eq!(config.sessions.wrapper, "startx /usr/bin/env");
+    }
+
+    #[test]
+    fn keeps_the_scale_within_reason() {
+        let scale = |text: &str| toml::from_str::<Config>(text).unwrap().clamped().scale;
+        assert_eq!(scale(""), 1.0);
+        assert_eq!(scale("scale = 3"), 1.5);
+        assert_eq!(scale("scale = 0.1"), 0.5);
+        assert_eq!(scale("scale = nan"), 1.0);
     }
 
     #[test]

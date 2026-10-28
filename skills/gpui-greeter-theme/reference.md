@@ -29,6 +29,13 @@ frame converts by multiplying every length by 2.4; a box of 3840 by 2160
 anchored to the centre keeps its composition whole on any screen, while
 what belongs to the screen's corners and edges anchors to them.
 
+`scale` multiplies every length of the theme around its anchor: sizes,
+offsets, gaps, paddings, borders, radii, text and its tracking. A layer
+anchored to an edge keeps to it, one in the centre stays there, and shares
+like `"100%"` stay shares; a wallpaper's `blur` keeps its share of the
+picture. The settings' own `scale` (0.5 to 1.5 in
+`/etc/gpui-greeter/config.toml`) multiplies it again.
+
 ## theme.toml
 
 ```toml
@@ -39,6 +46,7 @@ background = "#14110f"     # under every layer
 fonts = ["fonts/NotoSerifDisplay-Light.ttf"]
 rest = true                # start at rest (see States)
 rest_after = 60            # seconds without input before going back to rest; 0 never
+scale = 1                  # every length multiplied by this, 0.25 to 4
 
 [text]                     # the text style every layer inherits
 font = "Inter"

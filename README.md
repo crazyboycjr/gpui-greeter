@@ -36,9 +36,10 @@ and lays each one out as densely as a native interface: one of the
 mockups' pixels is 1.75 pixels of a 3840×2160 monitor, and in proportion
 on others, 0.875 on 1920×1080. Each look keeps its parts against the
 window's edges and its middle, as its mockup does, so it holds on any
-shape. The login form is on the primary monitor (or the one under the
-pointer) and follows the pointer to another one. Nothing in it names a
-monitor, a port or a mode.
+shape, and `scale` in the settings makes every look larger or denser. The
+login form is on the primary monitor (or the one under the pointer) and
+follows the pointer to another one. Nothing in it names a monitor, a port
+or a mode.
 
 On Enter it asks greetd to log the user in, and once PAM accepts, to start
 the chosen X session the way tuigreet does, `startx /usr/bin/env <Exec>`,
@@ -121,8 +122,11 @@ arrives and keeps the last week's in
 ## Settings
 
 `dist/config.toml` lists every setting with its default: the theme, the
-language, each theme's accent and background, Frost's blur, dim and idle
-time, the wallpaper folder and pick, and how sessions start.
+language, the scale, each theme's accent and background, Frost's blur, dim
+and idle time, the wallpaper folder and pick, and how sessions start.
+
+`scale`, from 0.5 to 1.5, multiplies every size of every look, the theme
+folders' too: above 1 for a larger login screen, below 1 for a denser one.
 
 Paper's and Neon's backgrounds are drawn from the mockups' SVG (with
 resvg) at each monitor's size, and kept in

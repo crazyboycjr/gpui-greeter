@@ -96,6 +96,8 @@ pub struct Folder {
     pub rest: bool,
     /// How long without input before the greeter goes back to rest.
     pub rest_after: Option<Duration>,
+    /// What every length is multiplied by, around its anchor.
+    pub scale: f32,
     /// The text style every layer inherits.
     pub text: Props,
     pub strings: Strings,

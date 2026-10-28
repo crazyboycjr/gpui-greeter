@@ -488,6 +488,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
     let rest_after = top
         .number_in(&mut r, "rest_after", 0.0..86_400.0)
         .unwrap_or(60.0);
+    let scale = top.number_in(&mut r, "scale", 0.25..4.0).unwrap_or(1.0);
     if top.item("welcome").is_some() {
         r.warn(
             top.span("welcome"),
@@ -581,6 +582,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
         background,
         rest,
         rest_after: (rest_after > 0.0).then(|| Duration::from_secs_f32(rest_after)),
+        scale,
         text: text_style,
         strings,
         keys,
@@ -2026,6 +2028,7 @@ mod tests {
 name = "Sample"
 background = "#101010"
 rest = true
+scale = 0.75
 
 [text]
 font = "Inter"
@@ -2067,13 +2070,14 @@ color = "#b7410e"
         let folder = folder.unwrap();
         assert_eq!(folder.title, "Sample");
         assert!(folder.rest);
+        assert_eq!(folder.scale, 0.75);
         assert_eq!(folder.layers.len(), 2);
         let clock = &folder.layers[0];
         assert_eq!(clock.anchor, Anchor::Center);
         assert_eq!(clock.overrides[0].condition, Condition::state(State::Rest));
         assert_eq!(clock.overrides[0].props.scale, Some(1.5));
         let ring = &folder.layers[1];
-        assert_eq!(ring.line, 26);
+        assert_eq!(ring.line, 27);
         assert!(ring.motions[0].clock);
         assert_eq!(
             ring.fired_by,
@@ -2317,6 +2321,18 @@ height = 624
         assert!(
             problem.message.contains("`welcome` is no longer read"),
             "{problem}"
+        );
+    }
+
+    #[test]
+    fn keeps_the_scale_within_reason() {
+        let (_, problems) = theme("format = 1\nscale = 9\n[[layer]]\n");
+        let errors = errors(&problems);
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.contains("`scale` should be between 0.25 and 4")),
+            "{errors:?}"
         );
     }
 

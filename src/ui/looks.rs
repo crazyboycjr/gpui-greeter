@@ -276,13 +276,14 @@ pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[(u32, u3
     let pictures = folder
         .cloned()
         .map(|folder| std::thread::spawn(move || pictures::decode(&folder, largest)));
+    let scale = config.scale;
     let screens = monitors
         .iter()
         .map(|&pixels| {
             let folder = folder.cloned();
             std::thread::spawn(move || {
                 let started = Instant::now();
-                let unit = design_unit(pixels.0 as f32, pixels.1 as f32);
+                let unit = design_unit(pixels.0 as f32, pixels.1 as f32) * scale;
                 let scenery = look.and_then(|look| {
                     let cache = cache::dir("scenery");
                     match scenery::draw(look, pixels, unit.into(), cache.as_deref()) {
@@ -295,7 +296,8 @@ pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[(u32, u3
                 });
                 let drawn = folder.map(|folder| {
                     let cache = cache::dir("themes").map(|dir| dir.join(&folder.name));
-                    Arc::new(pictures::draw(&folder, pixels, cache.as_deref()))
+                    let scale = scale * folder.scale;
+                    Arc::new(pictures::draw(&folder, pixels, scale, cache.as_deref()))
                 });
                 if scenery.is_some() || drawn.is_some() {
                     log::info!("look for {pixels:?} drawn in {:?}", started.elapsed());
