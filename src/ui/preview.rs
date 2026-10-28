@@ -6,6 +6,7 @@
 
 use std::os::unix::fs::PermissionsExt as _;
 use std::os::unix::net::UnixListener;
+use std::os::unix::process::CommandExt as _;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::rc::Rc;
@@ -14,6 +15,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result, bail};
 use gpui_kit::{App, Entity};
+use rustix::process::{Pid, Signal, kill_process, set_parent_process_death_signal};
 
 use super::model::Greeter;
 use super::screen::Screen;
@@ -41,13 +43,31 @@ pub struct Preview {
 /// An X server of the preview's own, which ends with it.
 pub struct Xvfb {
     child: Child,
+    number: u32,
     pub display: String,
 }
 
 impl Drop for Xvfb {
     fn drop(&mut self) {
-        let _ = self.child.kill();
-        let _ = self.child.wait();
+        // Asked to stop, Xvfb removes its lock file and socket; killed, it
+        // leaves both behind.
+        let _ = kill_process(Pid::from_child(&self.child), Signal::TERM);
+        let asked = Instant::now();
+        while matches!(self.child.try_wait(), Ok(None)) {
+            if asked.elapsed() > Duration::from_secs(3) {
+                let _ = self.child.kill();
+                let _ = self.child.wait();
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let lock = PathBuf::from(format!("/tmp/.X{}-lock", self.number));
+        let ours = std::fs::read_to_string(&lock)
+            .is_ok_and(|text| text.trim() == self.child.id().to_string());
+        if ours {
+            let _ = std::fs::remove_file(lock);
+            let _ = std::fs::remove_file(format!("/tmp/.X11-unix/X{}", self.number));
+        }
     }
 }
 
@@ -61,7 +81,8 @@ pub fn start_xvfb((width, height): (u32, u32)) -> Result<Xvfb> {
         .find(|&n| free(n))
         .context("no free X display number")?;
     let display = format!(":{number}");
-    let child = Command::new("Xvfb")
+    let mut command = Command::new("Xvfb");
+    command
         .args([
             display.as_str(),
             "-screen",
@@ -73,10 +94,20 @@ pub fn start_xvfb((width, height): (u32, u32)) -> Result<Xvfb> {
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(Stdio::null());
+    // SAFETY: prctl is safe to call between fork and exec. Should the
+    // preview die without ending it, Xvfb is asked to stop all the same.
+    unsafe {
+        command.pre_exec(|| Ok(set_parent_process_death_signal(Some(Signal::TERM))?));
+    }
+    let child = command
         .spawn()
         .context("cannot start Xvfb; it comes with xorg-server-xvfb")?;
-    let xvfb = Xvfb { child, display };
+    let xvfb = Xvfb {
+        child,
+        number,
+        display,
+    };
     let socket = PathBuf::from(format!("/tmp/.X11-unix/X{number}"));
     let started = Instant::now();
     while !socket.exists() {
