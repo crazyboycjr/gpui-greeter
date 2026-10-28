@@ -18,6 +18,8 @@ use crate::power::{Action, Power};
 use crate::remembered::Remembered;
 use crate::sessions::Session;
 use crate::system::{self, Machine};
+use crate::themes::facts::{self, Facts};
+use crate::themes::{self, Folder, State, TileAction, tiles};
 use crate::users::{self, User};
 use crate::x11::{Monitor, X11};
 
@@ -61,12 +63,97 @@ struct Armed {
 
 pub struct Setup {
     pub config: Config,
+    /// The theme folder `config.theme` names, loaded.
+    pub folder: Option<Arc<Folder>>,
     pub users: Vec<User>,
     pub sessions: Vec<Session>,
     pub monitors: Vec<Monitor>,
     pub form: usize,
     pub x11: Rc<X11>,
     pub power: Power,
+    /// A preview's greeter stays on its welcome rather than quit.
+    pub preview: bool,
+    /// A name to show for the machine instead of its own, in a preview.
+    pub hostname: Option<String>,
+}
+
+/// Where a tiles layer's panes stand: their order, the master first, which
+/// has the focus, and the layout.
+#[derive(Debug, Clone, PartialEq)]
+pub struct TilesState {
+    pub order: Vec<usize>,
+    pub focus: usize,
+    /// In the tiles layer's `layouts`.
+    pub layout: usize,
+    pub ratio: f32,
+    /// Full screen over the layout, as xmonad's mod-f.
+    pub full: bool,
+}
+
+impl TilesState {
+    fn new(folder: &Folder) -> Option<Self> {
+        let layer = &folder.layers[folder.tiles?];
+        let tiles = layer.tiles()?;
+        let order = layer.children.clone();
+        Some(Self {
+            focus: layer
+                .base
+                .focus
+                .filter(|pane| order.contains(pane))
+                .or_else(|| order.first().copied())?,
+            layout: layer
+                .base
+                .layout
+                .and_then(|layout| tiles.layouts.iter().position(|l| *l == layout))
+                .unwrap_or(0),
+            ratio: tiles.ratio,
+            full: false,
+            order,
+        })
+    }
+
+    pub fn layout(&self, folder: &Folder) -> tiles::Layout {
+        let layouts = folder
+            .tiles
+            .and_then(|at| folder.layers[at].tiles())
+            .map(|tiles| tiles.layouts.as_slice())
+            .unwrap_or_default();
+        match layouts.get(self.layout) {
+            _ if self.full => tiles::Layout::Full,
+            Some(layout) => *layout,
+            None => tiles::Layout::Tall,
+        }
+    }
+
+    fn act(&mut self, action: TileAction, folder: &Folder) {
+        let Some(tiles) = folder.tiles.and_then(|at| folder.layers[at].tiles()) else {
+            return;
+        };
+        let count = self.order.len();
+        let at = self
+            .order
+            .iter()
+            .position(|&pane| pane == self.focus)
+            .unwrap_or(0);
+        if count == 0 {
+            return;
+        }
+        match action {
+            TileAction::FocusNext => self.focus = self.order[(at + 1) % count],
+            TileAction::FocusPrevious => self.focus = self.order[(at + count - 1) % count],
+            TileAction::SwapMaster => {
+                let other = if at == 0 { 1.min(count - 1) } else { at };
+                self.order.swap(0, other);
+            }
+            TileAction::NextLayout => {
+                self.layout = (self.layout + 1) % tiles.layouts.len().max(1);
+                self.full = false;
+            }
+            TileAction::Shrink => self.ratio = (self.ratio - tiles.ratio_step).max(0.1),
+            TileAction::Expand => self.ratio = (self.ratio + tiles.ratio_step).min(0.9),
+            TileAction::Full => self.full = !self.full,
+        }
+    }
 }
 
 pub struct Greeter {
@@ -96,14 +183,25 @@ pub struct Greeter {
     pub uptime: Option<Duration>,
     pub layouts: Vec<String>,
     pub layout: usize,
+    /// The theme folder being shown, if the theme is one.
+    pub folder: Option<Arc<Folder>>,
+    pub tiles: Option<TilesState>,
+    /// The last action a key or a click ran, and when.
+    pub fired: Option<(themes::Action, Instant)>,
+    /// Passwords refused since the last rest.
+    pub failures: u32,
+    pub facts: Facts,
+    /// What is in use of the memory, for `{memory}`.
+    pub memory: String,
+    pub last_input: Instant,
     typed: Typed,
     sent_len: usize,
     armed: Option<Armed>,
     windows: Vec<Option<u32>>,
     focused: Option<u32>,
-    last_input: Instant,
     greetd: Arc<Mutex<Option<Greetd>>>,
     power: Power,
+    preview: bool,
     x11: Rc<X11>,
     _clock: Task<()>,
 }
@@ -112,12 +210,15 @@ impl Greeter {
     pub fn new(setup: Setup, cx: &mut Context<Self>) -> Self {
         let Setup {
             config,
+            folder,
             users,
             sessions,
             monitors,
             form,
             x11,
             power,
+            preview,
+            hostname,
         } = setup;
         let remembered = Remembered::load();
         let user = remembered
@@ -134,11 +235,32 @@ impl Greeter {
             .and_then(|id| sessions.iter().position(|session| session.id == id))
             .unwrap_or(0);
         let (layouts, layout) = x11.layouts();
+        let mut machine = Machine::read();
+        if let Some(hostname) = hostname {
+            machine.hostname = hostname;
+        }
+        let uses = folder
+            .as_ref()
+            .map(|folder| folder.uses)
+            .unwrap_or_default();
+        let facts = Facts::read(uses, users.iter().map(|user| user.shell.as_str()));
+        let memory = if uses.memory {
+            facts::memory(&std::fs::read_to_string("/proc/meminfo").unwrap_or_default())
+        } else {
+            String::new()
+        };
         Self {
             strings: i18n::strings(config.language),
-            locked: config.theme == Theme::Frost,
+            locked: config.theme == Theme::Frost || folder.as_ref().is_some_and(|f| f.rest),
+            tiles: folder.as_deref().and_then(TilesState::new),
+            folder,
+            fired: None,
+            failures: 0,
+            facts,
+            memory,
+            preview,
             config: Rc::new(config),
-            machine: Machine::read(),
+            machine,
             users,
             user,
             sessions,
@@ -171,6 +293,78 @@ impl Greeter {
 
     pub fn theme(&self) -> &Theme {
         &self.config.theme
+    }
+
+    /// Where the login stands, in a theme's terms.
+    pub fn state(&self) -> State {
+        if self.locked {
+            return State::Rest;
+        }
+        match self.phase {
+            Phase::Welcome => State::Welcome,
+            Phase::Checking => State::Checking,
+            Phase::Denied { .. } | Phase::Failed(_) => State::Error,
+            Phase::Idle if !self.typed.is_empty() => State::Typing,
+            Phase::Idle => State::Idle,
+        }
+    }
+
+    /// Whether the look has a rest state, which it starts at and Escape
+    /// and time return to.
+    fn has_rest(&self) -> bool {
+        *self.theme() == Theme::Frost || self.folder.as_ref().is_some_and(|folder| folder.rest)
+    }
+
+    /// How many characters were sent with the last attempt.
+    pub fn sent_len(&self) -> usize {
+        self.sent_len
+    }
+
+    /// How many characters the field holds now.
+    pub fn typed_count(&self) -> usize {
+        self.typed.len()
+    }
+
+    /// The power action waiting for its second press.
+    pub fn armed_action(&self) -> Option<Action> {
+        self.armed.as_ref().map(|armed| armed.action)
+    }
+
+    /// Shows `state` as though the login had come to it, for previews.
+    pub fn show_state(&mut self, state: State, cx: &mut Context<Self>) {
+        const SENT: usize = 8;
+        self.armed = None;
+        self.question = None;
+        self.notice = None;
+        self.typed = Typed::new();
+        self.locked = state == State::Rest;
+        self.phase = Phase::Idle;
+        match state {
+            State::Rest | State::Idle => {}
+            State::Typing => self.typed.push("password"),
+            State::Checking => {
+                self.sent_len = SENT;
+                self.phase = Phase::Checking;
+            }
+            State::Error => {
+                self.sent_len = SENT;
+                self.phase = Phase::Denied { notice: None };
+                self.denials += 1;
+                self.failures = self.failures.max(1);
+            }
+            State::Welcome => {
+                self.sent_len = SENT;
+                self.phase = Phase::Welcome;
+            }
+        }
+        self.last_input = Instant::now();
+        cx.notify();
+    }
+
+    fn welcome_time(&self) -> Duration {
+        self.folder
+            .as_ref()
+            .map_or(WELCOME, |folder| folder.welcome)
     }
 
     pub fn user(&self) -> Option<&User> {
@@ -260,6 +454,11 @@ impl Greeter {
             return;
         }
         self.last_input = Instant::now();
+        if let Some(folder) = self.folder.clone() {
+            self.folder_key(&folder, event, cx);
+            cx.notify();
+            return;
+        }
         let keystroke = &event.keystroke;
         let modifiers = keystroke.modifiers;
         if let Some(index) = self.menu {
@@ -307,6 +506,72 @@ impl Greeter {
         cx.notify();
     }
 
+    /// A key in a theme folder: its `[keys]` first, then typing.
+    fn folder_key(&mut self, folder: &Folder, event: &KeyDownEvent, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        let modifiers = keystroke.modifiers;
+        let held = themes::Held {
+            ctrl: modifiers.control,
+            alt: modifiers.alt,
+            shift: modifiers.shift,
+            super_key: modifiers.platform,
+        };
+        if let Some(action) = folder.keys.lookup(&keystroke.key, held) {
+            self.run(action, None, cx);
+            return;
+        }
+        match keystroke.key.as_str() {
+            "backspace" if modifiers.control => self.clear_typed(),
+            "backspace" => self.typed.pop(),
+            _ => match &keystroke.key_char {
+                Some(text) if !modifiers.control && !modifiers.alt && !modifiers.platform => {
+                    let text = text.clone();
+                    self.type_text(&text);
+                }
+                _ if self.locked => self.unlock(),
+                _ => {}
+            },
+        }
+    }
+
+    /// Runs what a theme's key or click asks for; `item` is the session a
+    /// `for_each` layer stands for.
+    pub fn run(&mut self, action: themes::Action, item: Option<usize>, cx: &mut Context<Self>) {
+        use themes::Action as Run;
+        if self.phase == Phase::Welcome {
+            return;
+        }
+        self.last_input = Instant::now();
+        if !matches!(action, Run::Rest | Run::Nothing) {
+            self.unlock();
+        }
+        self.fired = Some((action, Instant::now()));
+        match action {
+            Run::Submit => self.submit(cx),
+            Run::NextSession => self.next_session(),
+            Run::PreviousSession => self.previous_session(),
+            Run::Session(number) => self.pick_session(number.saturating_sub(1), cx),
+            Run::Pick => {
+                if let Some(index) = item {
+                    self.pick_session(index, cx);
+                }
+            }
+            Run::NextUser => self.next_user(1, cx),
+            Run::PreviousUser => self.next_user(-1, cx),
+            Run::NextKeyboardLayout => self.next_layout(),
+            Run::Rest => self.escape(cx),
+            Run::Wake | Run::Nothing => {}
+            Run::Clear => self.clear_typed(),
+            Run::Power(power) => self.power(power, cx),
+            Run::Tile(tile) => {
+                if let (Some(tiles), Some(folder)) = (self.tiles.as_mut(), self.folder.as_deref()) {
+                    tiles.act(tile, folder);
+                }
+            }
+        }
+        cx.notify();
+    }
+
     fn type_text(&mut self, text: &str) {
         self.unlock();
         if self.phase == Phase::Checking {
@@ -316,6 +581,12 @@ impl Greeter {
             self.phase = Phase::Idle;
         }
         self.typed.push(text);
+        // The pane holding the field takes the focus, as a window does.
+        if let (Some(tiles), Some(folder)) = (self.tiles.as_mut(), self.folder.as_deref())
+            && let Some(pane) = field_pane(folder)
+        {
+            tiles.focus = pane;
+        }
     }
 
     fn clear_typed(&mut self) {
@@ -331,9 +602,10 @@ impl Greeter {
     }
 
     pub fn lock(&mut self, cx: &mut Context<Self>) {
-        if *self.theme() == Theme::Frost && !self.locked && !self.is_busy() {
+        if self.has_rest() && !self.locked && !self.is_busy() {
             self.locked = true;
             self.lock_changes += 1;
+            self.failures = 0;
             self.menu = None;
             self.clear_typed();
             self.forget_question(cx);
@@ -345,7 +617,7 @@ impl Greeter {
     }
 
     fn escape(&mut self, cx: &mut Context<Self>) {
-        if *self.theme() == Theme::Frost && !self.locked {
+        if self.has_rest() && !self.locked {
             self.lock(cx);
         } else {
             self.clear_typed();
@@ -378,6 +650,12 @@ impl Greeter {
     pub fn next_session(&mut self) {
         if !self.sessions.is_empty() {
             self.session = (self.session + 1) % self.sessions.len();
+        }
+    }
+
+    pub fn previous_session(&mut self) {
+        if !self.sessions.is_empty() {
+            self.session = (self.session + self.sessions.len() - 1) % self.sessions.len();
         }
     }
 
@@ -500,9 +778,15 @@ impl Greeter {
         match outcome {
             Ok(Outcome::Started) => {
                 self.phase = Phase::Welcome;
+                self.failures = 0;
+                if self.preview {
+                    cx.notify();
+                    return;
+                }
                 self.remember();
+                let welcome = self.welcome_time();
                 cx.spawn(async move |_, cx| {
-                    cx.background_executor().timer(WELCOME).await;
+                    cx.background_executor().timer(welcome).await;
                     cx.update(|cx| cx.quit());
                 })
                 .detach();
@@ -510,8 +794,8 @@ impl Greeter {
                 // hang on its way out, greetd's SIGTERM after five seconds
                 // would only reach the shell around startx, and leave this X
                 // server on the session's VT.
-                std::thread::spawn(|| {
-                    std::thread::sleep(WELCOME + Duration::from_secs(2));
+                std::thread::spawn(move || {
+                    std::thread::sleep(welcome + Duration::from_secs(2));
                     std::process::exit(0);
                 });
             }
@@ -527,16 +811,19 @@ impl Greeter {
             Ok(Outcome::Denied { notice }) => {
                 self.phase = Phase::Denied { notice };
                 self.denials += 1;
+                self.failures += 1;
             }
             Err(Failure::Unreachable(error)) => {
                 log::error!("{error:#}");
                 self.phase = Phase::Failed(self.strings.no_greetd.to_string());
                 self.denials += 1;
+                self.failures += 1;
             }
             Err(Failure::Broken(error)) => {
                 log::error!("{error:#}");
                 self.phase = Phase::Failed(error.to_string());
                 self.denials += 1;
+                self.failures += 1;
             }
         }
         cx.notify();
@@ -593,9 +880,20 @@ impl Greeter {
         if self.now.second() % 10 == 0 {
             self.online = system::online();
             self.uptime = system::uptime();
+            if self
+                .folder
+                .as_ref()
+                .is_some_and(|folder| folder.uses.memory)
+            {
+                let meminfo = std::fs::read_to_string("/proc/meminfo").unwrap_or_default();
+                self.memory = facts::memory(&meminfo);
+            }
         }
-        let idle = Duration::from_secs(self.config.frost.idle_seconds);
-        if !self.locked && self.last_input.elapsed() >= idle {
+        let idle = match &self.folder {
+            Some(folder) => folder.rest_after,
+            None => Some(Duration::from_secs(self.config.frost.idle_seconds)),
+        };
+        if !self.locked && idle.is_some_and(|idle| self.last_input.elapsed() >= idle) {
             self.lock(cx);
         }
         self.keep_focus();
@@ -611,6 +909,16 @@ impl Greeter {
             self.focused = Some(xid);
         }
     }
+}
+
+/// The tiles pane the password field is in, if it is in one.
+fn field_pane(folder: &Folder) -> Option<usize> {
+    let field = folder
+        .layers
+        .iter()
+        .position(|layer| matches!(layer.kind, themes::Kind::Field { .. }))?;
+    std::iter::successors(Some(field), |&at| folder.layers[at].parent)
+        .find(|&at| folder.layers[at].pane.is_some())
 }
 
 enum Failure {

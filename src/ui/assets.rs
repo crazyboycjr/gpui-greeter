@@ -1,10 +1,15 @@
 //! The fonts and icons, built into the binary: the greeter runs before
-//! anyone's fonts or icon themes are at hand.
+//! anyone's fonts or icon themes are at hand; and a theme folder's own
+//! fonts and SVGs.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::sync::Arc;
 
 use anyhow::Result;
 use gpui_kit::{App, AssetSource, SharedString};
+
+use crate::themes::{AssetKind, Folder};
 
 macro_rules! assets {
     ($($path:literal),* $(,)?) => {
@@ -39,7 +44,7 @@ const ICONS: [(&str, &[u8]); 10] = assets![
     "icons/spinner.svg",
 ];
 
-pub fn register_fonts(cx: &mut App) {
+pub fn register_fonts(cx: &mut App, folder: Option<&Folder>) {
     let fonts = FONTS
         .iter()
         .map(|(_, bytes)| Cow::Borrowed(*bytes))
@@ -47,12 +52,47 @@ pub fn register_fonts(cx: &mut App) {
     if let Err(error) = cx.text_system().add_fonts(fonts) {
         log::error!("cannot load the built-in fonts: {error:#}");
     }
+    let Some(folder) = folder else {
+        return;
+    };
+    let own: Vec<Cow<'static, [u8]>> = folder
+        .fonts
+        .iter()
+        .map(|font| Cow::Owned(font.bytes.to_vec()))
+        .collect();
+    if !own.is_empty()
+        && let Err(error) = cx.text_system().add_fonts(own)
+    {
+        log::error!("theme {}: cannot load its fonts: {error:#}", folder.name);
+    }
 }
 
-pub struct Icons;
+/// The icons, and the SVGs a theme draws in a colour of its choosing.
+pub struct Assets {
+    theme: HashMap<String, Arc<[u8]>>,
+}
 
-impl AssetSource for Icons {
+impl Assets {
+    pub fn new(folder: Option<&Folder>) -> Self {
+        let theme = folder
+            .into_iter()
+            .flat_map(|folder| folder.assets.iter())
+            .filter_map(|asset| match &asset.kind {
+                AssetKind::Svg { bytes, .. } => {
+                    Some((super::theme::folder::asset_key(&asset.path), bytes.clone()))
+                }
+                AssetKind::Raster(_) => None,
+            })
+            .collect();
+        Self { theme }
+    }
+}
+
+impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
+        if let Some(bytes) = self.theme.get(path) {
+            return Ok(Some(Cow::Owned(bytes.to_vec())));
+        }
         Ok(ICONS
             .iter()
             .find(|(name, _)| *name == path)
@@ -62,8 +102,10 @@ impl AssetSource for Icons {
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         Ok(ICONS
             .iter()
-            .filter(|(name, _)| name.starts_with(path))
-            .map(|(name, _)| (*name).into())
+            .map(|(name, _)| *name)
+            .chain(self.theme.keys().map(String::as_str))
+            .filter(|name| name.starts_with(path))
+            .map(|name| name.to_string().into())
             .collect())
     }
 }

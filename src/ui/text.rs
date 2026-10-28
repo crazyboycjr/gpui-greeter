@@ -3,9 +3,9 @@
 //! copies of the glyphs around them.
 
 use gpui_kit::{
-    App, Bounds, Element, ElementId, FontFallbacks, FontWeight, GlobalElementId, Hsla,
-    InspectorElementId, IntoElement, LayoutId, Pixels, Point, ShapedLine, SharedString, Style,
-    TextRun, Window, font, point, px, size,
+    App, Bounds, Element, ElementId, FontFallbacks, FontFeatures, FontStyle, FontWeight,
+    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, Point, ShapedLine,
+    SharedString, Style, TextRun, Window, font, point, px, size,
 };
 use smallvec::SmallVec;
 
@@ -25,6 +25,8 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         text: text.into(),
         family: "Inter".into(),
         weight: FontWeight::NORMAL,
+        italic: false,
+        features: FontFeatures::default(),
         size: 16.0,
         color: gpui_kit::white(),
         tracking: Tracking::Px(0.0),
@@ -39,6 +41,8 @@ pub struct Label {
     text: SharedString,
     family: SharedString,
     weight: FontWeight,
+    italic: bool,
+    features: FontFeatures,
     size: f32,
     color: Hsla,
     tracking: Tracking,
@@ -63,6 +67,24 @@ impl Label {
     pub fn font(mut self, family: &'static str, weight: FontWeight) -> Self {
         self.family = family.into();
         self.weight = weight;
+        self
+    }
+
+    /// A family named at run time, such as a theme's own font.
+    pub fn family(mut self, family: impl Into<SharedString>, weight: FontWeight) -> Self {
+        self.family = family.into();
+        self.weight = weight;
+        self
+    }
+
+    pub fn italic(mut self, italic: bool) -> Self {
+        self.italic = italic;
+        self
+    }
+
+    /// OpenType features, such as tabular figures.
+    pub fn features(mut self, features: FontFeatures) -> Self {
+        self.features = features;
         self
     }
 
@@ -152,6 +174,12 @@ impl Element for Label {
             len: self.text.len(),
             font: gpui_kit::Font {
                 weight: self.weight,
+                style: if self.italic {
+                    FontStyle::Italic
+                } else {
+                    FontStyle::Normal
+                },
+                features: self.features.clone(),
                 fallbacks: Some(fallbacks()),
                 ..font(self.family.clone())
             },

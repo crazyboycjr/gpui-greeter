@@ -4,6 +4,8 @@
 //! Messages are framed by hand rather than through greetd_ipc's codec so
 //! that the buffer a password is serialised into is wiped once it is sent.
 
+pub mod fake;
+
 use std::io::{self, Read, Write};
 use std::os::unix::net::UnixStream;
 

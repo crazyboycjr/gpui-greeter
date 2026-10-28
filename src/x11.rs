@@ -237,6 +237,38 @@ impl X11 {
                 .is_some()
     }
 
+    /// The screen's pixels in `rect`, for a preview's screenshot.
+    pub fn capture(&self, rect: Rect) -> Result<image::RgbImage> {
+        let reply = self
+            .conn
+            .get_image(
+                xproto::ImageFormat::Z_PIXMAP,
+                self.root,
+                i16::try_from(rect.x)?,
+                i16::try_from(rect.y)?,
+                u16::try_from(rect.width)?,
+                u16::try_from(rect.height)?,
+                !0,
+            )?
+            .reply()
+            .context("the X server would not give the screen's pixels")?;
+        let pixels = rect.width as usize * rect.height as usize;
+        anyhow::ensure!(
+            reply.depth >= 24 && reply.data.len() >= pixels * 4,
+            "the X server sent {} bytes of depth {} for {}×{}",
+            reply.data.len(),
+            reply.depth,
+            rect.width,
+            rect.height
+        );
+        let lsb = self.conn.setup().image_byte_order == xproto::ImageOrder::LSB_FIRST;
+        let mut image = image::RgbImage::new(rect.width, rect.height);
+        for (out, &[a, b, c, d]) in image.pixels_mut().zip(reply.data.as_chunks::<4>().0) {
+            out.0 = if lsb { [c, b, a] } else { [b, c, d] };
+        }
+        Ok(image)
+    }
+
     /// The configured keyboard layouts, such as `["us", "cn"]`, and the one
     /// in use.
     pub fn layouts(&self) -> (Vec<String>, usize) {

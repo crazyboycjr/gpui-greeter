@@ -6,7 +6,7 @@ mod grain;
 mod neon;
 mod paper;
 mod random;
-mod stored;
+pub(crate) mod stored;
 
 use std::path::Path;
 use std::sync::Arc;

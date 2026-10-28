@@ -17,16 +17,21 @@ pub struct Stored {
 
 impl Stored {
     pub fn new(dir: &Path, svg: &str, (width, height): (u32, u32), grain: bool) -> Self {
-        let fingerprint = fingerprint(&[
-            svg.as_bytes(),
-            &width.to_le_bytes(),
-            &height.to_le_bytes(),
-            &[u8::from(grain)],
-            &build_stamp(),
-        ]);
+        Self::at(
+            dir.join(format!("{width}x{height}.rgba")),
+            &[svg.as_bytes(), &[u8::from(grain)]],
+            (width, height),
+        )
+    }
+
+    /// A picture of `width` by `height` kept at `path`, drawn from `parts`.
+    pub fn at(path: PathBuf, parts: &[&[u8]], (width, height): (u32, u32)) -> Self {
+        let mut all: Vec<&[u8]> = parts.to_vec();
+        let (w, h, stamp) = (width.to_le_bytes(), height.to_le_bytes(), build_stamp());
+        all.extend([&w[..], &h[..], &stamp[..]]);
         Self {
-            path: dir.join(format!("{width}x{height}.rgba")),
-            fingerprint,
+            path,
+            fingerprint: fingerprint(&all),
             len: width as usize * height as usize * 4,
         }
     }

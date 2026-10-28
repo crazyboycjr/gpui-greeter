@@ -2,6 +2,7 @@
 //! window. Lengths are the mockups' CSS pixels, written with `u`, so that
 //! each window's rem size carries its monitor's pixel density.
 
+pub mod folder;
 mod frost;
 mod neon;
 mod paper;
@@ -58,6 +59,8 @@ pub struct View<'a> {
     pub backdrops: &'a Backdrops,
     /// Window pixels per CSS pixel.
     pub unit: f32,
+    /// Device pixels per window pixel.
+    pub scale_factor: f32,
     /// The window's size in CSS pixels.
     pub size: (f32, f32),
 }
@@ -92,7 +95,7 @@ pub fn render(view: &View) -> AnyElement {
         Theme::PaperNight => paper::render(view, true),
         Theme::Frost => frost::render(view),
         Theme::Neon => neon::render(view),
-        // Theme folders are not drawn yet.
+        // A theme folder that failed to load gave way to Paper already.
         Theme::Folder(_) => paper::render(view, false),
     }
 }
