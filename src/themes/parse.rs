@@ -1619,7 +1619,8 @@ fn check_layers(
                 format!("{}: on.focused applies only in a tiles pane", layer.label()),
             );
         }
-        if conditions.contains(&Condition::Fired) && layer.fired_by.is_empty() {
+        let acts = |at: usize| layers[at].action.is_some() || !layers[at].fired_by.is_empty();
+        if conditions.contains(&Condition::Fired) && !acts(index) && !ancestors().any(acts) {
             r.warn(
                 span.clone(),
                 format!("{}: on.fired needs an action or fired_by", layer.label()),

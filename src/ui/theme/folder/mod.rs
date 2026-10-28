@@ -78,6 +78,7 @@ pub fn render(view: &View, frame: &Frame) -> AnyElement {
         flow: Flow::Stack,
         item: None,
         focused: false,
+        owner: None,
         delay: Duration::ZERO,
     };
     let mut root = div()
@@ -131,6 +132,9 @@ struct Ctx {
     item: Option<usize>,
     /// Whether it is in the focused tiles pane.
     focused: bool,
+    /// The nearest layer around it with an action, whose pointer, armed
+    /// and fired conditions it shares, by its key and index.
+    owner: Option<(u64, usize)>,
     /// How much longer its transitions wait, for staggered layers.
     delay: Duration,
 }
@@ -201,16 +205,39 @@ impl Builder<'_> {
             .collect()
     }
 
-    fn flags(&self, layer: &Layer, key: u64, item: Option<usize>, focused: bool) -> Flags {
+    /// The conditions a layer is under; the pointer, armed and fired ones
+    /// are those of the nearest layer with an action, itself or `owner`.
+    fn flags(
+        &self,
+        layer: &Layer,
+        key: u64,
+        item: Option<usize>,
+        focused: bool,
+        owner: Option<(u64, usize)>,
+    ) -> Flags {
         let greeter = self.view.greeter;
+        let (source, source_key) = match owner {
+            Some((owner_key, index)) if layer.action.is_none() => {
+                (&self.frame.folder.layers[index], owner_key)
+            }
+            _ => (layer, key),
+        };
+        let fired_by = if layer.fired_by.is_empty() {
+            source
+        } else {
+            layer
+        };
         let fired = greeter.fired.is_some_and(|(action, at)| {
-            let lit = layer.fired_by.contains(&action) && at.elapsed() < layer.fired_for;
+            let lit = fired_by.fired_by.contains(&action) && at.elapsed() < fired_by.fired_for;
             if lit {
-                self.frame.pace.wake_at(at + layer.fired_for);
+                self.frame.pace.wake_at(at + fired_by.fired_for);
             }
             lit
         });
-        let armed = match (greeter.armed_action(), layer.action.and_then(|a| a.power())) {
+        let armed = match (
+            greeter.armed_action(),
+            source.action.and_then(|a| a.power()),
+        ) {
             (Some(armed), Some(own)) => armed == own,
             (Some(_), None) => true,
             (None, _) => false,
@@ -220,7 +247,7 @@ impl Builder<'_> {
             focused,
             armed,
             fired,
-            hover: self.frame.hovered.contains(&key),
+            hover: self.frame.hovered.contains(&source_key),
         }
     }
 
@@ -260,7 +287,12 @@ impl Builder<'_> {
         let layer = &self.frame.folder.layers[index];
         let key = ((index as u64) << 24) | instance.number as u64;
         let item = instance.item.or(ctx.item);
-        let flags = self.flags(layer, key, item, ctx.focused);
+        let flags = self.flags(layer, key, item, ctx.focused, ctx.owner);
+        let owner = if layer.action.is_some() {
+            Some((key, index))
+        } else {
+            ctx.owner
+        };
         let statics = self.statics(layer, flags, &ctx.statics);
         let delay = ctx.delay + instance.delay;
         let mut look = self.look(layer, &statics, delay);
@@ -282,6 +314,7 @@ impl Builder<'_> {
             },
             item,
             focused: flags.focused,
+            owner,
             delay,
         };
         let inner = match &layer.kind {
@@ -358,7 +391,7 @@ impl Builder<'_> {
 
     fn interactive(&self, inner: Div, layer: &Layer, key: u64, item: Option<usize>) -> AnyElement {
         let mut element = inner.id(("layer", key as usize));
-        if layer.watches_hover() {
+        if layer.watches_hover() || layer.action.is_some() {
             let screen = self.frame.screen.clone();
             element = element.on_hover(move |hovered, _, cx| {
                 let hovered = *hovered;
@@ -810,7 +843,7 @@ impl Builder<'_> {
         let layer = &self.frame.folder.layers[index];
         let pane = layer.pane.as_ref()?;
         let key = (index as u64) << 24;
-        let flags = self.flags(layer, key, ctx.item, focused);
+        let flags = self.flags(layer, key, ctx.item, focused, ctx.owner);
         let statics = self.statics(layer, flags, &ctx.statics);
         let look = self.look(layer, &statics, ctx.delay);
         if look.shown <= 0.0 || look.opacity * look.shown < 0.002 {
@@ -842,6 +875,11 @@ impl Builder<'_> {
             flow: Flow::Stack,
             item: ctx.item,
             focused,
+            owner: if layer.action.is_some() {
+                Some((key, index))
+            } else {
+                ctx.owner
+            },
             delay: ctx.delay,
         };
         let mut content = match pane.content {
