@@ -258,7 +258,7 @@ fn paint_pulse(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let stretches: Vec<((f64, f64), (f64, f64), f64)> = pulse
+    let stretches: Vec<_> = pulse
         .points
         .windows(2)
         .map(|ends| {
