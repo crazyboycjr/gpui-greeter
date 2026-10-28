@@ -46,8 +46,8 @@ VT. Power actions go to logind over D-Bus, and each asks for a second press
 to confirm. The last user and session are remembered; before the first
 login, the session is the one AccountsService remembers from LightDM.
 
-While another VT is in front, as after Ctrl+Alt+F7 to a running session,
-the greeter takes its windows off the screen and draws nothing until its
+While another VT is in front, such as a text console, the greeter takes
+its windows off the screen and draws nothing until its
 own VT is back. logind's view of the greeter's session says when, or the
 kernel's active console where logind cannot.
 
@@ -69,10 +69,12 @@ greetd's settings for it as `/etc/greetd/gpui-greeter.toml`. greetd's own
 `/etc/greetd/config.toml` stays as it is: a drop-in for greetd.service
 points greetd at the new file.
 
-To see the greeter on the real screen before switching,
-`sudo systemctl start greetd` shows it on VT 1 without logging in there;
-Ctrl+Alt+F7 returns to the running session and `sudo systemctl stop
-greetd` ends the trial.
+Run one display manager at a time. Starting greetd while another display
+manager's session is running starts a second X server beside that
+session's, and the two can fight over the GPU: on NVIDIA the session's X
+server lost the GPU to the greeter's and ended, taking the session with
+it. To look at a theme folder without any of that, `gpui-greeter preview
+DIR` shows it in a window of the running session (see Theme folders).
 
     sudo gpui-greeter-switch greetd
 
@@ -82,8 +84,11 @@ stops before then. LightDM stays installed, and
     sudo gpui-greeter-switch lightdm
 
 makes it the display manager again from the next boot. To switch at once,
+log out first, since stopping LightDM ends the session it started; then
 log in on a text console (Ctrl+Alt+F2) and run
-`sudo systemctl stop lightdm && sudo systemctl start greetd`.
+`sudo systemctl stop lightdm && sudo systemctl start greetd`. Going back
+is the same with the two swapped, after logging out of any session greetd
+started.
 
 The greeter's log, startx's and the X server's are in
 `journalctl -t gpui-greeter`, Xorg's log in

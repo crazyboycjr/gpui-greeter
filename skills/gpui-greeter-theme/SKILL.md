@@ -227,11 +227,16 @@ them draws theme folders at all: if `gpui-greeter --help` lists no
   and the installed themes, and the greeter starts with the one picked
   until the settings' `theme` changes. A theme can offer the same with a
   control: `{theme}` names the look, and `action = "next-theme"` switches.
-- If greetd is not yet the display manager, `sudo systemctl start greetd`
-  shows the greeter on VT 1 without logging in there; Ctrl+Alt+F7 returns
-  to the running session and `sudo systemctl stop greetd` ends the trial.
-  Never restart greetd while someone is logged in through it: that ends
-  their session.
+- Never start or restart greetd while another display manager's session
+  is running. Its X server can lose the GPU to the greeter's and end,
+  taking the whole session with it; on NVIDIA it did. To see a theme on
+  the real login screen, either make greetd the display manager
+  (`sudo gpui-greeter-switch greetd`) and reboot, or have the user log
+  out and, on a text console, run
+  `sudo systemctl stop lightdm && sudo systemctl start greetd`. Never
+  restart greetd while someone is logged in through it either: that ends
+  their session too. Until greetd is the display manager, `preview` is
+  the safe way to look.
 - If the theme cannot be loaded the greeter shows Paper, and
   `journalctl -t gpui-greeter` says why.
 - To undo, set `theme = "paper"` (or another theme) in
