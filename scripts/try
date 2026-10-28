@@ -11,6 +11,7 @@
 #   scripts/try type TEXT         type into the greeter
 #   scripts/try key KEY...        press keys, xdotool names (Return, F2, Escape)
 #   scripts/try click X Y         click at screen pixels
+#   scripts/try vt away|back      play the greeter's VT switched away and back
 #   scripts/try log               what the fake greetd saw
 #   scripts/try stop
 set -euo pipefail
@@ -73,10 +74,13 @@ start() {
     "$greetd" "$RUN/greetd.sock" >"$RUN/greetd.log" 2>&1 &
     echo $! >"$RUN/greetd.pid"
     for _ in $(seq 50); do [[ -S $RUN/greetd.sock ]] && break; sleep 0.1; done
+    # The greeter's VT is 1, and $RUN/console says which one is on screen.
+    echo tty1 >"$RUN/console"
     # As the greeter user has it: no session bus, a runtime directory of
     # its own. Drawing stays on the CPU (lavapipe): the GPU may be busy.
     "${CAP[@]}" env -u DBUS_SESSION_BUS_ADDRESS -u GPUI_X11_SCALE_FACTOR \
         DISPLAY=":$n" GREETD_SOCK="$RUN/greetd.sock" \
+        XDG_VTNR=1 GPUI_GREETER_ACTIVE_CONSOLE="$RUN/console" \
         XDG_RUNTIME_DIR="$RUN/runtime" XDG_STATE_HOME="$RUN/state" XDG_CACHE_HOME="$RUN/cache" \
         VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json LP_NUM_THREADS=4 \
         __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
@@ -107,6 +111,13 @@ case ${1:-} in
     key) shift; x xdotool key --delay 80 "$@" ;;
     click) x xdotool mousemove "${2:?x}" "${3:?y}" click 1 ;;
     move) x xdotool mousemove "${2:?x}" "${3:?y}" ;;
+    vt)
+        case ${2:-} in
+            away) echo tty2 >"$RUN/console" ;;
+            back) echo tty1 >"$RUN/console" ;;
+            *) die "vt away or vt back" ;;
+        esac
+        ;;
     log) cat "$RUN/greetd.log" ;;
-    *) sed -n '2,16p' "$0"; exit 2 ;;
+    *) sed -n '2,17p' "$0"; exit 2 ;;
 esac

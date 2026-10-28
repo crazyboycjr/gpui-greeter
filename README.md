@@ -174,7 +174,9 @@ prints the session it would start. Power buttons only log.
     scripts/try stop
 
 `scripts/try start neon --background circuit` picks a background,
-`scripts/try start path/to/theme` runs a theme folder, and
+`scripts/try start path/to/theme` runs a theme folder,
+`scripts/try vt away` and `scripts/try vt back` play the greeter's VT
+switched to another and back, and
 `cargo run --example scenery -- paper-night-desk desk.png` draws one alone.
 
 `cargo test` covers the parts without a screen: the greetd conversation,
