@@ -643,20 +643,22 @@ impl Builder<'_> {
                 .wake_at(self.now + Duration::from_nanos(wait as u64));
             phase < half
         };
+        let caret_height = self.len(size * 1.15, zoom);
         let caret = (caret_shape != Caret::Hidden).then(|| {
-            let width = caret_width.unwrap_or(match caret_shape {
-                Caret::Block => 0.6 * size,
-                _ => 3.6,
-            });
-            let caret = div()
-                .w(self.len(width, zoom))
-                .h(self.len(size * 1.15, zoom))
-                .flex_shrink_0();
-            if caret_on {
-                caret.bg(hsla(look.caret_color))
+            let width = self.len(
+                caret_width.unwrap_or(match caret_shape {
+                    Caret::Block => 0.6 * size,
+                    _ => 3.6,
+                }),
+                zoom,
+            );
+            let bar = div().w(width).h(caret_height);
+            let bar = if caret_on {
+                bar.bg(hsla(look.caret_color))
             } else {
-                caret
-            }
+                bar
+            };
+            (width, bar)
         });
         let shown = match &typed {
             Some(text) => self.label(text.clone(), props, look.color, zoom),
@@ -669,18 +671,36 @@ impl Builder<'_> {
                 self.label(placeholder, props, look.placeholder_color, zoom)
             }
         };
-        let mut line = div().flex().items_center().min_w_0().overflow_hidden();
-        line = match props.text_align {
+        // The text gives the field its baseline, the same empty or typed;
+        // the caret stands beside it, out of the flow, and only keeps the
+        // field as tall as itself.
+        let mut text = div()
+            .relative()
+            .flex()
+            .items_center()
+            .min_h(caret_height)
+            .child(shown.strut());
+        if let Some((width, bar)) = caret {
+            let holder = div()
+                .absolute()
+                .top_0()
+                .bottom_0()
+                .flex()
+                .items_center()
+                .child(bar);
+            text = if typed.is_some() {
+                text.pr(width).child(holder.right_0())
+            } else {
+                text.pl(width).child(holder.left_0())
+            };
+        }
+        let line = div().flex().items_center().min_w_0().overflow_hidden();
+        let line = match props.text_align {
             Some(TextAlign::Center) => line.justify_center(),
             Some(TextAlign::End) => line.justify_end(),
             _ => line,
         };
-        line = if typed.is_some() {
-            line.child(shown).children(caret)
-        } else {
-            line.children(caret).child(shown)
-        };
-        self.sized_text(line, look, zoom)
+        self.sized_text(line.child(text), look, zoom)
     }
 
     fn corners(&self, props: &Props, zoom: f32) -> Corners<gpui_kit::Pixels> {

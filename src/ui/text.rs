@@ -5,9 +5,9 @@
 use std::sync::Arc;
 
 use gpui_kit::{
-    App, Bounds, Element, ElementId, FontFallbacks, FontFeatures, FontStyle, FontWeight,
-    GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, Point, ShapedLine,
-    SharedString, Style, TextRun, Window, font, point, px, size,
+    App, Bounds, Display, Element, ElementId, FlexDirection, FontFallbacks, FontFeatures,
+    FontStyle, FontWeight, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
+    Pixels, Point, ShapedLine, SharedString, Style, TextRun, Window, font, point, px, size,
 };
 use smallvec::SmallVec;
 
@@ -34,6 +34,7 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         italic: false,
         features: FontFeatures::default(),
         fallback: None,
+        strut: false,
         size: 16.0,
         color: gpui_kit::white(),
         tracking: Tracking::Px(0.0),
@@ -51,6 +52,7 @@ pub struct Label {
     italic: bool,
     features: FontFeatures,
     fallback: Option<Arc<[Arc<str>]>>,
+    strut: bool,
     size: f32,
     color: Hsla,
     tracking: Tracking,
@@ -99,6 +101,13 @@ impl Label {
     /// Families that draw what the font lacks, ahead of the greeter's own.
     pub fn fallback(mut self, families: Arc<[Arc<str>]>) -> Self {
         self.fallback = Some(families);
+        self
+    }
+
+    /// Takes its height and baseline from its font whatever the text holds,
+    /// as a field does, so that what is typed never moves it.
+    pub fn strut(mut self) -> Self {
+        self.strut = true;
         self
     }
 
@@ -153,6 +162,8 @@ pub struct Layout {
     line: ShapedLine,
     /// Window pixels per CSS pixel.
     unit: f32,
+    ascent: Pixels,
+    descent: Pixels,
 }
 
 impl IntoElement for Label {
@@ -184,39 +195,66 @@ impl Element for Label {
     ) -> (LayoutId, Layout) {
         let unit = window.rem_size().as_f32() / DESIGN_REM;
         let font_size = px(self.size * unit);
+        let font = gpui_kit::Font {
+            weight: self.weight,
+            style: if self.italic {
+                FontStyle::Italic
+            } else {
+                FontStyle::Normal
+            },
+            features: self.features.clone(),
+            fallbacks: Some(fallbacks(self.fallback.as_deref().unwrap_or_default())),
+            ..font(self.family.clone())
+        };
         let run = TextRun {
             len: self.text.len(),
-            font: gpui_kit::Font {
-                weight: self.weight,
-                style: if self.italic {
-                    FontStyle::Italic
-                } else {
-                    FontStyle::Normal
-                },
-                features: self.features.clone(),
-                fallbacks: Some(fallbacks(self.fallback.as_deref().unwrap_or_default())),
-                ..font(self.family.clone())
-            },
+            font: font.clone(),
             color: self.color,
             background_color: None,
             underline: None,
             strikethrough: None,
         };
-        let line = window
-            .text_system()
-            .shape_line(self.text.clone(), font_size, &[run], None);
+        let text_system = window.text_system();
+        let line = text_system.shape_line(self.text.clone(), font_size, &[run], None);
+        let (ascent, descent) = if self.strut {
+            let id = text_system.resolve_font(&font);
+            (
+                text_system.ascent(id, font_size),
+                text_system.descent(id, font_size).abs(),
+            )
+        } else {
+            (line.ascent, line.descent)
+        };
         let chars = self.text.chars().count() as f32;
         let width = line.width + px(self.tracking_px() * unit * chars);
         let height = match self.line_height {
             Some(factor) => font_size * factor,
-            None => line.ascent + line.descent,
+            None => ascent + descent,
         };
+        // GPUI tells the layout no baseline, which would then take the
+        // bottom edge for one; a first child as deep as the baseline gives
+        // rows that align baselines the real one.
+        let baseline = ((height - ascent - descent) / 2.0 + ascent).max(px(0.0));
+        let depth = Style {
+            size: size(px(0.0).into(), baseline.into()),
+            flex_shrink: 0.0,
+            ..Style::default()
+        };
+        let depth = window.request_layout(depth, [], cx);
         let style = Style {
+            display: Display::Flex,
+            flex_direction: FlexDirection::Column,
             size: size(width.into(), height.into()),
             flex_shrink: 0.0,
             ..Style::default()
         };
-        (window.request_layout(style, [], cx), Layout { line, unit })
+        let layout = Layout {
+            line,
+            unit,
+            ascent,
+            descent,
+        };
+        (window.request_layout(style, [depth], cx), layout)
     }
 
     fn prepaint(
@@ -240,11 +278,15 @@ impl Element for Label {
         window: &mut Window,
         _: &mut App,
     ) {
-        let Layout { line, unit } = layout;
+        let Layout {
+            line,
+            unit,
+            ascent,
+            descent,
+        } = layout;
         let unit = *unit;
         let font_size = line.font_size;
-        let baseline =
-            bounds.origin.y + (bounds.size.height - line.ascent - line.descent) / 2.0 + line.ascent;
+        let baseline = bounds.origin.y + (bounds.size.height - *ascent - *descent) / 2.0 + *ascent;
         let tracking = self.tracking_px() * unit;
         let glyphs: Vec<(Point<Pixels>, _, _)> = line
             .runs
