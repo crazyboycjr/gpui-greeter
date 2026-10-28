@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    AnimationExt as _, AnyElement, FontWeight, Hsla, MouseButton, div, img, relative, svg,
+    AnimationExt as _, AnyElement, FontWeight, Hsla, MouseButton, deferred, div, img, relative, svg,
 };
 
 use super::{FieldLook, View, color, field_text, picture, u};
@@ -389,11 +389,11 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
             div()
                 .relative()
                 .when_some(greeter.menu, |anchor, highlighted| {
-                    anchor.child(
+                    anchor.child(deferred(
                         menu(view, &MenuLook::bar(palette), highlighted, accent)
                             .left(u(-12.))
                             .bottom(u(52.)),
-                    )
+                    ))
                 })
                 .child(session_button),
         )
@@ -408,7 +408,8 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
 }
 
 /// How the session menu looks: rounded over the bar, square on the
-/// drafting sheet.
+/// drafting sheet. It is painted after everything else, over the borders
+/// that GPUI draws after a box's children.
 struct MenuLook {
     background: Hsla,
     border: Hsla,
@@ -582,11 +583,11 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                         .relative()
                         .flex()
                         .when_some(greeter.menu, |anchor, highlighted| {
-                            anchor.child(
+                            anchor.child(deferred(
                                 menu(view, &MenuLook::sheet(palette), highlighted, accent)
                                     .left(u(-1.))
                                     .bottom(relative(1.)),
-                            )
+                            ))
                         })
                         .child(session),
                 )
