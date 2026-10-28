@@ -90,6 +90,10 @@ log in on a text console (Ctrl+Alt+F2) and run
 is the same with the two swapped, after logging out of any session greetd
 started.
 
+The session greetd starts runs on VT 1, where the login screen was, so
+Ctrl+Alt+F1 returns to it from a text console (LightDM's ran on VT 7).
+Stopping or restarting greetd ends that session.
+
 The greeter's log, startx's and the X server's are in
 `journalctl -t gpui-greeter`, Xorg's log in
 `/var/lib/gpui-greeter/.local/share/xorg/`.

@@ -10,6 +10,8 @@ post_install() {
     display manager's session runs can end that session. To switch at
     once, log out, then on a text console run:
       sudo systemctl stop lightdm && sudo systemctl start greetd
+==> The session greetd starts runs on VT 1: Ctrl+Alt+F1 returns to it
+    from a text console. Stopping or restarting greetd ends it.
 ==> Design themes of your own with an agent: see "Theme folders" in
     /usr/share/doc/gpui-greeter/README.md
 TEXT
