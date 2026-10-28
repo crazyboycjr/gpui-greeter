@@ -90,12 +90,13 @@ pub fn render(view: &View, night: bool) -> AnyElement {
             .absolute()
             .left(u(160.))
             .top(u(72.))
-            .opacity(0.5)
+            .opacity(0.68)
             .child(
                 label(greeter.machine.hostname.clone())
-                    .size(14.)
+                    .font("Inter", FontWeight::LIGHT)
+                    .size(13.)
                     .color(ink)
-                    .tracking_em(0.06),
+                    .tracking_em(0.1),
             ),
     )
     .child(main_column(view, palette))
@@ -160,9 +161,11 @@ fn main_column(view: &View, palette: &Palette) -> impl IntoElement {
         .line_height(0.9)
         .tracking(-5.)
         .color(ink);
-    let date = div().mt(u(26.)).opacity(0.58).child(
+    let date = div().mt(u(26.)).opacity(0.68).child(
         label(i18n::long_date(greeter.config.language, &greeter.now))
+            .font("Inter", FontWeight::LIGHT)
             .size(20.)
+            .tracking_em(0.02)
             .color(ink),
     );
     let below = if greeter.phase == crate::ui::model::Phase::Welcome {
@@ -213,8 +216,8 @@ fn form(view: &View, palette: &Palette) -> impl IntoElement {
         .child(match user.and_then(|user| user.avatar.clone()) {
             Some(path) => img(path).size_full().rounded_full().into_any_element(),
             None => label(user.map(|user| user.initial()).unwrap_or_default())
-                .font(SERIF_TEXT, FontWeight::NORMAL)
-                .size(17.)
+                .font("Inter", FontWeight::LIGHT)
+                .size(16.)
                 .color(ink)
                 .into_any_element(),
         });
@@ -230,18 +233,19 @@ fn form(view: &View, palette: &Palette) -> impl IntoElement {
         .child(avatar)
         .child(
             label(name)
-                .size(17.)
+                .size(18.)
                 .font("Inter", FontWeight::MEDIUM)
+                .tracking_em(0.02)
                 .color(ink),
         );
     let look = FieldLook {
         family: "Inter",
-        weight: FontWeight::NORMAL,
-        size: 24.,
+        weight: FontWeight::LIGHT,
+        size: 20.,
         color: ink,
-        tracking: 0.3,
-        placeholder: color(palette.ink, 0.35),
-        placeholder_tracking: 0.0,
+        tracking: 0.32,
+        placeholder: color(palette.ink, 0.55),
+        placeholder_tracking: 0.06,
         caret: accent,
         centered: false,
     };
@@ -273,11 +277,19 @@ fn status_line(view: &View, palette: &Palette, accent: Hsla) -> impl IntoElement
     let ink = |alpha| color(palette.ink, alpha);
     let error = color(palette.error, 1.0);
     let line = div().h(u(20.)).flex().items_center().gap(u(8.));
-    let text = |text: &str, color: Hsla| label(text.to_string()).size(14.).color(color);
+    let text = |text: &str, color: Hsla| {
+        label(text.to_string())
+            .font("Inter", FontWeight::LIGHT)
+            .size(13.)
+            .tracking_em(0.04)
+            .color(color)
+    };
     match greeter.status() {
-        Status::Hint => line.child(text(s.press_enter, ink(0.5))),
-        Status::Notice(notice) => line.child(text(notice, ink(0.6))),
-        Status::Checking => line.child(text(s.checking, ink(0.6))).child(dots(ink(0.6))),
+        Status::Hint => line.child(text(s.press_enter, ink(0.68))),
+        Status::Notice(notice) => line.child(text(notice, ink(0.68))),
+        Status::Checking => line
+            .child(text(s.checking, ink(0.68)))
+            .child(dots(ink(0.68))),
         Status::Denied(notice) => line.child(text(notice.unwrap_or(s.wrong_password), error)),
         Status::Failed(message) => line.child(text(message, error)),
         Status::Confirm(action) => {
@@ -291,7 +303,12 @@ fn dots(color: Hsla) -> impl IntoElement {
     div().flex().children((0..3usize).map(move |index| {
         let delay = Duration::from_millis(200 * index as u64);
         div()
-            .child(label("\u{00B7}").size(14.).color(color))
+            .child(
+                label("\u{00B7}")
+                    .font("Inter", FontWeight::LIGHT)
+                    .size(13.)
+                    .color(color),
+            )
             .with_animation(("dot", index), Pulse::animation(), move |dot, t| {
                 dot.opacity(Pulse::opacity(t, delay))
             })
@@ -318,13 +335,15 @@ fn welcome(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(ink),
         )
         .child(
-            div().opacity(0.55).child(
+            div().opacity(0.68).child(
                 label(format!(
                     "{}{}",
                     greeter.strings.starting,
                     greeter.session_name()
                 ))
-                .size(15.)
+                .font("Inter", FontWeight::LIGHT)
+                .size(14.)
+                .tracking_em(0.04)
                 .color(ink),
             ),
         )
@@ -345,15 +364,22 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .gap(u(8.))
         .py(u(12.))
         .cursor_pointer()
-        .opacity(if greeter.menu.is_some() { 1.0 } else { 0.62 })
+        .opacity(if greeter.menu.is_some() { 1.0 } else { 0.7 })
         .hover(|button| button.opacity(1.0))
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
-        .child(label(s.session).size(15.).color(ink))
+        .child(
+            label(s.session)
+                .font("Inter", FontWeight::LIGHT)
+                .size(14.)
+                .tracking_em(0.04)
+                .color(ink),
+        )
         .child(
             label(greeter.session_name().to_string())
-                .size(15.)
+                .size(14.)
                 .font("Inter", FontWeight::MEDIUM)
+                .tracking_em(0.04)
                 .color(ink),
         )
         .child(
@@ -368,12 +394,14 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
             .id(id)
             .py(u(12.))
             .cursor_pointer()
-            .opacity(if armed { 1.0 } else { 0.62 })
+            .opacity(if armed { 1.0 } else { 0.7 })
             .hover(|button| button.opacity(1.0))
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
             .child(
                 label(greeter.action_name(action))
-                    .size(15.)
+                    .font("Inter", FontWeight::LIGHT)
+                    .size(14.)
+                    .tracking_em(0.04)
                     .color(if armed { accent } else { ink }),
             )
     };
@@ -483,9 +511,15 @@ fn menu(view: &View, look: &MenuLook, highlighted: usize, accent: Hsla) -> gpui_
                 .when(index == highlighted, |option| option.bg(hover))
                 .hover(|option| option.bg(hover))
                 .on_click(view.on(move |greeter, cx| greeter.pick_session(index, cx)))
-                .child(label(session.name.clone()).size(look.name_size).color(ink))
+                .child(
+                    label(session.name.clone())
+                        .font("Inter", FontWeight::LIGHT)
+                        .size(look.name_size)
+                        .color(ink),
+                )
                 .child(
                     label(if current { greeter.strings.current } else { "" })
+                        .font("Inter", FontWeight::LIGHT)
                         .size(look.mark_size)
                         .color(accent),
                 )
@@ -514,8 +548,8 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
             .border_color(thin)
             .child(
                 div()
-                    .opacity(0.5)
-                    .child(label(caption).size(10.).tracking_em(0.08).color(ink)),
+                    .opacity(0.68)
+                    .child(label(caption).size(10.5).tracking_em(0.12).color(ink)),
             )
     };
     let entry = |caption: &str, value: String| {
@@ -550,6 +584,7 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
             .child(
                 label(greeter.action_name(action))
+                    .font("Inter", FontWeight::LIGHT)
                     .size(15.)
                     .color(if armed { accent } else { ink }),
             )
