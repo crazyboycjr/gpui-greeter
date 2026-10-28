@@ -5,7 +5,8 @@
 #
 #   scripts/try start THEME [--lang zh-CN] [--size 3840x2160] [--dpi 163]
 #                           [--monitors 2] [--wallpapers DIR] [--pick FILE]
-#                           [--background NAME] [--release]
+#                           [--background NAME] [--release | --profile NAME]
+#                 THEME is a built-in look's name or a theme folder's path
 #   scripts/try shot NAME         screenshot of the whole X screen
 #   scripts/try type TEXT         type into the greeter
 #   scripts/try key KEY...        press keys, xdotool names (Return, F2, Escape)
@@ -37,6 +38,7 @@ start() {
             --pick) pick=$2; shift 2 ;;
             --background) background=$2; shift 2 ;;
             --release) profile=release; shift ;;
+            --profile) profile=$2; shift 2 ;;
             *) die "unknown option $1" ;;
         esac
     done
@@ -56,10 +58,19 @@ start() {
     local mm_w=$((${size%x*} * 254 / dpi / 10)) mm_h=$((${size#*x} * 254 / dpi / 10))
     x xrandr --setmonitor main "${size%x*}/${mm_w}x${size#*x}/${mm_h}+0+0" screen >/dev/null
     ((monitors == 2)) && x xrandr --setmonitor side "1920/527x1080/296+${size%x*}+0" none >/dev/null
+    local themes=
+    if [[ $theme == */* ]]; then
+        themes=$(cd "$theme" && pwd)
+        theme=$(basename "$themes")
+        themes=$(dirname "$themes")
+    fi
     printf 'theme = "%s"\nlanguage = "%s"\n[wallpaper]\ndir = "%s"\npick = "%s"\n' \
         "$theme" "$lang" "$wallpapers" "$pick" >"$RUN/config.toml"
+    [[ -n $themes ]] && printf '[themes]\ndir = "%s"\n' "$themes" >>"$RUN/config.toml"
     [[ -n $background ]] && printf '[%s]\nbackground = "%s"\n' "${theme%-night}" "$background" >>"$RUN/config.toml"
-    "$TARGET/debug/examples/fake_greetd" "$RUN/greetd.sock" >"$RUN/greetd.log" 2>&1 &
+    local greetd=$TARGET/$profile/examples/fake_greetd
+    [[ -x $greetd ]] || greetd=$TARGET/debug/examples/fake_greetd
+    "$greetd" "$RUN/greetd.sock" >"$RUN/greetd.log" 2>&1 &
     echo $! >"$RUN/greetd.pid"
     for _ in $(seq 50); do [[ -S $RUN/greetd.sock ]] && break; sleep 0.1; done
     # As the greeter user has it: no session bus, a runtime directory of
@@ -97,5 +108,5 @@ case ${1:-} in
     click) x xdotool mousemove "${2:?x}" "${3:?y}" click 1 ;;
     move) x xdotool mousemove "${2:?x}" "${3:?y}" ;;
     log) cat "$RUN/greetd.log" ;;
-    *) sed -n '2,15p' "$0"; exit 2 ;;
+    *) sed -n '2,16p' "$0"; exit 2 ;;
 esac
