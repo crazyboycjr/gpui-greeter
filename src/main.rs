@@ -287,11 +287,12 @@ fn check_theme(args: &[String]) -> anyhow::Result<()> {
             dir.display()
         );
     };
-    let families: Vec<&str> = folder
-        .fonts
-        .iter()
-        .flat_map(|font| font.families.iter().map(String::as_str))
-        .collect();
+    let mut families: Vec<&str> = Vec::new();
+    for family in folder.fonts.iter().flat_map(|font| &font.families) {
+        if !families.contains(&family.as_str()) {
+            families.push(family);
+        }
+    }
     println!(
         "{}: {} \"{}\" reads well: {} layers, {} pictures, fonts {}{}",
         dir.display(),

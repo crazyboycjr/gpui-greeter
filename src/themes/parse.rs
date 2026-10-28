@@ -493,13 +493,11 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
         .unwrap_or(1_200.0);
 
     let mut fonts = Vec::new();
+    let fonts_span = top.span("fonts");
     for path in top.strings(&mut r, "fonts").unwrap_or_default() {
         match files::load_font(dir, path) {
             Ok(font) => fonts.push(font),
-            Err(message) => {
-                let span = top.span("fonts");
-                r.error(span, message);
-            }
+            Err(message) => r.error(fonts_span.clone(), message),
         }
     }
 
@@ -570,7 +568,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
         }
     }
     check_strings(&strings, &mut uses, tiles.is_some(), &mut r);
-    check_fonts(&layers, &text_style, &fonts, &mut r);
+    check_fonts(&layers, &text_style, &fonts, fonts_span, &mut r);
 
     Some(Folder {
         name: name.to_string(),
@@ -1815,22 +1813,60 @@ fn check_strings(strings: &Strings, uses: &mut Uses, has_tiles: bool, r: &mut Re
     }
 }
 
-/// Families a theme names should be its own, the greeter's, or at least
-/// installed: GPUI falls back silently otherwise.
-fn check_fonts(layers: &[Layer], text: &Props, fonts: &[files::FontFile], r: &mut Reader) {
-    const BUILT_IN: [&str; 5] = [
-        "Inter",
-        "Fraunces 144pt",
-        "Fraunces 44pt",
-        "Fraunces 17pt",
-        "JetBrains Mono",
-    ];
-    let known = |family: &str| {
-        BUILT_IN.contains(&family)
-            || fonts
-                .iter()
-                .any(|font| font.families.iter().any(|f| f == family))
-    };
+/// The faces built into the greeter, by family and weight; none italic.
+const BUILT_IN_FACES: [(&str, u16); 11] = [
+    ("Inter", 200),
+    ("Inter", 300),
+    ("Inter", 400),
+    ("Inter", 500),
+    ("Fraunces 144pt", 300),
+    ("Fraunces 44pt", 400),
+    ("Fraunces 17pt", 400),
+    ("JetBrains Mono", 400),
+    ("JetBrains Mono", 500),
+    ("JetBrains Mono", 700),
+    ("JetBrains Mono", 800),
+];
+
+/// Text the greeter would draw otherwise than the theme asks, with no
+/// sign of it on screen: a font the text system passes over, a family
+/// neither bundled nor built in, and a weight or an italic that the family
+/// lacks, which draws in its nearest face.
+fn check_fonts(
+    layers: &[Layer],
+    text: &Props,
+    fonts: &[files::FontFile],
+    span: Option<Range<usize>>,
+    r: &mut Reader,
+) {
+    let mut faces: HashMap<&str, Vec<(u16, bool)>> = HashMap::new();
+    for (family, weight) in BUILT_IN_FACES {
+        faces.entry(family).or_default().push((weight, false));
+    }
+    let mut passed_over: Vec<&str> = Vec::new();
+    for font in fonts {
+        for face in &font.faces {
+            for family in &face.families {
+                if face.has_m {
+                    faces
+                        .entry(family.as_str())
+                        .or_default()
+                        .push((face.weight, face.italic));
+                } else {
+                    passed_over.push(family);
+                }
+            }
+        }
+        if font.faces.iter().any(|face| !face.has_m) {
+            r.warn(span.clone(), format!(
+                "{} has no \"m\", and the text system takes no font without one: text in {} draws in another font; keep an \"m\" in a subset",
+                font.path,
+                font.families.join(", ")
+            ));
+        }
+    }
+
+    let mut warned: Vec<Arc<str>> = Vec::new();
     let mut named: Vec<(Arc<str>, Option<Range<usize>>)> = Vec::new();
     if let Some(font) = &text.font {
         named.push((font.clone(), Some(0..0)));
@@ -1841,9 +1877,9 @@ fn check_fonts(layers: &[Layer], text: &Props, fonts: &[files::FontFile], r: &mu
             named.push((font, line_span(r.text, layer.line)));
         }
     }
-    let mut warned: Vec<Arc<str>> = Vec::new();
     for (family, span) in named {
-        if !known(&family) && !warned.contains(&family) {
+        let known = faces.contains_key(family.as_ref()) || passed_over.contains(&family.as_ref());
+        if !known && !warned.contains(&family) {
             let bundled: Vec<&str> = fonts
                 .iter()
                 .flat_map(|font| font.families.iter().map(String::as_str))
@@ -1855,6 +1891,91 @@ fn check_fonts(layers: &[Layer], text: &Props, fonts: &[files::FontFile], r: &mu
             warned.push(family);
         }
     }
+
+    let mut checked: Vec<TextStyle> = Vec::new();
+    for (index, layer) in layers.iter().enumerate() {
+        if !matches!(layer.kind, Kind::Text | Kind::Field { .. }) {
+            continue;
+        }
+        for style in text_styles(layers, index, text) {
+            let Some(has) = faces.get(style.0.as_ref()) else {
+                continue;
+            };
+            if checked.contains(&style) {
+                continue;
+            }
+            checked.push(style.clone());
+            let (family, weight, italic) = style;
+            let span = line_span(r.text, layer.line);
+            let slanted = italic.unwrap_or(false);
+            let mut weights: Vec<u16> = has
+                .iter()
+                .filter(|face| face.1 == slanted)
+                .map(|face| face.0)
+                .collect();
+            if weights.is_empty() {
+                if let Some(italic) = italic {
+                    let lacks = if italic {
+                        "no italic, so it draws upright"
+                    } else {
+                        "only italics, so it draws in italic"
+                    };
+                    r.warn(span, format!("{}: {family} has {lacks}", layer.label()));
+                    continue;
+                }
+                weights = has.iter().map(|face| face.0).collect();
+            }
+            if let Some(weight) = weight.filter(|weight| !weights.contains(weight)) {
+                weights.sort_unstable();
+                weights.dedup();
+                let weights: Vec<String> = weights.iter().map(ToString::to_string).collect();
+                r.warn(span, format!(
+                    "{}: {family} has no weight {weight}, only {}, so it draws at the nearest of those",
+                    layer.label(),
+                    weights.join(", ")
+                ));
+            }
+        }
+    }
+}
+
+/// A family, and the weight and italic asked of it, if any.
+type TextStyle = (Arc<str>, Option<u16>, Option<bool>);
+
+/// The styles a text layer draws in, from its own, the layers it sits in
+/// and `[text]`: one for its base look, and one for each `on` table, its
+/// own or a layer's around it, that changes them.
+fn text_styles(layers: &[Layer], index: usize, text: &Props) -> Vec<TextStyle> {
+    let chain: Vec<usize> = std::iter::successors(Some(index), |&at| layers[at].parent).collect();
+    let resolve = |changed: Option<(usize, &Props)>| {
+        let mut style = Props::default();
+        for &at in &chain {
+            let mut own = layers[at].base.clone();
+            if let Some((_, props)) = changed.filter(|(level, _)| *level == at) {
+                own.apply(props);
+            }
+            style.inherit(&own);
+        }
+        style.inherit(text);
+        (
+            style.font.unwrap_or_else(|| "Inter".into()),
+            style.weight.map(|weight| weight.round() as u16),
+            style.italic,
+        )
+    };
+    let mut styles = vec![resolve(None)];
+    for &at in &chain {
+        for change in &layers[at].overrides {
+            let props = &change.props;
+            if props.font.is_some() || props.weight.is_some() || props.italic.is_some() {
+                let style = resolve(Some((at, props)));
+                if !styles.contains(&style) {
+                    styles.push(style);
+                }
+            }
+        }
+    }
+    styles
 }
 
 #[cfg(test)]
@@ -2072,6 +2193,83 @@ text = "{tiles.layout}"
             Some(tiles::Layout::Full)
         );
         assert_eq!(folder.layers[2].pane.as_ref().unwrap().max_scale_full, 3.4);
+    }
+
+    #[test]
+    fn the_built_in_faces_are_the_fonts_built_in() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("assets");
+        let mut found = Vec::new();
+        for entry in std::fs::read_dir(dir.join("fonts")).unwrap() {
+            let name = entry.unwrap().file_name().into_string().unwrap();
+            if !files::is_font(&name) {
+                continue;
+            }
+            let font = files::load_font(&dir, &format!("fonts/{name}")).unwrap();
+            for face in font.faces {
+                assert!(face.has_m && !face.italic, "{name}");
+                found.push((face.families[0].clone(), face.weight));
+            }
+        }
+        found.sort();
+        let mut built_in: Vec<(String, u16)> = BUILT_IN_FACES
+            .iter()
+            .map(|(family, weight)| (family.to_string(), *weight))
+            .collect();
+        built_in.sort();
+        assert_eq!(found, built_in);
+    }
+
+    #[test]
+    fn warns_of_a_face_its_family_lacks() {
+        let (_, problems) = theme(
+            r##"format = 1
+[text]
+font = "Inter"
+[[layer]]
+id = "heavy"
+kind = "text"
+text = "{time}"
+weight = 600
+[[layer]]
+id = "slanted"
+kind = "text"
+text = "{date}"
+italic = true
+[[layer]]
+id = "box"
+layout = "row"
+font = "JetBrains Mono"
+weight = "bold"
+[[layer]]
+id = "code"
+parent = "box"
+kind = "text"
+text = "{host}"
+[layer.on.error]
+weight = 900
+[[layer]]
+kind = "text"
+text = "{user}"
+fallback = ["Noto Serif CJK SC"]
+weight = 500
+"##,
+        );
+        assert!(errors(&problems).is_empty(), "{problems:#?}");
+        let warnings: Vec<String> = problems.iter().map(ToString::to_string).collect();
+        let has = |needle: &str| warnings.iter().any(|w| w.contains(needle));
+        assert!(
+            has("layer \"heavy\": Inter has no weight 600, only 200, 300, 400, 500"),
+            "{warnings:#?}"
+        );
+        assert!(
+            has("layer \"slanted\": Inter has no italic, so it draws upright"),
+            "{warnings:#?}"
+        );
+        assert!(
+            has("layer \"code\": JetBrains Mono has no weight 900"),
+            "{warnings:#?}"
+        );
+        assert_eq!(warnings.len(), 3, "{warnings:#?}");
     }
 
     #[test]

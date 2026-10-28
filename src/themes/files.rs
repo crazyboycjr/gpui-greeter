@@ -56,8 +56,20 @@ impl Asset {
 pub struct FontFile {
     pub path: String,
     pub bytes: Arc<[u8]>,
-    /// The family names it answers to.
+    /// The family names its faces answer to.
     pub families: Vec<String>,
+    pub faces: Vec<FontFace>,
+}
+
+/// A face of a font file, as the greeter's text system matches it.
+pub struct FontFace {
+    /// Its typographic family names, or else its family names.
+    pub families: Vec<String>,
+    pub weight: u16,
+    pub italic: bool,
+    /// The text system takes no face without an "m" for a layer's font
+    /// or its fallback.
+    pub has_m: bool,
 }
 
 /// `relative` inside `dir`, as long as it names a regular file there:
@@ -249,19 +261,22 @@ pub fn load_font(dir: &Path, relative: &str) -> Result<FontFile, String> {
         return Err(format!("{relative}: fonts are TTF, OTF or TTC files"));
     }
     let bytes = read(dir, relative)?;
-    let faces = ttf_parser::fonts_in_collection(&bytes).unwrap_or(1);
-    let mut families = Vec::new();
-    for index in 0..faces.min(64) {
+    let count = ttf_parser::fonts_in_collection(&bytes).unwrap_or(1);
+    let mut faces = Vec::new();
+    for index in 0..count.min(64) {
         let face = ttf_parser::Face::parse(&bytes, index)
             .map_err(|error| format!("{relative}: not a font ({error})"))?;
-        for name in face.names() {
-            let wanted = name.name_id == ttf_parser::name_id::TYPOGRAPHIC_FAMILY
-                || name.name_id == ttf_parser::name_id::FAMILY;
-            if let Some(family) = name.to_string().filter(|_| wanted)
-                && !families.contains(&family)
-            {
-                families.push(family);
-            }
+        faces.push(FontFace {
+            families: face_families(&face),
+            weight: face.weight().to_number(),
+            italic: face.style() != ttf_parser::Style::Normal || face.italic_angle() != 0.0,
+            has_m: face.glyph_index('m').is_some(),
+        });
+    }
+    let mut families: Vec<String> = Vec::new();
+    for family in faces.iter().flat_map(|face| &face.families) {
+        if !families.contains(family) {
+            families.push(family.clone());
         }
     }
     if families.is_empty() {
@@ -271,7 +286,30 @@ pub fn load_font(dir: &Path, relative: &str) -> Result<FontFile, String> {
         path: relative.to_string(),
         bytes: bytes.into(),
         families,
+        faces,
     })
+}
+
+/// The names a face answers to, as the text system's font database reads
+/// them: its typographic family, or its family when it has none.
+fn face_families(face: &ttf_parser::Face) -> Vec<String> {
+    let named = |id: u16| {
+        let mut names: Vec<String> = Vec::new();
+        for name in face.names() {
+            if let Some(family) = name.to_string().filter(|_| name.name_id == id)
+                && !names.contains(&family)
+            {
+                names.push(family);
+            }
+        }
+        names
+    };
+    let typographic = named(ttf_parser::name_id::TYPOGRAPHIC_FAMILY);
+    if typographic.is_empty() {
+        named(ttf_parser::name_id::FAMILY)
+    } else {
+        typographic
+    }
 }
 
 #[cfg(test)]
