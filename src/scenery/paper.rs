@@ -8,7 +8,7 @@ use super::{Frame, hex};
 use crate::config::PaperBackground;
 
 /// The ground under every sheet, by day and by night.
-pub const GROUND: (u32, u32) = (0xF3EEE4, 0x1D1B18);
+const GROUND: (u32, u32) = (0xF3EEE4, 0x1D1B18);
 
 pub fn svg(background: PaperBackground, night: bool, frame: &Frame) -> String {
     match background {
