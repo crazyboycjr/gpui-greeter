@@ -25,7 +25,9 @@ On a monitor of another shape the window is wider or taller than the scaled
 frame, so place layers against the screen's edges or its centre (see
 `anchor`) rather than at fixed distances from the top left, and they keep
 their places on 16:10, 21:9 and 4:3 too. A mockup drawn on a 1600 by 900
-frame converts by multiplying every length by 2.4.
+frame converts by multiplying every length by 2.4; a box of 3840 by 2160
+anchored to the centre keeps its composition whole on any screen, while
+what belongs to the screen's corners and edges anchors to them.
 
 ## theme.toml
 
@@ -65,17 +67,46 @@ check-theme suggests the nearest name.
 ### Fonts
 
 `fonts` lists font files in the folder. A layer names a family as the font
-file names it; check-theme prints the families it found. The greeter also
-has Inter, JetBrains Mono, and Fraunces as `Fraunces 144pt`, `Fraunces
-44pt` and `Fraunces 17pt`, and the system's fonts, among them Noto Sans CJK
-SC for Chinese, which also stands in for any character a font lacks.
-check-theme warns about a family that is neither bundled nor built in.
+file names it, by its typographic family where it has one; check-theme
+prints the families it found. Bundle each font's licence beside it.
 
-Weights are 100 to 900 or `thin`, `extralight`, `light`, `regular`,
-`medium`, `semibold`, `bold`, `extrabold`, `black`. Variable fonts draw at
-their default instance: settings such as Fraunces's SOFT or WONK axes need a
-static instance, made with fontTools (`fonttools varLib.instancer`). Bundle
-each font's licence beside it.
+The greeter has these built in, all upright:
+
+| family | weights |
+| --- | --- |
+| `Inter` | 200, 300, 400, 500 |
+| `JetBrains Mono` | 400, 500, 700, 800 |
+| `Fraunces 144pt` | 300 |
+| `Fraunces 44pt`, `Fraunces 17pt` | 400 |
+
+It can also use the system's fonts, but a theme that names one looks
+different on a machine without it, so check-theme warns about a family
+that is neither bundled nor built in.
+
+A face is found by its family, then its weight and whether it is italic:
+the family's face nearest the weight asked for is drawn, an italic one if
+`italic = true`, and the system's faces of the same family are candidates
+too. So a weight or an italic the family lacks draws in its nearest face:
+Inter at 600 draws at 500, and Inter in italic draws upright. check-theme
+warns of each. Weights are 100 to 900 or `thin`, `extralight`, `light`,
+`regular`, `medium`, `semibold`, `bold`, `extrabold`, `black`.
+
+The text system takes no font without an "m" glyph, so a subset with no
+"m", digits alone for a clock say, draws nothing of its own: keep an "m" in
+every subset. check-theme warns of a font without one.
+
+A variable font draws at its default instance. For any other setting, make
+a static instance with fontTools, as the skill's step 2 shows, and pin
+every axis the font has: the mockup's browser sets `opsz` from the font
+size and leaves each axis the CSS does not name at its default (Fraunces's
+`WONK` at 1, for one). Give the instance a family name of its own, so that
+no other face of that family, the system's or another instance, is taken
+for it, and set its weight class and italic flag to what it is.
+
+What the font lacks, Chinese above all, comes from the families `fallback`
+names (see Looks), then from the greeter's own: Noto Sans CJK SC, Noto Sans
+SC and DejaVu Sans, from the system. A serif design names a serif CJK font
+there: a bundled subset, or the system's Noto Serif CJK SC.
 
 ## Layers
 
@@ -128,7 +159,7 @@ table (see Conditions).
 
 | key | what |
 | --- | --- |
-| `visible` | `false` hides the layer: it fades over its transition, and once hidden takes no clicks |
+| `visible` | `false` hides the layer: it fades over its transition, and once hidden it takes no clicks and no room in a row or a column. A layer at opacity 0 takes no room either |
 | `opacity` | 0 to 1, of the layer and what is in it |
 | `scale` | the layer and what is in it, grown from its anchor point; an svg with `tint` grows from its centre |
 | `rotate` | degrees clockwise about its centre; only an svg with `tint` turns |
@@ -139,9 +170,10 @@ Text style, which layers inherit from the one they sit in and from `[text]`:
 | key | what |
 | --- | --- |
 | `font`, `size`, `weight`, `italic` | the family, frame pixels, the weight, `true` for italic |
+| `fallback` | a family, or a list of them, for what `font` lacks, tried before the greeter's own (see Fonts); a family the system lacks is passed over |
 | `color` | text, an svg's `tint`, a field's caret by default, and a border by default |
 | `tracking` | letter spacing in frame pixels (CSS letter-spacing) |
-| `line_height` | a multiple of `size`; the font's own otherwise |
+| `line_height` | each line's height, a multiple of `size`; the font's own otherwise. The glyphs keep to the middle of the line, so a line height below the font's own lets them spill over it above and below |
 | `case` | `upper`, `lower` or `none` |
 | `features` | OpenType features, `["tnum", "lnum", "ss01=0"]` |
 | `shadow` | `{ x, y, blur, color }` behind the text, or `"none"` |
@@ -153,7 +185,7 @@ Boxes:
 | --- | --- |
 | `layout` | `stack` (the default), `row` or `column`; this one cannot change with a condition |
 | `gap` | between the layers in a row or a column |
-| `align` | across a row or column: `start`, `center`, `end`, `stretch` (the default) or `baseline` |
+| `align` | across a row or column: `start`, `center`, `end`, `stretch` (the default) or `baseline`, which puts the first line of text in each layer of a row on one line, whatever its font, size or line height; a layer with no text sits on it by its bottom edge |
 | `justify` | along it: `start`, `center`, `end`, `between` or `around` |
 | `padding` | one number, `[vertical, horizontal]`, or `[top, right, bottom, left]` |
 | `fill` | the box's colour |
@@ -170,13 +202,23 @@ not wrap.
 
 **field**: what has been typed, one `mask` character (`"•"` by default)
 for each, at most `max` (64) of them; the answer itself when PAM asks a
-question whose answer may show. When empty it shows `placeholder`, a
-template, in `placeholder_color` (the text colour at half strength by
-default). Its caret: `caret` is `bar` (the default), `block` or `none`
-(none during the welcome unless set), `caret_color`, `caret_width` (3.6, or
-0.6 em for a block) and `blink`, the period in ms (1060; 0 is steady); the
-blink restarts with each key, so the caret shows while typing. Text style
-keys set its look.
+question whose answer may show. While the password is checked and through
+the welcome it keeps the mask of what was sent. When empty it shows
+`placeholder`, a template, in `placeholder_color` (the text colour at half
+strength by default). Text style keys set its look.
+
+A field is one line of its font tall (its `line_height`, if set), or as
+tall as its caret where that is taller, empty or not, and a `height` larger
+than that centres the line in it. Its baseline is its text's, the same
+empty or typed, so a row aligned on baselines stays still at the first key.
+
+Its caret: `caret` is `bar` (the default), `block` or `none`,
+`caret_color`, `caret_width` (3.6, or 0.6 em for a block) and `blink`, the
+period in ms (1060; 0 is steady); the blink restarts with each key, so the
+caret shows while typing. It stands before the placeholder and after what
+was typed. The caret hides during the welcome unless the theme sets
+`caret`; a theme that sets it and wants it gone then says so with `caret =
+"none"` in its `on.welcome`.
 
 **image**: `file`, a PNG, JPEG or WebP. `fit` is `contain` (the default),
 `cover` or `fill` (stretched); `position = [x, y]` is the point a cover
@@ -186,12 +228,12 @@ crop keeps, as shares from 0 to 1. `radius` rounds its corners.
 layer's `color`, so states can change the colour smoothly, and it can turn
 and scale; this suits marks of one colour. Without it the SVG is drawn in
 its own colours, once for each monitor size at the size it takes there,
-and kept in the greeter's cache; such a layer needs a size in frame pixels,
-or `anchor = "fill"`. Drawing a large SVG with heavy filters can take
-seconds the first time; the window opens without it after 1.5 s and shows
-it when done. An SVG must hold everything it draws: references to other
-files are refused, pictures go in as `data:` URLs, and text should be
-converted to paths.
+and kept in the greeter's cache; such a layer needs a width or a height in
+frame pixels, the other taken from the SVG's shape, or `anchor = "fill"`.
+Drawing a large SVG with heavy filters can take seconds the first time; the
+window opens without it after 1.5 s and shows it when done. An SVG must
+hold everything it draws: references to other files are refused, pictures
+go in as `data:` URLs, and text should be converted to paths.
 
 **wallpaper**: the picture the settings pick from the wallpaper folder
 (`[wallpaper]` in config.toml; `gpui-greeter sync-wallpapers` fills it).
@@ -211,9 +253,12 @@ frame pixels.
 | `gap` | between panes and around them |
 
 A pane is a box whose content is laid out on `content = [width, height]`
-frame pixels and scaled to fit the pane less `padding`, between `min_scale`
-(0.3) and `max_scale` (1); `max_scale_full` is the largest scale in the Full
-layout. `content = "fill"` lays the content out on the whole pane instead,
+frame pixels and scaled to fit the pane less its `pane_border` and its
+`padding` on every side, between `min_scale` (0.3) and `max_scale` (1);
+`max_scale_full` is the largest scale in the Full layout. The padding does
+not include the border: where a mockup insets content 28 CSS pixels from
+the pane's outer edge, 2 of them its border, `padding` is 26 × 2.4 = 62.4.
+`content = "fill"` lays the content out on the whole pane instead,
 unscaled. `title` is the pane's title, a template, shown by
 `{tiles.title}`. Typing focuses the pane holding the field. A theme has one
 tiles layer at most.
@@ -254,7 +299,7 @@ order, so a later one wins where two set the same key:
 4. `focused`: the layer is in the focused tiles pane
 5. a state: `rest`, `idle`, `typing`, `checking`, `error`, `welcome`
 6. `armed`: a power action waits for its second press; for a layer with a power action, or in one, only that action
-7. `fired`: the layer's action ran in the last `fired_for` ms (700); `fired_by = ["tile.focus-next", …]` lists other actions that count
+7. `fired`: the layer's action ran, by key or click, in the last `fired_for` ms (700); `fired_by = ["tile.focus-previous", …]` adds other actions that count, to the layer's own action or, for a layer without one, to that of the layer it sits in
 8. `hover`: the pointer is over the layer
 
 `hover`, `armed` and `fired` belong to the nearest layer with an `action`,
@@ -328,6 +373,7 @@ brace. An unknown name is an error.
 | --- | --- |
 | `{time}`, `{time:FORMAT}` | the time, `%H:%M` by default |
 | `{date}`, `{date:FORMAT}` | the date, "Wednesday, October 28" or "10月28日　星期三" by default |
+| `{time.en:…}`, `{date.en:…}`, `{date.zh-CN:…}` | the same, with English or Chinese names whatever the greeter speaks |
 | `{user}`, `{user.name}`, `{user.initial}` | the login name, the full name (or the login name), its first letter |
 | `{host}` | the machine's name |
 | `{session}` | the chosen session's name |
@@ -365,7 +411,11 @@ minutes, `%S` seconds, `%p` AM or PM, `%A` weekday, `%a` its short form,
 `%B` month name, `%b` its short form, `%j` day of the year, `%u` weekday
 number (Monday is 1), `%%`. `%-d` drops the leading zero. Names follow the
 language: `%A` is "Wednesday" or "星期三", `%a` "Wed" or "周三", `%B`
-"October" or "十月", `%b` "Oct" or "10月", `%p` "AM" or "上午".
+"October" or "十月", `%b` "Oct" or "10月", `%p` "AM" or "上午". A binding
+with a language of its own keeps its names in it, as a status bar might in
+a Chinese login screen: `{date.en:%a %b %-d}` is "Wed Oct 28" in either
+language, and `{date.en}` the long English date. `time` and `date` both
+take `.en` and `.zh-CN`.
 
 ## Keys and clicks
 
@@ -424,9 +474,12 @@ and smooth changes for hover and the other non-state conditions.
 gpui-greeter check-theme DIR
 gpui-greeter preview DIR [--state STATE] [--lang en|zh-CN] [--size WxH]
                          [--shot FILE] [--at MS] [--user NAME] [--host NAME]
-                         [--wallpaper FILE]
+                         [--wallpaper FILE] [--press KEY]... [--hover X,Y]
 sudo gpui-greeter install-theme DIR [--name NAME] [--select] [--to DIR]
 ```
+
+`check-theme` reads the folder as the greeter does, and names each error
+and warning by file and line.
 
 `preview` shows the theme in a window on `$DISPLAY`, against a fake greetd
 that accepts the password `test` and starts nothing. With `--shot FILE` it
@@ -438,7 +491,20 @@ login reaches it, with its transitions; `--size` is 3840x2160 for a
 screenshot. `--user` and `--host` stand in for the real names, and
 `--wallpaper` picks the wallpaper.
 
+Once the state shows, each `--press` presses a key, written as in `[keys]`
+(`f10`, `mod-j`, `shift-tab`), and `--hover X,Y` puts the pointer at that
+point of the screenshot; `--at` then counts from the last of them. So
+`--press f12` shoots the armed look, `--press mod-j --at 200` the fired one
+while it lasts, and `--hover` a control's hover look.
+
+The SVGs a preview draws in their own colours are kept, as the greeter
+keeps them, in `~/.cache/gpui-greeter/themes/<name>/`: raw pixels, so a
+full-screen SVG takes 33 MB for each screen size it was drawn at. Remove
+the folder to free them; the next preview draws them again.
+
 `install-theme` checks the folder, copies it to the themes folder as NAME
 (the folder's name by default), replacing an earlier copy only once the new
 one is complete and checked, and with `--select` sets `theme = "NAME"` in
-the settings, keeping their comments.
+the settings, keeping their comments. With `--to DIR`, a folder of the
+user's own, it needs no root, which makes a dry run: it lists what it
+copies and what it leaves behind.

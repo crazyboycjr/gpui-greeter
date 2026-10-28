@@ -43,11 +43,39 @@ times as large.
 
 - **Fonts:** prefer fonts under the SIL Open Font License or Apache 2.0.
   Bundle the font files and their licence text in the theme. A variable
-  font draws at its default instance; to use a setting such as weight 900
-  or a "soft" axis, make a static instance with fontTools
-  (`fonttools varLib.instancer Font.ttf wght=900 SOFT=100 -o Font-Soft-Black.ttf`).
-  A font with a Reserved Font Name must keep its name only if unmodified, so
-  subset or instance only fonts without one, or rename the result.
+  font draws at its default instance, so any other setting, such as a
+  weight of 900 or Fraunces's "soft" axis, needs a static instance made
+  with fontTools. Pin every axis the font has to what the mockup's browser
+  used, if there is a mockup: it sets `opsz` from the font size and leaves
+  an axis the CSS does not name at its default. Give the instance a family
+  of its own, its weight class and, for an italic, its italic flag, so that
+  no other face is taken for it:
+
+  ```sh
+  python3 - <<'EOF'
+  from fontTools.ttLib import TTFont
+  from fontTools.varLib.instancer import instantiateVariableFont
+  font = instantiateVariableFont(TTFont("Fraunces[SOFT,WONK,opsz,wght].ttf"),
+                                 {"wght": 900, "opsz": 96, "SOFT": 100, "WONK": 0})
+  family, weight, italic = "Fraunces Soft", 900, False
+  names = font["name"]
+  for id in (1, 2, 4, 6, 16, 17, 21, 22, 25):
+      names.removeNames(nameID=id)
+  style = "Italic" if italic else "Regular"
+  for id, text in ((1, family), (2, style), (4, f"{family} {style}"),
+                   (6, family.replace(" ", "") + "-" + style)):
+      names.setName(text, id, 3, 1, 0x409)
+  font["OS/2"].usWeightClass = weight
+  font["OS/2"].fsSelection = (font["OS/2"].fsSelection & ~0b1100001) | (1 if italic else 0b1000000)
+  font["head"].macStyle = 2 if italic else 0
+  font.save("fonts/FrauncesSoft-Black.ttf")
+  EOF
+  ```
+
+  A subset must keep an "m": the greeter's text system takes no font
+  without one. A font with a Reserved Font Name may keep that name only
+  unmodified, so subset or instance only fonts without one, or give the
+  result a name that leaves the reserved one out.
 - **Logos and artwork:** an official logo comes from its project's own
   site or press kit, under that project's terms; fan art and wallpapers
   only with their author's licence or the user's own rights. Such files
@@ -72,11 +100,42 @@ mkdir -p ~/.local/share/gpui-greeter/themes-src
 cp -r /usr/share/gpui-greeter/skills/gpui-greeter-theme/dial ~/.local/share/gpui-greeter/themes-src/<name>
 ```
 
-Place layers against the screen's edges or centre (`anchor`), not at
-absolute positions, so the design holds on 16:10, 21:9 and 1080p monitors.
-Group what belongs together in row and column boxes, so text of any length
-or language lines up. Give each state its look with `[layer.on.<state>]`
-tables, and keep transitions short (150 to 500 ms).
+Place layers against the screen's edges or its centre (`anchor`), so the
+design holds on 16:10, 21:9 and 1080p monitors as well as on 16:9. Group
+what belongs together in row and column boxes, so text of any length or
+language lines up, and set a row of text on one line with `align =
+"baseline"`. Give each state its look with `[layer.on.<state>]` tables, and
+keep transitions short (150 to 500 ms).
+
+A mockup drawn on a 1600 by 900 frame carries over in three parts:
+
+- The composition, such as the clock and the form, goes in a box 3840 by
+  2160 anchored to the centre, each layer in it at the mockup's position
+  and size times 2.4, measured from the mockup's top left.
+- What sits in a corner or along an edge, such as a logo or a footer,
+  anchors to that corner or edge of the screen itself, at the mockup's
+  distance from it times 2.4.
+- What spans the screen, such as a bar or a band, takes `width = "100%"`
+  or `anchor = "fill"` with an `inset`.
+
+```toml
+[[layer]]
+id = "stage"            # the mockup's frame, kept whole in the middle
+anchor = "center"
+width = 3840
+height = 2160
+
+[[layer]]
+parent = "stage"
+kind = "text"
+text = "{time}"
+x = 268.8               # 112 by 64 in the mockup
+y = 153.6
+```
+
+On a 16:9 screen all three land where the mockup has them; on another
+shape the composition stays whole in the middle while the corners and the
+bands follow the screen's edges.
 
 ## 4. Check it
 
@@ -85,23 +144,29 @@ gpui-greeter check-theme ~/.local/share/gpui-greeter/themes-src/<name>
 ```
 
 It reads the folder as the greeter would and names every problem by file
-and line. Fix all errors; read the warnings (fonts that are not bundled,
-strings without a translation) and fix those that matter.
+and line. Fix all errors; read the warnings and fix those that matter. They
+name text that would not look as asked without anything showing it: a
+family that is neither bundled nor built in, a weight or an italic its
+family lacks, a font the text system passes over for having no "m", and a
+string without a translation.
 
 ## 5. Preview every state, and look
 
 `preview` with `--shot` needs no display and no GPU: it starts an X server
 of its own and draws on the CPU. Take each state in each language, at 4K
-first:
+first. The welcome is shot while it shows, since many themes fade out at
+its end:
 
 ```sh
 dir=~/.local/share/gpui-greeter/themes-src/<name>
 out=~/.cache/gpui-greeter-shots/<name>; mkdir -p "$out"
 for lang in en zh-CN; do
-  for state in rest idle typing checking error welcome; do
+  for state in rest idle typing checking error; do
     gpui-greeter preview "$dir" --state $state --lang $lang \
       --user alice --host example-host --shot "$out/$state-$lang.png"
   done
+  gpui-greeter preview "$dir" --state welcome --at 600 --lang $lang \
+    --user alice --host example-host --shot "$out/welcome-$lang.png"
 done
 ```
 
@@ -109,8 +174,23 @@ Then look at every screenshot, and compare it with the design: spacing,
 alignment, sizes, colours, what each state shows. Check other shapes too
 (`--size 2560x1440`, `--size 1920x1200`, `--size 3440x1440`). A state's
 transitions run before the screenshot; to catch the middle of one, use
-`--at MS`, for example the welcome at `--at 600`. Iterate until it matches.
-Drop `--user` and `--host` to see the user's own names.
+`--at MS`. Iterate until it matches. Drop `--user` and `--host` to see the
+user's own names.
+
+The looks that answer to input need it in the screenshot too: `--press
+f12` (keys written as in `[keys]`) shoots the armed power action, `--press
+mod-j --at 200` the fired look of what mod-j runs while it lasts (700 ms),
+and `--hover X,Y` points at whatever lies there in the screenshot, for a
+control's hover look.
+
+To lay a screenshot over a mockup, make what changes match it: preview a
+copy of the theme whose clock and date say what the mockup's do, such as
+`text = "22:41"` in place of `{time}`, with the mockup's names for
+`--user` and `--host`, and compare the two at one size.
+
+Previews keep the SVGs they draw in `~/.cache/gpui-greeter/themes/<name>/`,
+33 MB for each full-screen SVG and screen size; remove the folder when the
+theme is done.
 
 Without `--shot`, `preview` opens a window on the current display, where the
 user can type (the password is `test`), press the theme's keys and watch it
@@ -129,6 +209,13 @@ keeping their comments. Without `--select` it says how to pick it. If you
 cannot run sudo, give the user that exact command to run themselves.
 Install again after every change; the greeter only reads the installed
 copy.
+
+A dry run first needs no root: `gpui-greeter install-theme <dir> --to
+~/.cache/gpui-greeter-install` checks the folder and copies it into a
+folder of your own, listing what it copies and what it leaves behind.
+These commands are the installed greeter's, and only a greeter that has
+them draws theme folders at all: if `gpui-greeter --help` lists no
+`install-theme`, the package needs updating first.
 
 ## 7. Try it safely, and know how to undo
 
