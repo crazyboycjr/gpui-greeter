@@ -299,10 +299,15 @@ impl Motion {
         let (from, to) = (&pair[0], &pair[1]);
         let span = (to.at - from.at).max(f32::EPSILON);
         let local = ((phase - from.at) / span).clamp(0.0, 1.0);
-        let Some(step) = from.easing.unwrap_or(self.easing).next_step(local) else {
-            return Some(Duration::ZERO);
+        let next = if from.value == to.value {
+            // Nothing moves until the next keyframe.
+            to.at
+        } else {
+            let Some(step) = from.easing.unwrap_or(self.easing).next_step(local) else {
+                return Some(Duration::ZERO);
+            };
+            from.at + step.min(1.0) * span
         };
-        let next = from.at + step.min(1.0) * span;
         let wait = (next - phase).max(0.0) * self.duration.as_secs_f32();
         Some(Duration::from_secs_f32(wait.max(0.001)))
     }
@@ -419,6 +424,18 @@ mod tests {
         assert_eq!(tooth.value_at(Duration::from_millis(1_876)), Some(11.25));
         let wait = tooth.next_change(Duration::from_millis(1_000)).unwrap();
         assert!((wait.as_secs_f32() - 0.875).abs() < 0.01, "{wait:?}");
+    }
+
+    #[test]
+    fn a_blink_waits_for_its_turn() {
+        let blink = Motion {
+            repeat: None,
+            ..motion(&[(0.0, 1.0), (0.5, 1.0), (0.5, 0.0), (1.0, 0.0)], 1000)
+        };
+        assert_eq!(blink.value_at(Duration::from_millis(499)), Some(1.0));
+        assert_eq!(blink.value_at(Duration::from_millis(501)), Some(0.0));
+        let wait = blink.next_change(Duration::from_millis(200)).unwrap();
+        assert!((wait.as_secs_f32() - 0.3).abs() < 0.01, "{wait:?}");
     }
 
     #[test]

@@ -198,6 +198,8 @@ pub fn drive(
         let Some(shot) = shot else {
             return;
         };
+        // What reaches the screen trails what is drawn by about this much.
+        const LATENCY: Duration = Duration::from_millis(400);
         let shown = Instant::now();
         loop {
             cx.background_executor()
@@ -208,7 +210,7 @@ pub fn drive(
             });
             let waited = shown.elapsed();
             let ready = match at {
-                Some(at) => waited >= at,
+                Some(at) => waited + LATENCY >= at,
                 None => {
                     settled.is_some_and(|since| since.elapsed() >= Duration::from_millis(700))
                         && (backdrop || !waits_for_wallpaper || waited > Duration::from_secs(5))
@@ -222,10 +224,7 @@ pub fn drive(
                 break;
             }
         }
-        // The last frame drawn reaches the screen.
-        cx.background_executor()
-            .timer(Duration::from_millis(400))
-            .await;
+        cx.background_executor().timer(LATENCY).await;
         let taken = x11.capture(rect).and_then(|image| {
             image
                 .save(&shot)
