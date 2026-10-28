@@ -487,6 +487,7 @@ impl Greeter {
             let count = self.sessions.len().max(1);
             match keystroke.key.as_str() {
                 "up" => self.menu = Some((index + count - 1) % count),
+                "tab" if modifiers.shift => self.menu = Some((index + count - 1) % count),
                 "down" | "tab" => self.menu = Some((index + 1) % count),
                 "enter" | "space" => self.pick_session(index, cx),
                 "escape" => self.menu = None,

@@ -20,8 +20,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use gpui_kit::{
-    App, AppContext as _, Bounds, Entity, Window, WindowBackgroundAppearance, WindowBounds,
-    WindowKind, WindowOptions, point, px, size,
+    App, AppContext as _, Bounds, Entity, KeyBinding, NoAction, Window, WindowBackgroundAppearance,
+    WindowBounds, WindowKind, WindowOptions, point, px, size,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
@@ -127,6 +127,12 @@ pub fn run(options: Options) -> Result<()> {
         .with_assets(assets::Assets { svgs: svgs.clone() })
         .run(move |cx| {
             gpui_kit::init(cx);
+            // gpui-kit's root moves the focus on Tab and Shift+Tab, which
+            // would keep them from the greeter's own keys.
+            cx.bind_keys([
+                KeyBinding::new("tab", NoAction, None),
+                KeyBinding::new("shift-tab", NoAction, None),
+            ]);
             assets::register_fonts(cx, folder.as_deref());
             let (prepared, later) = preparing.finish(Some(PICTURES_WAIT));
             let first = config.theme.clone();
