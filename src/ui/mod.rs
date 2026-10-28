@@ -140,16 +140,24 @@ pub fn run(options: Options) -> Result<()> {
             assets::register_fonts(cx, folder.as_deref());
             let greeter = cx.new(|cx| Greeter::new(setup, cx));
             let mut sceneries = drawing.map(finish_scenery).unwrap_or_default().into_iter();
-            let (shared, mut drawn) = match preparing.map(Preparing::finish) {
-                Some((shared, drawn)) => (Some(shared), drawn.into_iter()),
+            let (shared, mut drawings) = match preparing.map(Preparing::finish) {
+                Some((shared, drawings)) => (Some(shared), drawings.into_iter()),
                 None => (None, Vec::new().into_iter()),
             };
             let mut screens = Vec::new();
             for (output, monitor) in monitors.iter().enumerate() {
                 let scenery = sceneries.next().flatten();
-                let pictures = shared.clone().zip(drawn.next());
+                let (drawn, later) = match drawings.next() {
+                    Some(Drawing::Done(drawn)) => (Some(drawn), None),
+                    Some(Drawing::Pending(thread)) => (None, Some(thread)),
+                    None => (None, None),
+                };
+                let pictures = shared.clone().map(|shared| (shared, drawn));
                 match open_screen(cx, &greeter, output, monitor, scale, scenery, pictures) {
                     Ok((screen, xid)) => {
+                        if let Some(thread) = later {
+                            deliver(cx, screen.clone(), thread);
+                        }
                         if let Some(xid) = xid
                             && let Err(error) = x11.place(xid, monitor.rect)
                         {
@@ -396,16 +404,47 @@ fn prepare(folder: Arc<Folder>, monitors: &[Monitor]) -> Preparing {
     Preparing { shared, monitors }
 }
 
+/// How long the windows wait for a theme's SVGs; a drawing that takes
+/// longer, as the first of a heavy SVG may, shows once it is done.
+const PICTURES_WAIT: Duration = Duration::from_millis(1500);
+
+enum Drawing {
+    Done(Arc<MonitorPictures>),
+    Pending(JoinHandle<MonitorPictures>),
+}
+
 impl Preparing {
-    fn finish(self) -> (Arc<Pictures>, Vec<Arc<MonitorPictures>>) {
+    fn finish(self) -> (Arc<Pictures>, Vec<Drawing>) {
         let shared = Arc::new(self.shared.join().unwrap_or_default());
-        let drawn = self
+        let deadline = Instant::now() + PICTURES_WAIT;
+        while Instant::now() < deadline && !self.monitors.iter().all(JoinHandle::is_finished) {
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let drawings = self
             .monitors
             .into_iter()
-            .map(|thread| Arc::new(thread.join().unwrap_or_default()))
+            .map(|thread| {
+                if thread.is_finished() {
+                    Drawing::Done(Arc::new(thread.join().unwrap_or_default()))
+                } else {
+                    Drawing::Pending(thread)
+                }
+            })
             .collect();
-        (shared, drawn)
+        (shared, drawings)
     }
+}
+
+/// Hands a window its SVGs once they are drawn.
+fn deliver(cx: &mut App, screen: Entity<Screen>, thread: JoinHandle<MonitorPictures>) {
+    cx.spawn(async move |cx| {
+        let drawn = cx
+            .background_executor()
+            .spawn(async move { thread.join().unwrap_or_default() })
+            .await;
+        let _ = screen.update(cx, |screen, cx| screen.set_drawn(Arc::new(drawn), cx));
+    })
+    .detach();
 }
 
 fn open_screen(
@@ -415,7 +454,7 @@ fn open_screen(
     monitor: &Monitor,
     scale: f32,
     scenery: Option<Arc<Scenery>>,
-    pictures: Option<(Arc<Pictures>, Arc<MonitorPictures>)>,
+    pictures: Option<(Arc<Pictures>, Option<Arc<MonitorPictures>>)>,
 ) -> Result<(Entity<Screen>, Option<u32>)> {
     let rect = monitor.rect;
     let logical = |pixels: f32| px(pixels / scale);

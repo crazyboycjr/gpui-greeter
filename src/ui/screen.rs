@@ -48,6 +48,8 @@ struct FolderScreen {
     wake: Option<Instant>,
     /// Since when nothing has been changing but what runs forever.
     settled_since: Option<Instant>,
+    /// Whether its SVGs are still being drawn.
+    pending: bool,
 }
 
 impl Screen {
@@ -56,7 +58,7 @@ impl Screen {
         output: usize,
         monitor: Monitor,
         scenery: Option<Arc<Scenery>>,
-        pictures: Option<(Arc<Pictures>, Arc<MonitorPictures>)>,
+        pictures: Option<(Arc<Pictures>, Option<Arc<MonitorPictures>>)>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -71,7 +73,8 @@ impl Screen {
             backdrops: Backdrops::default(),
             folder: pictures.map(|(pictures, drawn)| FolderScreen {
                 pictures,
-                drawn,
+                pending: drawn.is_none(),
+                drawn: drawn.unwrap_or_default(),
                 timeline: Timeline::new(Instant::now()),
                 hovered: HashSet::new(),
                 wake: None,
@@ -101,6 +104,15 @@ impl Screen {
         })
         .detach();
         cx.notify();
+    }
+
+    /// The theme's SVGs, drawn for this monitor after the window opened.
+    pub fn set_drawn(&mut self, drawn: Arc<MonitorPictures>, cx: &mut Context<Self>) {
+        if let Some(folder) = self.folder.as_mut() {
+            folder.drawn = drawn;
+            folder.pending = false;
+            cx.notify();
+        }
     }
 
     pub fn has_backdrop(&self) -> bool {
@@ -207,7 +219,7 @@ impl Render for Screen {
             }
         };
         if let Some(state) = self.folder.as_mut() {
-            if pace.settling.get() {
+            if pace.settling.get() || state.pending {
                 state.settled_since = None;
             } else if state.settled_since.is_none() {
                 state.settled_since = Some(now);
