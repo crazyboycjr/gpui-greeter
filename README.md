@@ -44,28 +44,28 @@ to agreety, a text login on the same VT whose session is the user's
 
 ## Install
 
-Build it, then run the install script as root from the repository:
+On Arch Linux, build the package from this repository and install it:
 
-    cargo build --release
-    sudo ./install.sh target/release/gpui-greeter ~/Pictures/Wallpapers
+    cd pkg/arch
+    makepkg -si
 
-This installs greetd if needed, the greeter as
-`/usr/local/bin/gpui-greeter`, its settings as
-`/etc/gpui-greeter/config.toml` (kept if present), its home
-`/var/lib/gpui-greeter` (through `/etc/tmpfiles.d/gpui-greeter.conf`) and
-greetd's settings as `/etc/greetd/config.toml` (the original is kept as
-`config.toml.orig`), and copies the wallpapers.
+It installs the greeter as `/usr/bin/gpui-greeter`, its settings as
+`/etc/gpui-greeter/config.toml`, its home `/var/lib/gpui-greeter`, and
+greetd's settings for it as `/etc/greetd/gpui-greeter.toml`. greetd's own
+`/etc/greetd/config.toml` stays as it is: a drop-in for greetd.service
+points greetd at the new file.
 
-To see it on the real screen before switching, `sudo systemctl start
-greetd` shows it on VT 1 without logging in there; Ctrl+Alt+F7 returns to
-the running session and `sudo systemctl stop greetd` ends the trial.
+To see the greeter on the real screen before switching,
+`sudo systemctl start greetd` shows it on VT 1 without logging in there;
+Ctrl+Alt+F7 returns to the running session and `sudo systemctl stop
+greetd` ends the trial.
 
-    sudo ./install.sh switch
+    sudo gpui-greeter-switch greetd
 
-makes greetd the display manager from the next boot. LightDM stays
-installed, and
+makes greetd the display manager from the next boot; nothing starts or
+stops before then. LightDM stays installed, and
 
-    sudo ./install.sh switch-back
+    sudo gpui-greeter-switch lightdm
 
 makes it the display manager again from the next boot. To switch at once,
 log in on a text console (Ctrl+Alt+F2) and run
@@ -81,7 +81,7 @@ The greeter cannot read anyone's home, so Frost's pictures are copied to
 `/usr/local/share/gpui-greeter/wallpapers`; copy them again whenever the
 folder changes:
 
-    sudo ./install.sh wallpapers ~/Pictures/Wallpapers
+    sudo gpui-greeter sync-wallpapers ~/Pictures/Wallpapers
 
 It mirrors the folder: new pictures are added, changed ones replaced,
 removed ones removed, and a picture saved twice is copied once. Every picture

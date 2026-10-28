@@ -1,0 +1,75 @@
+# Builds gpui-greeter from the repository this file lives in:
+#
+#   cd pkg/arch && makepkg -si
+
+pkgname=gpui-greeter-git
+_name=gpui-greeter
+pkgver=0.1.0.r7.g12fa5e0
+pkgrel=1
+pkgdesc='A greeter for greetd on X11, drawn with GPUI'
+arch=(x86_64)
+# No licence is chosen yet; the bundled fonts are under the SIL Open Font
+# License, whose texts are installed with them.
+license=()
+depends=(
+    fontconfig
+    freetype2
+    gcc-libs
+    glibc
+    greetd
+    greetd-agreety
+    libxcb
+    libxkbcommon
+    libxkbcommon-x11
+    systemd
+    vulkan-driver
+    vulkan-icd-loader
+    xorg-server
+    xorg-xinit
+)
+makedepends=(cargo git)
+optdepends=(
+    'accountsservice: the session LightDM last used, before the first login here'
+    'noto-fonts-cjk: Chinese text'
+)
+provides=("$_name" greetd-greeter)
+conflicts=("$_name")
+backup=("etc/$_name/config.toml" "etc/greetd/$_name.toml")
+install=$_name.install
+source=("$_name::git+file://${startdir%/pkg/arch}#branch=main")
+# Once the repository is published:
+# source=("$_name::git+https://example.org/$_name.git#branch=main")
+sha256sums=('SKIP')
+
+pkgver() {
+    cd "$_name"
+    local version
+    version=$(sed -n 's/^version = "\(.*\)"$/\1/p' Cargo.toml | head -1)
+    printf '%s.r%s.g%s' "$version" "$(git rev-list --count HEAD)" "$(git rev-parse --short=7 HEAD)"
+}
+
+prepare() {
+    cd "$_name"
+    export RUSTUP_TOOLCHAIN=stable
+    cargo fetch --locked --target "$(rustc --print host-tuple)"
+}
+
+build() {
+    cd "$_name"
+    export RUSTUP_TOOLCHAIN=stable
+    export CARGO_TARGET_DIR="$srcdir/target"
+    cargo build --frozen --release
+}
+
+package() {
+    cd "$_name"
+    install -Dm755 "$srcdir/target/release/$_name" "$pkgdir/usr/bin/$_name"
+    install -Dm755 "dist/$_name-switch" "$pkgdir/usr/bin/$_name-switch"
+    install -Dm644 dist/config.toml "$pkgdir/etc/$_name/config.toml"
+    install -Dm644 dist/greetd.toml "$pkgdir/etc/greetd/$_name.toml"
+    install -Dm644 dist/greetd-service.conf \
+        "$pkgdir/usr/lib/systemd/system/greetd.service.d/$_name.conf"
+    install -Dm644 dist/tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$_name.conf"
+    install -Dm644 README.md "$pkgdir/usr/share/doc/$_name/README.md"
+    install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" assets/fonts/OFL-*.txt
+}

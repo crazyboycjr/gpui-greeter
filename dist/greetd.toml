@@ -1,4 +1,6 @@
-# greetd's settings for gpui-greeter, installed as /etc/greetd/config.toml.
+# greetd's settings for gpui-greeter, installed as
+# /etc/greetd/gpui-greeter.toml. greetd reads them instead of its own
+# config.toml through the drop-in greetd.service.d/gpui-greeter.conf.
 
 [terminal]
 vt = 1
@@ -9,5 +11,5 @@ vt = 1
 # home holds the X cookie and Xorg's log, and its output goes to the
 # journal (journalctl -t gpui-greeter). Should X fail to start, agreety
 # offers a text login on the same VT, whose session is the user's startx.
-command = "sh -c 'systemd-cat -t gpui-greeter env HOME=/var/lib/gpui-greeter startx /usr/local/bin/gpui-greeter || exec agreety --cmd startx'"
+command = "sh -c 'systemd-cat -t gpui-greeter env HOME=/var/lib/gpui-greeter startx /usr/bin/gpui-greeter || exec agreety --cmd startx'"
 user = "greeter"

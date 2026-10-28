@@ -1,0 +1,13 @@
+post_install() {
+    cat <<'TEXT'
+==> greetd now runs gpui-greeter, set up in /etc/gpui-greeter/config.toml.
+==> Copy the wallpapers for the Frost look:
+      sudo gpui-greeter sync-wallpapers ~/Pictures/Wallpapers
+==> Try it once on VT 1 (Ctrl+Alt+F7 returns; stop it with
+    sudo systemctl stop greetd):
+      sudo systemctl start greetd
+==> Make greetd the display manager from the next boot, and go back:
+      sudo gpui-greeter-switch greetd
+      sudo gpui-greeter-switch lightdm
+TEXT
+}

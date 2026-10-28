@@ -1,0 +1,53 @@
+#!/bin/bash
+# Makes greetd (with gpui-greeter) or LightDM the display manager from the
+# next boot. Nothing starts or stops now, and both stay installed.
+set -euo pipefail
+
+usage() {
+    cat <<'TEXT'
+usage: gpui-greeter-switch greetd|lightdm
+
+Makes greetd, with gpui-greeter, or LightDM the display manager from the
+next boot; nothing starts or stops now, and both stay installed.
+graphical.target starts display-manager.service, an alias that enabling a display manager points at its own unit; this moves that alias.
+TEXT
+}
+
+case ${1-} in
+    greetd | lightdm) target=$1 ;;
+    -h | --help) usage; exit 0 ;;
+    *) usage >&2; exit 2 ;;
+esac
+if (($# != 1)); then
+    usage >&2
+    exit 2
+fi
+if ((EUID != 0)); then
+    echo "gpui-greeter-switch: run it as root, with sudo" >&2
+    exit 1
+fi
+if ! systemctl cat "$target.service" >/dev/null 2>&1; then
+    echo "gpui-greeter-switch: $target is not installed" >&2
+    exit 1
+fi
+
+current=$(systemctl show --property=Id --value display-manager.service)
+current=${current%.service}
+if [[ $current == "$target" ]]; then
+    echo "$target already starts at boot"
+    exit 0
+fi
+if [[ $current != display-manager ]]; then
+    systemctl disable "$current.service"
+fi
+if ! systemctl enable "$target.service"; then
+    [[ $current != display-manager ]] && systemctl enable "$current.service"
+    exit 1
+fi
+
+echo "$target starts at the next boot; nothing changes before then."
+case $current in
+    greetd | lightdm) echo "To go back: sudo gpui-greeter-switch $current" ;;
+    display-manager) echo "To go back: sudo systemctl disable $target.service" ;;
+    *) echo "To go back: sudo systemctl disable $target.service && sudo systemctl enable $current.service" ;;
+esac
