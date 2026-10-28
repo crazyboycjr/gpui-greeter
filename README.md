@@ -102,9 +102,11 @@ arrives and keeps the last week's in
 language, each theme's accent and background, Frost's blur, dim and idle
 time, the wallpaper folder and pick, and how sessions start.
 
-Paper's and Neon's backgrounds are drawn once for each monitor, at its
-size, when the greeter starts, from the mockups' SVG (with resvg); what
-moves in them is drawn over the picture.
+Paper's and Neon's backgrounds are drawn from the mockups' SVG (with
+resvg) at each monitor's size, and kept in
+`/var/lib/gpui-greeter/.cache/gpui-greeter/scenery`, one picture for each
+size, so that later starts read them back instead of drawing them again;
+what moves in them is drawn over the picture.
 
 ## Trying it out
 
