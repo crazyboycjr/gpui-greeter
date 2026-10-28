@@ -222,17 +222,15 @@ impl Builder<'_> {
             }
             _ => (layer, key),
         };
-        let fired_by = if layer.fired_by.is_empty() {
-            source
-        } else {
-            layer
-        };
         let fired = greeter.fired.is_some_and(|(action, at)| {
-            let lit = fired_by.fired_by.contains(&action) && at.elapsed() < fired_by.fired_for;
-            if lit {
-                self.frame.pace.wake_at(at + fired_by.fired_for);
+            // The owner's actions light the layer, and so do its own.
+            let lit = [source, layer]
+                .into_iter()
+                .find(|by| by.fired_by.contains(&action) && at.elapsed() < by.fired_for);
+            if let Some(by) = lit {
+                self.frame.pace.wake_at(at + by.fired_for);
             }
-            lit
+            lit.is_some()
         });
         let armed = match (
             greeter.armed_action(),

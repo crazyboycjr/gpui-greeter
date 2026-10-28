@@ -840,19 +840,14 @@ fn read_layer(
                 None
             }
         });
-    let fired_by = match f.strings(r, "fired_by") {
-        Some(names) => names
-            .into_iter()
-            .filter_map(|name| match Action::parse(name) {
-                Ok(action) => Some(action),
-                Err(message) => {
-                    r.error(f.span("fired_by"), format!("{what}: {message}"));
-                    None
-                }
-            })
-            .collect(),
-        None => action.into_iter().collect(),
-    };
+    let mut fired_by: Vec<Action> = action.into_iter().collect();
+    for name in f.strings(r, "fired_by").unwrap_or_default() {
+        match Action::parse(name) {
+            Ok(other) if !fired_by.contains(&other) => fired_by.push(other),
+            Ok(_) => {}
+            Err(message) => r.error(f.span("fired_by"), format!("{what}: {message}")),
+        }
+    }
     let fired_for = f
         .millis(r, "fired_for")
         .unwrap_or(Duration::from_millis(700));
@@ -1924,6 +1919,8 @@ tint = true
 width = 800
 color = "#e8d5c0"
 motion = { property = "rotate", from = 0, to = 360, duration = 60000, easing = "steps(60)", repeat = "infinite", sync = "clock" }
+action = "next-session"
+fired_by = ["previous-session", "next-session"]
 
 [layer.on.error]
 color = "#b7410e"
@@ -1941,6 +1938,11 @@ color = "#b7410e"
         let ring = &folder.layers[1];
         assert_eq!(ring.line, 26);
         assert!(ring.motions[0].clock);
+        assert_eq!(
+            ring.fired_by,
+            [Action::NextSession, Action::PreviousSession],
+            "fired_by adds to the layer's own action"
+        );
         assert!(
             folder
                 .strings

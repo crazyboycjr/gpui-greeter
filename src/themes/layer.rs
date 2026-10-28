@@ -511,7 +511,8 @@ pub struct Layer {
     pub transition: Transition,
     pub motions: Vec<Motion>,
     pub action: Option<Action>,
-    /// The actions that light up `fired`, by default the layer's own.
+    /// The actions that light up `fired`: the layer's own, and those its
+    /// `fired_by` adds.
     pub fired_by: Vec<Action>,
     pub fired_for: Duration,
     pub repeat: Repeat,
