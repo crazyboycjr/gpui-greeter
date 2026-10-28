@@ -331,7 +331,7 @@ brace. An unknown name is an error.
 | `{user}`, `{user.name}`, `{user.initial}` | the login name, the full name (or the login name), its first letter |
 | `{host}` | the machine's name |
 | `{session}` | the chosen session's name |
-| `{theme}` | the theme's `name` |
+| `{theme}` | the theme's `name`, for a control that switches looks |
 | `{prompt}` | what PAM asks, without its colon; "Password" before it asks |
 | `{message}` | what PAM or greetd last said, such as why a login was refused, if anything |
 | `{status}` | the greeter's own sentence for where the login stands |
@@ -378,6 +378,7 @@ language: `%A` is "Wednesday" or "星期三", `%a` "Wed" or "周三", `%B`
 | `pick` | choose the session a `for_each` layer stands for |
 | `next-user`, `previous-user` | choose who logs in |
 | `next-keyboard-layout` | the next of the configured keyboard layouts |
+| `next-theme`, `previous-theme` | the next look the greeter offers, or the one before: the built-in looks and the installed theme folders, or the settings' `[themes] cycle` |
 | `rest`, `wake`, `clear` | go to rest (or clear the field, without a rest state), leave rest, clear the field |
 | `suspend`, `reboot`, `poweroff` | the first press arms the action; a second within four seconds runs it |
 | `tile.focus-next`, `tile.focus-previous`, `tile.swap-master`, `tile.next-layout`, `tile.shrink`, `tile.expand`, `tile.full` | as xmonad's mod-j, mod-k, mod-Return, mod-space, mod-h, mod-l and full screen |
@@ -392,6 +393,7 @@ Every theme starts with these keys, which `[keys]` can change:
 | Escape | `rest` |
 | Ctrl+U | `clear` |
 | F3 | `next-keyboard-layout` |
+| F9, Shift+F9 | `next-theme`, `previous-theme` |
 | F10, F11, F12 | `suspend`, `reboot`, `poweroff` |
 | Up, Down | `previous-user`, `next-user` |
 

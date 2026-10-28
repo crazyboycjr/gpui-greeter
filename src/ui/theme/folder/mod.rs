@@ -53,8 +53,8 @@ pub struct Frame<'a> {
 }
 
 /// The key under which GPUI's asset source holds a theme's SVG.
-pub fn asset_key(path: &str) -> String {
-    format!("theme/{path}")
+pub fn asset_key(theme: &str, path: &str) -> String {
+    format!("theme/{theme}/{path}")
 }
 
 pub fn render(view: &View, frame: &Frame) -> AnyElement {
@@ -719,7 +719,7 @@ impl Builder<'_> {
                 .with_scaling(size(look.scale, look.scale));
             div().child(
                 svg()
-                    .path(asset_key(&asset.path))
+                    .path(asset_key(&self.frame.folder.name, &asset.path))
                     .size_full()
                     .text_color(hsla(look.color))
                     .with_transformation(turn),

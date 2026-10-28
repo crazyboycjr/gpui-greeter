@@ -136,6 +136,10 @@ copy.
   logout or boot. Until then, `preview` of the installed folder is the
   closest look: `gpui-greeter check-theme /usr/local/share/gpui-greeter/themes/<name>`
   and the same `preview` commands.
+- At the login screen, F9 and Shift+F9 switch between the built-in looks
+  and the installed themes, and the greeter starts with the one picked
+  until the settings' `theme` changes. A theme can offer the same with a
+  control: `{theme}` names the look, and `action = "next-theme"` switches.
 - If greetd is not yet the display manager, `sudo systemctl start greetd`
   shows the greeter on VT 1 without logging in there; Ctrl+Alt+F7 returns
   to the running session and `sudo systemctl stop greetd` ends the trial.

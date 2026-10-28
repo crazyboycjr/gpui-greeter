@@ -23,7 +23,7 @@ pub struct Config {
 }
 
 /// One of the built-in looks, or the name of a theme folder.
-#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, Deserialize)]
 #[serde(try_from = "String")]
 pub enum Theme {
     #[default]
@@ -36,8 +36,21 @@ pub enum Theme {
 }
 
 impl Theme {
+    pub const BUILT_IN: [Theme; 4] = [Theme::Paper, Theme::PaperNight, Theme::Frost, Theme::Neon];
+
     pub fn parse(name: &str) -> Option<Self> {
         Self::try_from(name.to_string()).ok()
+    }
+
+    /// The name the settings call it by.
+    pub fn name(&self) -> &str {
+        match self {
+            Theme::Paper => "paper",
+            Theme::PaperNight => "paper-night",
+            Theme::Frost => "frost",
+            Theme::Neon => "neon",
+            Theme::Folder(name) => name,
+        }
     }
 }
 
@@ -249,12 +262,16 @@ impl Default for Sessions {
 pub struct Themes {
     /// Where theme folders are installed, one folder per theme.
     pub dir: PathBuf,
+    /// What the theme key cycles through, in order; when empty, every
+    /// built-in look and then every theme folder by name.
+    pub cycle: Vec<Theme>,
 }
 
 impl Default for Themes {
     fn default() -> Self {
         Self {
             dir: PathBuf::from("/usr/local/share/gpui-greeter/themes"),
+            cycle: Vec::new(),
         }
     }
 }
@@ -346,10 +363,17 @@ mod tests {
 
     #[test]
     fn a_theme_folder_is_named_by_the_theme_setting() {
-        let config: Config =
-            toml::from_str("theme = \"console\"\n[themes]\ndir = \"/srv/themes\"").unwrap();
+        let config: Config = toml::from_str(
+            "theme = \"console\"\n[themes]\ndir = \"/srv/themes\"\ncycle = [\"console\", \"frost\"]",
+        )
+        .unwrap();
         assert_eq!(config.theme, Theme::Folder("console".into()));
         assert_eq!(config.themes.dir, PathBuf::from("/srv/themes"));
+        assert_eq!(
+            config.themes.cycle,
+            [Theme::Folder("console".into()), Theme::Frost]
+        );
+        assert_eq!(Theme::PaperNight.name(), "paper-night");
         assert!(toml::from_str::<Config>("theme = \"a/b\"").is_err());
     }
 }

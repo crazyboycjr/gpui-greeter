@@ -3,13 +3,13 @@
 //! fonts and SVGs.
 
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::PoisonError;
 
 use anyhow::Result;
 use gpui_kit::{App, AssetSource, SharedString};
 
-use crate::themes::{AssetKind, Folder};
+use super::looks::SvgAssets;
+use crate::themes::Folder;
 
 macro_rules! assets {
     ($($path:literal),* $(,)?) => {
@@ -31,7 +31,7 @@ const FONTS: [(&str, &[u8]); 11] = assets![
     "fonts/JetBrainsMono-ExtraBold.ttf",
 ];
 
-const ICONS: [(&str, &[u8]); 10] = assets![
+const ICONS: [(&str, &[u8]); 11] = assets![
     "icons/arrow-right.svg",
     "icons/caret-up.svg",
     "icons/chevron-left.svg",
@@ -42,6 +42,7 @@ const ICONS: [(&str, &[u8]); 10] = assets![
     "icons/power.svg",
     "icons/restart.svg",
     "icons/spinner.svg",
+    "icons/theme.svg",
 ];
 
 pub fn register_fonts(cx: &mut App, folder: Option<&Folder>) {
@@ -67,30 +68,16 @@ pub fn register_fonts(cx: &mut App, folder: Option<&Folder>) {
     }
 }
 
-/// The icons, and the SVGs a theme draws in a colour of its choosing.
+/// The icons, and the SVGs theme folders draw in a colour of their
+/// choosing, which grow as theme folders load.
 pub struct Assets {
-    theme: HashMap<String, Arc<[u8]>>,
-}
-
-impl Assets {
-    pub fn new(folder: Option<&Folder>) -> Self {
-        let theme = folder
-            .into_iter()
-            .flat_map(|folder| folder.assets.iter())
-            .filter_map(|asset| match &asset.kind {
-                AssetKind::Svg { bytes, .. } => {
-                    Some((super::theme::folder::asset_key(&asset.path), bytes.clone()))
-                }
-                AssetKind::Raster(_) => None,
-            })
-            .collect();
-        Self { theme }
-    }
+    pub svgs: SvgAssets,
 }
 
 impl AssetSource for Assets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
-        if let Some(bytes) = self.theme.get(path) {
+        let svgs = self.svgs.read().unwrap_or_else(PoisonError::into_inner);
+        if let Some(bytes) = svgs.get(path) {
             return Ok(Some(Cow::Owned(bytes.to_vec())));
         }
         Ok(ICONS
@@ -100,12 +87,13 @@ impl AssetSource for Assets {
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
+        let svgs = self.svgs.read().unwrap_or_else(PoisonError::into_inner);
         Ok(ICONS
             .iter()
-            .map(|(name, _)| *name)
-            .chain(self.theme.keys().map(String::as_str))
+            .map(|(name, _)| (*name).to_string())
+            .chain(svgs.keys().cloned())
             .filter(|name| name.starts_with(path))
-            .map(|name| name.to_string().into())
+            .map(SharedString::from)
             .collect())
     }
 }

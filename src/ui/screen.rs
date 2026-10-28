@@ -2,16 +2,14 @@
 //! passes keys and pointer movement to the shared greeter.
 
 use std::collections::HashSet;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::prelude::*;
 use gpui_kit::{Entity, FocusHandle, KeyDownEvent, MouseMoveEvent, Subscription, Window, div, px};
 
 use super::model::Greeter;
-use super::theme::folder::{self, MonitorPictures, Pace, Pictures, Timeline};
+use super::theme::folder::{self, MonitorPictures, Pace, Timeline};
 use super::theme::{self, DESIGN_REM, design_unit};
-use crate::scenery::Scenery;
 use crate::wallpaper::Backdrop;
 use crate::x11::Monitor;
 
@@ -19,9 +17,8 @@ pub struct Screen {
     greeter: Entity<Greeter>,
     output: usize,
     monitor: Monitor,
-    scenery: Option<Arc<Scenery>>,
     backdrops: Backdrops,
-    folder: Option<FolderScreen>,
+    folder: FolderScreen,
     focus: FocusHandle,
     _observing: Subscription,
 }
@@ -40,16 +37,26 @@ pub struct Backdrops {
 
 /// What a window keeps for a theme folder between frames.
 struct FolderScreen {
-    pictures: Arc<Pictures>,
-    drawn: Arc<MonitorPictures>,
     timeline: Timeline,
     hovered: HashSet<u64>,
     /// When a redraw is already asked for.
     wake: Option<Instant>,
     /// Since when nothing has been changing but what runs forever.
     settled_since: Option<Instant>,
-    /// Whether its SVGs are still being drawn.
-    pending: bool,
+    /// The greeter's count of theme switches this was kept for.
+    theme_changes: u32,
+}
+
+impl FolderScreen {
+    fn new() -> Self {
+        Self {
+            timeline: Timeline::new(Instant::now()),
+            hovered: HashSet::new(),
+            wake: None,
+            settled_since: None,
+            theme_changes: 0,
+        }
+    }
 }
 
 impl Screen {
@@ -57,8 +64,6 @@ impl Screen {
         greeter: Entity<Greeter>,
         output: usize,
         monitor: Monitor,
-        scenery: Option<Arc<Scenery>>,
-        pictures: Option<(Arc<Pictures>, Option<Arc<MonitorPictures>>)>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> Self {
@@ -69,17 +74,8 @@ impl Screen {
             greeter,
             output,
             monitor,
-            scenery,
             backdrops: Backdrops::default(),
-            folder: pictures.map(|(pictures, drawn)| FolderScreen {
-                pictures,
-                pending: drawn.is_none(),
-                drawn: drawn.unwrap_or_default(),
-                timeline: Timeline::new(Instant::now()),
-                hovered: HashSet::new(),
-                wake: None,
-                settled_since: None,
-            }),
+            folder: FolderScreen::new(),
             focus,
             _observing: observing,
         }
@@ -106,15 +102,6 @@ impl Screen {
         cx.notify();
     }
 
-    /// The theme's SVGs, drawn for this monitor after the window opened.
-    pub fn set_drawn(&mut self, drawn: Arc<MonitorPictures>, cx: &mut Context<Self>) {
-        if let Some(folder) = self.folder.as_mut() {
-            folder.drawn = drawn;
-            folder.pending = false;
-            cx.notify();
-        }
-    }
-
     pub fn has_backdrop(&self) -> bool {
         self.backdrops.current.is_some()
     }
@@ -122,14 +109,12 @@ impl Screen {
     /// Since when a theme folder's window has shown nothing but what moves
     /// forever, for a preview's screenshot.
     pub fn settled_since(&self) -> Option<Instant> {
-        self.folder.as_ref().and_then(|folder| folder.settled_since)
+        self.folder.settled_since
     }
 
     /// The pointer entered or left a layer whose look follows it.
     pub fn hover(&mut self, key: u64, hovered: bool, cx: &mut Context<Self>) {
-        let Some(folder) = self.folder.as_mut() else {
-            return;
-        };
+        let folder = &mut self.folder;
         let changed = if hovered {
             folder.hovered.insert(key)
         } else {
@@ -154,9 +139,7 @@ impl Screen {
 
     /// Draws the window again at `at`, unless an earlier redraw is due.
     fn wake_at(&mut self, at: Instant, cx: &mut Context<Self>) {
-        let Some(folder) = self.folder.as_mut() else {
-            return;
-        };
+        let folder = &mut self.folder;
         if folder.wake.is_some_and(|pending| pending <= at) {
             return;
         }
@@ -165,10 +148,8 @@ impl Screen {
             let wait = at.saturating_duration_since(Instant::now());
             cx.background_executor().timer(wait).await;
             let _ = this.update(cx, |this, cx| {
-                if let Some(folder) = this.folder.as_mut()
-                    && folder.wake == Some(at)
-                {
-                    folder.wake = None;
+                if this.folder.wake == Some(at) {
+                    this.folder.wake = None;
                 }
                 cx.notify();
             });
@@ -185,14 +166,16 @@ impl Render for Screen {
         let now = Instant::now();
         let screen = cx.entity();
         let pace = Pace::default();
+        let mut pending = false;
         let content = {
             let greeter = self.greeter.read(cx);
+            let assets = greeter.looks.screen(greeter.theme(), self.output);
             let view = theme::View {
                 greeter,
                 handle: &self.greeter,
                 has_form: greeter.form == self.output,
                 monitor: &self.monitor,
-                scenery: self.scenery.as_ref(),
+                scenery: assets.scenery.as_ref(),
                 backdrops: &self.backdrops,
                 unit,
                 scale_factor: window.scale_factor(),
@@ -201,13 +184,24 @@ impl Render for Screen {
                     viewport.height.as_f32() / unit,
                 ),
             };
-            match (self.folder.as_mut(), greeter.folder.as_deref()) {
-                (Some(state), Some(folder)) => {
+            let pictures = greeter
+                .looks
+                .get(greeter.theme())
+                .and_then(|prepared| prepared.pictures.clone());
+            match (greeter.folder.as_deref(), pictures) {
+                (Some(folder), Some(pictures)) => {
+                    let state = &mut self.folder;
+                    if state.theme_changes != greeter.theme_changes {
+                        *state = FolderScreen::new();
+                        state.theme_changes = greeter.theme_changes;
+                    }
                     state.timeline.observe(greeter.state(), now);
+                    pending = assets.drawn.is_none();
+                    let empty = MonitorPictures::default();
                     let frame = folder::Frame {
                         folder,
-                        pictures: &state.pictures,
-                        drawn: &state.drawn,
+                        pictures: &pictures,
+                        drawn: assets.drawn.as_deref().unwrap_or(&empty),
                         timeline: &state.timeline,
                         hovered: &state.hovered,
                         screen,
@@ -218,8 +212,9 @@ impl Render for Screen {
                 _ => theme::render(&view),
             }
         };
-        if let Some(state) = self.folder.as_mut() {
-            if pace.settling.get() || state.pending {
+        {
+            let state = &mut self.folder;
+            if pace.settling.get() || pending {
                 state.settled_since = None;
             } else if state.settled_since.is_none() {
                 state.settled_since = Some(now);

@@ -20,6 +20,8 @@ chosen in its settings:
   a faint grid, all with scanlines and a slow scan beam; a status line that
   goes READY, AUTH, then GRANTED or DENIED, and F-key buttons.
 
+F9 switches between them at the login screen.
+
 It speaks English and Chinese (`language = "zh-CN"`); another language is
 one more table in `src/i18n.rs`.
 
@@ -133,6 +135,13 @@ an Xvfb of its own with lavapipe. `install-theme` checks the folder, copies
 its files, owned by root and readable by the greeter, and `--select` sets
 `theme` in the settings. A theme that cannot be read gives way to Paper,
 and `journalctl -t gpui-greeter` says why.
+
+At the login screen, F9 switches to the next look and Shift+F9 back: the
+built-in looks, then the installed theme folders by name, or the list in
+`[themes] cycle`. Each look also shows a quiet control for it beside its
+session. The greeter keeps the choice in its own state, under
+`/var/lib/gpui-greeter`, and starts with it next time, until the settings'
+`theme` changes.
 
 ### Designing a theme with an agent
 

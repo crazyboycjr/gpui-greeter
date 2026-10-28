@@ -18,6 +18,17 @@ pub struct Uses {
 }
 
 impl Uses {
+    /// Both what `self` and `other` use.
+    pub fn and(self, other: Uses) -> Uses {
+        Uses {
+            cpu: self.cpu || other.cpu,
+            gpu: self.gpu || other.gpu,
+            memory: self.memory || other.memory,
+            packages: self.packages || other.packages,
+            shell: self.shell || other.shell,
+        }
+    }
+
     pub fn note(&mut self, binding: &Binding) {
         match binding {
             Binding::Cpu => self.cpu = true,

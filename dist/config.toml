@@ -54,3 +54,8 @@ wrapper = "startx /usr/bin/env"
 # Theme folders, one per theme. A folder theme that cannot be loaded gives
 # way to Paper, and the log says why.
 dir = "/usr/local/share/gpui-greeter/themes"
+# What F9 (and Shift+F9 back) switches between at the login screen, in
+# order, such as ["paper", "frost", "console"]. Empty offers every built-in
+# look and then every theme folder by name. The greeter remembers the
+# choice until `theme` above changes.
+cycle = []

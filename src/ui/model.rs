@@ -10,6 +10,7 @@ use gpui_kit::{Context, KeyDownEvent, Task};
 use jiff::Zoned;
 use zeroize::Zeroizing;
 
+use super::looks::Looks;
 use crate::config::{Config, PaperBackground, Theme};
 use crate::greetd::Greetd;
 use crate::i18n::{self, Strings};
@@ -18,7 +19,7 @@ use crate::power::{Action, Power};
 use crate::remembered::Remembered;
 use crate::sessions::Session;
 use crate::system::{self, Machine};
-use crate::themes::facts::{self, Facts};
+use crate::themes::facts::{self, Facts, Uses};
 use crate::themes::{self, Folder, State, TileAction, tiles};
 use crate::users::{self, User};
 use crate::x11::{Monitor, X11};
@@ -63,8 +64,10 @@ struct Armed {
 
 pub struct Setup {
     pub config: Config,
-    /// The theme folder `config.theme` names, loaded.
-    pub folder: Option<Arc<Folder>>,
+    /// The theme the settings name, which the one picked at the login
+    /// screen is remembered against.
+    pub setting: Theme,
+    pub looks: Looks,
     pub users: Vec<User>,
     pub sessions: Vec<Session>,
     pub monitors: Vec<Monitor>,
@@ -185,6 +188,11 @@ pub struct Greeter {
     pub layout: usize,
     /// The theme folder being shown, if the theme is one.
     pub folder: Option<Arc<Folder>>,
+    /// The looks the theme key switches between.
+    pub looks: Looks,
+    /// Counts the switches of look, so each window starts the new one
+    /// afresh.
+    pub theme_changes: u32,
     pub tiles: Option<TilesState>,
     /// The last action a key or a click ran, and when.
     pub fired: Option<(themes::Action, Instant)>,
@@ -202,6 +210,8 @@ pub struct Greeter {
     greetd: Arc<Mutex<Option<Greetd>>>,
     power: Power,
     preview: bool,
+    setting: Theme,
+    facts_read: Uses,
     x11: Rc<X11>,
     _clock: Task<()>,
 }
@@ -210,7 +220,8 @@ impl Greeter {
     pub fn new(setup: Setup, cx: &mut Context<Self>) -> Self {
         let Setup {
             config,
-            folder,
+            setting,
+            looks,
             users,
             sessions,
             monitors,
@@ -239,6 +250,9 @@ impl Greeter {
         if let Some(hostname) = hostname {
             machine.hostname = hostname;
         }
+        let folder = looks
+            .get(&config.theme)
+            .and_then(|prepared| prepared.folder.clone());
         let uses = folder
             .as_ref()
             .map(|folder| folder.uses)
@@ -254,6 +268,10 @@ impl Greeter {
             locked: config.theme == Theme::Frost || folder.as_ref().is_some_and(|f| f.rest),
             tiles: folder.as_deref().and_then(TilesState::new),
             folder,
+            looks,
+            theme_changes: 0,
+            setting,
+            facts_read: uses,
             fired: None,
             failures: 0,
             facts,
@@ -490,6 +508,8 @@ impl Greeter {
             "backspace" if modifiers.control => self.clear_typed(),
             "backspace" => self.typed.pop(),
             "u" if modifiers.control => self.clear_typed(),
+            "f9" if modifiers.shift => self.switch_theme(-1, cx),
+            "f9" => self.switch_theme(1, cx),
             "f2" => self.next_session(),
             "f3" => self.next_layout(),
             "up" => self.next_user(-1, cx),
@@ -559,6 +579,8 @@ impl Greeter {
             Run::NextUser => self.next_user(1, cx),
             Run::PreviousUser => self.next_user(-1, cx),
             Run::NextKeyboardLayout => self.next_layout(),
+            Run::NextTheme => self.switch_theme(1, cx),
+            Run::PreviousTheme => self.switch_theme(-1, cx),
             Run::Rest => self.escape(cx),
             Run::Wake | Run::Nothing => {}
             Run::Clear => self.clear_typed(),
@@ -830,11 +852,102 @@ impl Greeter {
     }
 
     fn remember(&self) {
-        Remembered {
-            user: self.user().map(|user| user.name.clone()),
-            session: self.session().map(|session| session.id.clone()),
+        let mut remembered = Remembered::load();
+        remembered.user = self.user().map(|user| user.name.clone());
+        remembered.session = self.session().map(|session| session.id.clone());
+        remembered.save();
+    }
+
+    /// The look the theme key picked, kept for the next start.
+    fn remember_theme(&self) {
+        if self.preview {
+            return;
         }
-        .save();
+        let mut remembered = Remembered::load();
+        remembered.theme = Some(self.theme().name().to_string());
+        remembered.theme_setting = Some(self.setting.name().to_string());
+        remembered.save();
+    }
+
+    /// The look's name, as its control shows it.
+    pub fn theme_title(&self) -> String {
+        match self.theme() {
+            Theme::Paper => "Paper".into(),
+            Theme::PaperNight => "Paper Night".into(),
+            Theme::Frost => "Frost".into(),
+            Theme::Neon => "Neon".into(),
+            Theme::Folder(name) => self
+                .folder
+                .as_ref()
+                .map_or_else(|| name.clone(), |folder| folder.title.clone()),
+        }
+    }
+
+    /// The theme key: the next look, or with `step` -1 the one before. A look
+    /// not ready yet is made ready, and shown once it is.
+    pub fn switch_theme(&mut self, step: isize, cx: &mut Context<Self>) {
+        if self.is_busy() {
+            return;
+        }
+        let Some(target) = self.looks.neighbour(self.theme(), step) else {
+            return;
+        };
+        self.last_input = Instant::now();
+        if self.looks.is_ready(&target) {
+            self.apply_theme(target, cx);
+        } else {
+            self.looks.wanted = Some(target.clone());
+            self.looks.prepare(&target, cx);
+        }
+        cx.notify();
+    }
+
+    /// A look is ready, or failed to be: shows it if it was waited for.
+    pub fn look_ready(&mut self, theme: &Theme, cx: &mut Context<Self>) {
+        if self.looks.wanted.as_ref() == Some(theme) && self.looks.is_ready(theme) {
+            self.apply_theme(theme.clone(), cx);
+        } else if self.looks.has_failed(theme) {
+            // A theme folder that cannot be read is skipped over.
+            self.looks.cycle.retain(|other| other != theme);
+        }
+        cx.notify();
+    }
+
+    fn apply_theme(&mut self, theme: Theme, cx: &mut Context<Self>) {
+        self.looks.wanted = None;
+        let folder = self
+            .looks
+            .get(&theme)
+            .and_then(|prepared| prepared.folder.clone());
+        if let Some(folder) = &folder {
+            let wanted = self.facts_read.and(folder.uses);
+            if wanted != self.facts_read {
+                self.facts = Facts::read(wanted, self.users.iter().map(|user| user.shell.as_str()));
+                self.facts_read = wanted;
+            }
+        }
+        Rc::make_mut(&mut self.config).theme = theme;
+        self.tiles = folder.as_deref().and_then(TilesState::new);
+        self.folder = folder;
+        self.theme_changes += 1;
+        self.fired = None;
+        self.menu = None;
+        if !self.has_rest() {
+            self.locked = false;
+        }
+        self.remember_theme();
+        self.prepare_neighbours(cx);
+        cx.notify();
+    }
+
+    /// Makes the looks either side of this one ready, so the theme key
+    /// shows them at once.
+    pub fn prepare_neighbours(&mut self, cx: &mut Context<Self>) {
+        for step in [1, -1] {
+            if let Some(theme) = self.looks.neighbour(self.theme(), step) {
+                self.looks.prepare(&theme, cx);
+            }
+        }
     }
 
     /// Leaves a question PAM asked, for a fresh start with the password.

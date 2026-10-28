@@ -15,6 +15,9 @@ pub enum Action {
     NextUser,
     PreviousUser,
     NextKeyboardLayout,
+    /// The next look the greeter offers, or the one before.
+    NextTheme,
+    PreviousTheme,
     /// Back to rest, clearing the field; only clears it in a theme without
     /// a rest state.
     Rest,
@@ -37,7 +40,7 @@ pub enum TileAction {
     Full,
 }
 
-const NAMES: [(&str, Action); 22] = [
+const NAMES: [(&str, Action); 24] = [
     ("submit", Action::Submit),
     ("next-session", Action::NextSession),
     ("previous-session", Action::PreviousSession),
@@ -45,6 +48,8 @@ const NAMES: [(&str, Action); 22] = [
     ("next-user", Action::NextUser),
     ("previous-user", Action::PreviousUser),
     ("next-keyboard-layout", Action::NextKeyboardLayout),
+    ("next-theme", Action::NextTheme),
+    ("previous-theme", Action::PreviousTheme),
     ("rest", Action::Rest),
     ("wake", Action::Wake),
     ("clear", Action::Clear),
@@ -252,6 +257,8 @@ impl Default for Keymap {
             ("ctrl-u", Action::Clear),
             ("f2", Action::NextSession),
             ("f3", Action::NextKeyboardLayout),
+            ("f9", Action::NextTheme),
+            ("shift-f9", Action::PreviousTheme),
             ("f10", Action::Power(power::Action::Suspend)),
             ("f11", Action::Power(power::Action::Reboot)),
             ("f12", Action::Power(power::Action::PowerOff)),

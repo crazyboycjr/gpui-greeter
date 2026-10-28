@@ -4,6 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use gpui_greeter::config::{self, Config, Language, Pick, Theme};
+use gpui_greeter::remembered::Remembered;
 use gpui_greeter::themes::{self, Folder, Severity, State};
 use gpui_greeter::ui::preview::{self, Preview};
 use gpui_greeter::{sync, ui};
@@ -101,17 +102,32 @@ fn greet(args: &[String]) -> anyhow::Result<()> {
         }
     }
     let mut config = Config::load(&config_path);
-    config.theme = theme.unwrap_or(config.theme);
     config.language = language.unwrap_or(config.language);
-    let folder = match &config.theme {
-        Theme::Folder(name) => themes::load_configured(&config.themes.dir, name),
-        _ => None,
-    };
-    if folder.is_none() && matches!(config.theme, Theme::Folder(_)) {
-        config.theme = Theme::Paper;
+    let setting = theme.clone().unwrap_or(config.theme.clone());
+    // The look picked at the login screen last time, unless the settings
+    // have changed since or the command line names one.
+    let picked = theme.is_none().then(|| {
+        Remembered::load()
+            .theme_for(setting.name())
+            .and_then(Theme::parse)
+    });
+    let mut folder = None;
+    config.theme = Theme::Paper;
+    for candidate in picked.flatten().into_iter().chain([setting.clone()]) {
+        let loaded = match &candidate {
+            Theme::Folder(name) => match themes::load_configured(&config.themes.dir, name) {
+                Some(loaded) => Some(loaded),
+                None => continue,
+            },
+            _ => None,
+        };
+        folder = loaded;
+        config.theme = candidate;
+        break;
     }
     ui::run(ui::Options {
         config,
+        setting,
         dry_run,
         folder,
         preview: None,
@@ -218,6 +234,7 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
     let socket_dir = preview::start_fake_greetd()?;
     let outcome = Arc::new(Mutex::new(None));
     let ran = ui::run(ui::Options {
+        setting: config.theme.clone(),
         config,
         dry_run: true,
         folder: Some(folder),

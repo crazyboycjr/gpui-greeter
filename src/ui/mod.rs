@@ -2,6 +2,7 @@
 //! of them, drawn with GPUI and gpui-kit.
 
 mod assets;
+mod looks;
 mod model;
 mod motion;
 pub mod preview;
@@ -9,12 +10,13 @@ mod screen;
 mod text;
 mod theme;
 
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
-use std::sync::Arc;
+use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use gpui_kit::{
@@ -25,24 +27,30 @@ use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::config::{Config, Pick, Theme};
 use crate::power::Power;
-use crate::scenery::{self, Look, Scenery};
 use crate::sessions::Session;
-use crate::themes::Folder;
+use crate::themes::{FRAME, Folder};
 use crate::users::User;
 use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, Rect, X11};
 use crate::{bing, cache};
 use crate::{sessions, users};
+use looks::{Looks, ScreenAssets, SvgAssets};
 use model::{Greeter, Setup};
 use screen::Screen;
-use theme::folder::{MonitorPictures, Pictures, pictures};
 
 /// Frost's blurred wallpaper is darkened this much, as the mockup's
 /// `brightness(.86)`.
 const BLURRED_BRIGHTNESS: f32 = 0.86;
 
+/// How long the windows wait for the first look's pictures; a drawing that
+/// takes longer, as the first of a heavy SVG may, shows once it is done.
+const PICTURES_WAIT: Duration = Duration::from_millis(1500);
+
 pub struct Options {
     pub config: Config,
+    /// The theme the settings name, which a theme picked at the login
+    /// screen is remembered against.
+    pub setting: Theme,
     /// Power actions are only logged.
     pub dry_run: bool,
     /// The theme folder `config.theme` names, loaded.
@@ -54,6 +62,7 @@ pub struct Options {
 pub fn run(options: Options) -> Result<()> {
     let Options {
         config,
+        setting,
         dry_run,
         folder,
         preview,
@@ -77,16 +86,13 @@ pub fn run(options: Options) -> Result<()> {
             x11.monitors()
         }
     };
-    let drawing = Look::of(&config).map(|look| draw_scenery(look, &monitors));
-    let preparing = folder.clone().map(|folder| prepare(folder, &monitors));
+    let sizes: Vec<(u32, u32)> = monitors
+        .iter()
+        .map(|monitor| (monitor.rect.width, monitor.rect.height))
+        .collect();
+    let preparing = looks::start(&config, folder.as_ref(), &sizes);
     let form = form_monitor(&monitors, x11.pointer());
     let scale = set_scale(&monitors[form]);
-    let shows_wallpaper =
-        config.theme == Theme::Frost || folder.as_ref().is_some_and(|f| f.wallpaper.is_some());
-    let wallpaper = shows_wallpaper.then(|| Wallpaper::pick(&config));
-    let waits_for_wallpaper = wallpaper
-        .as_ref()
-        .is_some_and(|wallpaper| wallpaper.now.is_some() || wallpaper.bing.is_some());
     let users = match preview.as_ref().and_then(|preview| preview.user.clone()) {
         Some(name) => vec![User {
             display_name: name.clone(),
@@ -105,28 +111,12 @@ pub fn run(options: Options) -> Result<()> {
             desktop_names: None,
         });
     }
-    let blur = match folder.as_ref().and_then(|folder| folder.wallpaper) {
-        Some(frame_px) => Blur {
-            css_px: frame_px * theme::DESIGN_FRAME.0 / crate::themes::FRAME.0,
-            brightness: 1.0,
-        },
-        None => Blur {
-            css_px: config.frost.blur,
-            brightness: BLURRED_BRIGHTNESS,
-        },
-    };
-    let setup = Setup {
-        users,
-        sessions,
-        monitors: monitors.clone(),
-        form,
-        x11: x11.clone(),
-        power: Power { dry_run },
-        folder: folder.clone(),
-        preview: preview.is_some(),
-        hostname: preview.as_ref().and_then(|preview| preview.host.clone()),
-        config,
-    };
+    let svgs: SvgAssets = Arc::new(RwLock::new(HashMap::new()));
+    if let Some(folder) = &folder {
+        looks::add_svgs(&svgs, folder);
+    }
+    let waits_for_wallpaper = wallpaper_blur(&config.theme, folder.as_deref(), &config).is_some()
+        && !wallpaper::candidates(&config.wallpaper.dir).is_empty();
     log::info!(
         "{} monitor(s), the form on {:?}, scale {scale}",
         monitors.len(),
@@ -134,30 +124,35 @@ pub fn run(options: Options) -> Result<()> {
     );
 
     gpui_kit::application()
-        .with_assets(assets::Assets::new(folder.as_deref()))
+        .with_assets(assets::Assets { svgs: svgs.clone() })
         .run(move |cx| {
             gpui_kit::init(cx);
             assets::register_fonts(cx, folder.as_deref());
-            let greeter = cx.new(|cx| Greeter::new(setup, cx));
-            let mut sceneries = drawing.map(finish_scenery).unwrap_or_default().into_iter();
-            let (shared, mut drawings) = match preparing.map(Preparing::finish) {
-                Some((shared, drawings)) => (Some(shared), drawings.into_iter()),
-                None => (None, Vec::new().into_iter()),
+            let (prepared, later) = preparing.finish(Some(PICTURES_WAIT));
+            let first = config.theme.clone();
+            let switching = preview.is_none();
+            let looks = Looks::new(&config, &monitors, first.clone(), prepared, svgs, switching);
+            let setup = Setup {
+                users,
+                sessions,
+                monitors: monitors.clone(),
+                form,
+                x11: x11.clone(),
+                power: Power { dry_run },
+                looks,
+                setting,
+                preview: preview.is_some(),
+                hostname: preview.as_ref().and_then(|preview| preview.host.clone()),
+                config: config.clone(),
             };
+            let greeter = cx.new(|cx| Greeter::new(setup, cx));
+            for (output, thread) in later {
+                deliver(cx, greeter.clone(), first.clone(), output, thread);
+            }
             let mut screens = Vec::new();
             for (output, monitor) in monitors.iter().enumerate() {
-                let scenery = sceneries.next().flatten();
-                let (drawn, later) = match drawings.next() {
-                    Some(Drawing::Done(drawn)) => (Some(drawn), None),
-                    Some(Drawing::Pending(thread)) => (None, Some(thread)),
-                    None => (None, None),
-                };
-                let pictures = shared.clone().map(|shared| (shared, drawn));
-                match open_screen(cx, &greeter, output, monitor, scale, scenery, pictures) {
+                match open_screen(cx, &greeter, output, monitor, scale) {
                     Ok((screen, xid)) => {
-                        if let Some(thread) = later {
-                            deliver(cx, screen.clone(), thread);
-                        }
                         if let Some(xid) = xid
                             && let Err(error) = x11.place(xid, monitor.rect)
                         {
@@ -182,12 +177,19 @@ pub fn run(options: Options) -> Result<()> {
                     waits_for_wallpaper,
                 );
             }
-            if let Some(wallpaper) = wallpaper {
-                let screens = Screens {
-                    windows: screens,
-                    requests: Cell::new(0),
-                };
-                wallpaper.show(cx, Rc::new(screens), blur);
+            let screens = Rc::new(Screens {
+                windows: screens,
+                requests: Cell::new(0),
+                shown: RefCell::new(None),
+            });
+            follow_wallpaper(cx, greeter.clone(), screens, config);
+            if switching {
+                // The looks either side, once the first frames are out.
+                cx.spawn(async move |cx| {
+                    cx.background_executor().timer(Duration::from_secs(2)).await;
+                    greeter.update(cx, |greeter, cx| greeter.prepare_neighbours(cx));
+                })
+                .detach();
             }
         });
     Ok(())
@@ -227,9 +229,9 @@ fn set_scale(monitor: &Monitor) -> f32 {
     scale
 }
 
-/// Frost's wallpaper: the picture to show now, and, when the pick is
-/// Bing's picture of the day and today's is not fetched yet, where to fetch
-/// it from, to show once it arrives.
+/// The wallpaper: the picture to show now, and, when the pick is Bing's
+/// picture of the day and today's is not fetched yet, where to fetch it
+/// from, to show once it arrives.
 struct Wallpaper {
     now: Option<PathBuf>,
     bing: Option<BingFetch>,
@@ -295,11 +297,64 @@ impl Wallpaper {
     }
 }
 
-/// The windows Frost's wallpaper goes to, and how many pictures were asked
-/// for: a window keeps the one asked for last, whichever is made first.
+/// The windows the wallpaper goes to, and how many pictures were asked for:
+/// a window keeps the one asked for last, whichever is made first.
 struct Screens {
     windows: Vec<(Entity<Screen>, Monitor)>,
     requests: Cell<u64>,
+    /// The picture shown last, and how it was blurred.
+    shown: RefCell<Option<(PathBuf, Blur)>>,
+}
+
+/// How Frost, or a theme's wallpaper layer, blurs the wallpaper.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Blur {
+    css_px: f32,
+    brightness: f32,
+}
+
+/// How the look blurs the wallpaper, if it shows one.
+fn wallpaper_blur(theme: &Theme, folder: Option<&Folder>, config: &Config) -> Option<Blur> {
+    match theme {
+        Theme::Frost => Some(Blur {
+            css_px: config.frost.blur,
+            brightness: BLURRED_BRIGHTNESS,
+        }),
+        Theme::Folder(_) => folder
+            .and_then(|folder| folder.wallpaper)
+            .map(|frame_px| Blur {
+                css_px: frame_px * theme::DESIGN_FRAME.0 / FRAME.0,
+                brightness: 1.0,
+            }),
+        _ => None,
+    }
+}
+
+/// Shows the wallpaper behind every look that draws one, picked once and
+/// blurred as each look asks.
+fn follow_wallpaper(cx: &mut App, greeter: Entity<Greeter>, screens: Rc<Screens>, config: Config) {
+    let picked = Cell::new(false);
+    let update = move |greeter: Entity<Greeter>, cx: &mut App| {
+        let blur = {
+            let greeter = greeter.read(cx);
+            wallpaper_blur(greeter.theme(), greeter.folder.as_deref(), &config)
+        };
+        let Some(blur) = blur else {
+            return;
+        };
+        let shown = screens.shown.borrow().clone();
+        match shown {
+            Some((_, done)) if done == blur => {}
+            Some((path, _)) => load_backdrops(cx, path, screens.clone(), blur),
+            None if !picked.get() => {
+                picked.set(true);
+                Wallpaper::pick(&config).show(cx, screens.clone(), blur);
+            }
+            None => {}
+        }
+    };
+    update(greeter.clone(), cx);
+    cx.observe(&greeter, update).detach();
 }
 
 /// Fetches today's picture, trying again for a while in case the network
@@ -316,6 +371,11 @@ fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: Blur) 
                 .await;
             match fetched {
                 Ok(path) => {
+                    let blur = screens
+                        .shown
+                        .borrow()
+                        .as_ref()
+                        .map_or(blur, |(_, blur)| *blur);
                     cx.update(|cx| load_backdrops(cx, path, screens, blur));
                     return;
                 }
@@ -327,122 +387,23 @@ fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: Blur) 
     .detach();
 }
 
-/// Starts drawing each monitor's scenery on a thread of its own, while the
-/// toolkit starts.
-fn draw_scenery(look: Look, monitors: &[Monitor]) -> Vec<JoinHandle<Option<Arc<Scenery>>>> {
-    let cache = cache::dir("scenery");
-    monitors
-        .iter()
-        .map(|monitor| {
-            let pixels = (monitor.rect.width, monitor.rect.height);
-            let cache = cache.clone();
-            std::thread::spawn(move || {
-                let started = Instant::now();
-                match scenery::draw(look, pixels, cache.as_deref()) {
-                    Ok(scenery) => {
-                        log::info!("scenery for {pixels:?} drawn in {:?}", started.elapsed());
-                        Some(Arc::new(scenery))
-                    }
-                    Err(error) => {
-                        log::error!("cannot draw the scenery for {pixels:?}: {error:#}");
-                        None
-                    }
-                }
-            })
-        })
-        .collect()
-}
-
-/// Each monitor's scenery, once drawn: the windows open with it, so that
-/// the look never shows without it.
-fn finish_scenery(drawing: Vec<JoinHandle<Option<Arc<Scenery>>>>) -> Vec<Option<Arc<Scenery>>> {
-    drawing
-        .into_iter()
-        .map(|thread| thread.join().ok().flatten())
-        .collect()
-}
-
-/// How Frost, or a theme's wallpaper layer, blurs the wallpaper.
-#[derive(Debug, Clone, Copy)]
-struct Blur {
-    css_px: f32,
-    brightness: f32,
-}
-
-/// A theme folder's pictures, being made ready while the toolkit starts.
-struct Preparing {
-    shared: JoinHandle<Pictures>,
-    monitors: Vec<JoinHandle<MonitorPictures>>,
-}
-
-fn prepare(folder: Arc<Folder>, monitors: &[Monitor]) -> Preparing {
-    let largest = monitors.iter().fold((1, 1), |(w, h), monitor| {
-        (w.max(monitor.rect.width), h.max(monitor.rect.height))
-    });
-    let cache = cache::dir("themes").map(|dir| dir.join(&folder.name));
-    let shared = {
-        let folder = folder.clone();
-        std::thread::spawn(move || pictures::decode(&folder, largest))
-    };
-    let monitors = monitors
-        .iter()
-        .map(|monitor| {
-            let (folder, cache) = (folder.clone(), cache.clone());
-            let pixels = (monitor.rect.width, monitor.rect.height);
-            std::thread::spawn(move || {
-                let started = Instant::now();
-                let drawn = pictures::draw(&folder, pixels, cache.as_deref());
-                log::info!(
-                    "theme {} for {pixels:?} ready in {:?}",
-                    folder.name,
-                    started.elapsed()
-                );
-                drawn
-            })
-        })
-        .collect();
-    Preparing { shared, monitors }
-}
-
-/// How long the windows wait for a theme's SVGs; a drawing that takes
-/// longer, as the first of a heavy SVG may, shows once it is done.
-const PICTURES_WAIT: Duration = Duration::from_millis(1500);
-
-enum Drawing {
-    Done(Arc<MonitorPictures>),
-    Pending(JoinHandle<MonitorPictures>),
-}
-
-impl Preparing {
-    fn finish(self) -> (Arc<Pictures>, Vec<Drawing>) {
-        let shared = Arc::new(self.shared.join().unwrap_or_default());
-        let deadline = Instant::now() + PICTURES_WAIT;
-        while Instant::now() < deadline && !self.monitors.iter().all(JoinHandle::is_finished) {
-            std::thread::sleep(Duration::from_millis(10));
-        }
-        let drawings = self
-            .monitors
-            .into_iter()
-            .map(|thread| {
-                if thread.is_finished() {
-                    Drawing::Done(Arc::new(thread.join().unwrap_or_default()))
-                } else {
-                    Drawing::Pending(thread)
-                }
-            })
-            .collect();
-        (shared, drawings)
-    }
-}
-
-/// Hands a window its SVGs once they are drawn.
-fn deliver(cx: &mut App, screen: Entity<Screen>, thread: JoinHandle<MonitorPictures>) {
+/// Hands the greeter what the first look draws on a monitor, once drawn.
+fn deliver(
+    cx: &mut App,
+    greeter: Entity<Greeter>,
+    theme: Theme,
+    output: usize,
+    thread: JoinHandle<ScreenAssets>,
+) {
     cx.spawn(async move |cx| {
-        let drawn = cx
+        let assets = cx
             .background_executor()
             .spawn(async move { thread.join().unwrap_or_default() })
             .await;
-        let _ = screen.update(cx, |screen, cx| screen.set_drawn(Arc::new(drawn), cx));
+        greeter.update(cx, |greeter, cx| {
+            greeter.looks.set_screen(&theme, output, assets);
+            cx.notify();
+        });
     })
     .detach();
 }
@@ -453,8 +414,6 @@ fn open_screen(
     output: usize,
     monitor: &Monitor,
     scale: f32,
-    scenery: Option<Arc<Scenery>>,
-    pictures: Option<(Arc<Pictures>, Option<Arc<MonitorPictures>>)>,
 ) -> Result<(Entity<Screen>, Option<u32>)> {
     let rect = monitor.rect;
     let logical = |pixels: f32| px(pixels / scale);
@@ -476,17 +435,7 @@ fn open_screen(
         ..Default::default()
     };
     let (handle, screen) = gpui_kit::open_window(options, cx, |window, cx| {
-        cx.new(|cx| {
-            Screen::new(
-                greeter.clone(),
-                output,
-                monitor.clone(),
-                scenery,
-                pictures,
-                window,
-                cx,
-            )
-        })
+        cx.new(|cx| Screen::new(greeter.clone(), output, monitor.clone(), window, cx))
     })?;
     let xid = handle.update(cx, |_, window, _| xid(window)).ok().flatten();
     Ok((screen, xid))
@@ -506,6 +455,7 @@ fn load_backdrops(cx: &mut App, path: PathBuf, screens: Rc<Screens>, blur: Blur)
     log::info!("wallpaper {}", path.display());
     let request = screens.requests.get() + 1;
     screens.requests.set(request);
+    *screens.shown.borrow_mut() = Some((path.clone(), blur));
     let jobs: Vec<((u32, u32), f32)> = screens
         .windows
         .iter()
