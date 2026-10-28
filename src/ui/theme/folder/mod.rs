@@ -229,6 +229,7 @@ impl Builder<'_> {
                 .find(|by| by.fired_by.contains(&action) && at.elapsed() < by.fired_for);
             if let Some(by) = lit {
                 self.frame.pace.wake_at(at + by.fired_for);
+                self.frame.pace.settling.set(true);
             }
             lit.is_some()
         });

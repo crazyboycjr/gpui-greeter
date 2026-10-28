@@ -52,7 +52,7 @@ impl Timeline {
 pub struct Pace {
     pub smooth: Cell<bool>,
     pub wake: Cell<Option<Instant>>,
-    /// A transition or a motion that ends is still running.
+    /// A transition, a motion or a fired look that ends is still running.
     pub settling: Cell<bool>,
 }
 

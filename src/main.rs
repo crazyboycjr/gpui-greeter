@@ -5,7 +5,7 @@ use std::time::Duration;
 
 use gpui_greeter::config::{self, Config, Language, Pick, Theme};
 use gpui_greeter::remembered::Remembered;
-use gpui_greeter::themes::{self, Folder, Severity, State};
+use gpui_greeter::themes::{self, Chord, Folder, Severity, State};
 use gpui_greeter::ui::preview::{self, Preview};
 use gpui_greeter::{sync, ui};
 
@@ -26,12 +26,15 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
        gpui-greeter preview DIR [--state STATE] [--lang LANG] [--size WxH]
                                 [--shot FILE] [--at MS] [--user NAME]
                                 [--host NAME] [--wallpaper FILE]
+                                [--press KEY]... [--hover X,Y]
            show the theme folder DIR in a window on $DISPLAY, against a
            fake greetd that takes the password \"test\"; with --shot, draw
            it in an Xvfb of its own with lavapipe and write FILE once the
            screen settles (or MS after the state shows), then stop.
            STATE is rest, idle, typing, checking, error or welcome; the
-           size is 3840x2160 for a screenshot, 1920x1080 otherwise
+           size is 3840x2160 for a screenshot, 1920x1080 otherwise.
+           Once the state shows, --press presses KEY, written as in a
+           theme's [keys], and --hover puts the pointer at X,Y
 
   --config FILE    settings, /etc/gpui-greeter/config.toml by default
   --theme THEME    paper, paper-night, frost, neon or a theme folder's
@@ -139,9 +142,20 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
     let mut dir = None;
     let (mut state, mut language, mut size, mut shot, mut at) = (None, None, None, None, None);
     let (mut user, mut host, mut wallpaper) = (None, None, None);
+    let (mut presses, mut hover) = (Vec::new(), None);
     let mut config_path = PathBuf::from(config::DEFAULT_PATH);
     while let Some(arg) = args.rest.next() {
         match arg.as_str() {
+            "--press" => presses.push(Chord::parse(args.value(arg)?).map_err(anyhow::Error::msg)?),
+            "--hover" => {
+                let text = args.value(arg)?;
+                let at = text
+                    .split_once(',')
+                    .and_then(|(x, y)| Some((x.trim().parse().ok()?, y.trim().parse().ok()?)));
+                hover = Some(
+                    at.ok_or_else(|| anyhow::anyhow!("--hover takes X,Y, such as 1920,1800"))?,
+                );
+            }
             "--state" => {
                 let name = args.value(arg)?;
                 state = Some(State::parse(name).ok_or_else(|| {
@@ -180,6 +194,10 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
         }
     }
     let dir = dir.ok_or_else(|| anyhow::anyhow!("which folder?\n{USAGE}"))?;
+    anyhow::ensure!(
+        hover.is_none() || shot.is_some(),
+        "--hover is for screenshots; in a window, move the pointer there yourself"
+    );
     let folder = match Folder::load(&dir) {
         Ok((folder, warnings)) => {
             for warning in warnings {
@@ -243,6 +261,8 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
             size,
             shot: shot.clone(),
             at,
+            presses,
+            hover,
             user,
             host,
             outcome: outcome.clone(),

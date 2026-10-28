@@ -14,13 +14,13 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
 use anyhow::{Context as _, Result, bail};
-use gpui_kit::{App, Entity};
+use gpui_kit::{AnyWindowHandle, App, AppContext as _, Entity, Keystroke, Modifiers};
 use rustix::process::{Pid, Signal, kill_process, set_parent_process_death_signal};
 
 use super::model::Greeter;
 use super::screen::Screen;
 use crate::greetd::fake;
-use crate::themes::State;
+use crate::themes::{Chord, State};
 use crate::x11::{Rect, X11};
 
 /// What `preview` was asked for.
@@ -34,6 +34,10 @@ pub struct Preview {
     /// Take it this long after the state is shown, rather than once the
     /// screen settles.
     pub at: Option<Duration>,
+    /// Keys pressed once the state shows, in turn.
+    pub presses: Vec<Chord>,
+    /// Where the pointer goes then, in the window's pixels.
+    pub hover: Option<(i32, i32)>,
     pub user: Option<String>,
     pub host: Option<String>,
     /// How the screenshot went, for `main` to report.
@@ -197,13 +201,16 @@ fn lead_in(state: State, has_rest: bool) -> Option<State> {
     }
 }
 
-/// Shows the state asked for and, if a screenshot is wanted, takes it once
-/// the window has settled, then ends the preview.
+/// Shows the state asked for, presses the keys and moves the pointer as
+/// asked, and, if a screenshot is wanted, takes it once the window has
+/// settled, then ends the preview.
+#[allow(clippy::too_many_arguments)]
 pub fn drive(
     cx: &mut App,
     preview: &Preview,
     greeter: Entity<Greeter>,
     screen: Entity<Screen>,
+    window: AnyWindowHandle,
     x11: Rc<X11>,
     rect: Rect,
     waits_for_wallpaper: bool,
@@ -219,12 +226,37 @@ pub fn drive(
         greeter.update(cx, |greeter, cx| greeter.show_state(first, cx));
     }
     let (shot, at, outcome) = (preview.shot.clone(), preview.at, preview.outcome.clone());
+    let (presses, hover) = (preview.presses.clone(), preview.hover);
     cx.spawn(async move |cx| {
         if let (Some(_), Some(target)) = (lead, target) {
             cx.background_executor()
                 .timer(Duration::from_millis(700))
                 .await;
             greeter.update(cx, |greeter, cx| greeter.show_state(target, cx));
+        }
+        for chord in presses {
+            cx.background_executor()
+                .timer(Duration::from_millis(300))
+                .await;
+            let keystroke = Keystroke {
+                modifiers: Modifiers {
+                    control: chord.ctrl,
+                    alt: chord.alt || chord.any_mod,
+                    shift: chord.shift,
+                    platform: chord.super_key,
+                    function: false,
+                },
+                key: chord.key,
+                key_char: None,
+            };
+            let _ = cx.update_window(window, |_, window, cx| {
+                window.dispatch_keystroke(keystroke, cx);
+            });
+        }
+        if let Some((x, y)) = hover
+            && let Err(error) = x11.move_pointer((rect.x + x, rect.y + y))
+        {
+            log::warn!("cannot move the pointer: {error:#}");
         }
         let Some(shot) = shot else {
             return;

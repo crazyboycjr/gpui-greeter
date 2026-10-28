@@ -20,8 +20,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use gpui_kit::{
-    App, AppContext as _, Bounds, Entity, KeyBinding, NoAction, Window, WindowBackgroundAppearance,
-    WindowBounds, WindowKind, WindowOptions, point, px, size,
+    AnyWindowHandle, App, AppContext as _, Bounds, Entity, KeyBinding, NoAction, Window,
+    WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, point, px, size,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
@@ -156,9 +156,10 @@ pub fn run(options: Options) -> Result<()> {
                 deliver(cx, greeter.clone(), first.clone(), output, thread);
             }
             let mut screens = Vec::new();
+            let mut first_window = None;
             for (output, monitor) in monitors.iter().enumerate() {
                 match open_screen(cx, &greeter, output, monitor, scale) {
-                    Ok((screen, xid)) => {
+                    Ok((screen, window, xid)) => {
                         if let Some(xid) = xid
                             && let Err(error) = x11.place(xid, monitor.rect)
                         {
@@ -166,18 +167,22 @@ pub fn run(options: Options) -> Result<()> {
                         }
                         greeter.update(cx, |greeter, _| greeter.set_window(output, xid));
                         screens.push((screen, monitor.clone()));
+                        first_window.get_or_insert(window);
                     }
                     Err(error) => {
                         log::error!("cannot open a window on {:?}: {error:#}", monitor.rect)
                     }
                 }
             }
-            if let (Some(preview), Some((screen, monitor))) = (&preview, screens.first()) {
+            if let (Some(preview), Some((screen, monitor)), Some(window)) =
+                (&preview, screens.first(), first_window)
+            {
                 preview::drive(
                     cx,
                     preview,
                     greeter.clone(),
                     screen.clone(),
+                    window,
                     x11.clone(),
                     monitor.rect,
                     waits_for_wallpaper,
@@ -438,7 +443,7 @@ fn open_screen(
     output: usize,
     monitor: &Monitor,
     scale: f32,
-) -> Result<(Entity<Screen>, Option<u32>)> {
+) -> Result<(Entity<Screen>, AnyWindowHandle, Option<u32>)> {
     let rect = monitor.rect;
     let logical = |pixels: f32| px(pixels / scale);
     let bounds = Bounds::new(
@@ -462,7 +467,7 @@ fn open_screen(
         cx.new(|cx| Screen::new(greeter.clone(), output, monitor.clone(), window, cx))
     })?;
     let xid = handle.update(cx, |_, window, _| xid(window)).ok().flatten();
-    Ok((screen, xid))
+    Ok((screen, handle, xid))
 }
 
 fn xid(window: &Window) -> Option<u32> {

@@ -202,6 +202,15 @@ impl X11 {
         Some((reply.root_x.into(), reply.root_y.into()))
     }
 
+    /// Moves the pointer to `(x, y)` on the screen, as the mouse would.
+    pub fn move_pointer(&self, (x, y): (i32, i32)) -> Result<()> {
+        let clamp = |value: i32| value.clamp(i16::MIN.into(), i16::MAX.into()) as i16;
+        self.conn
+            .warp_pointer(x11rb::NONE, self.root, 0, 0, 0, 0, clamp(x), clamp(y))?;
+        self.conn.flush()?;
+        Ok(())
+    }
+
     /// Moves `window` exactly over `rect`, which GPUI misses by a couple of
     /// pixels on X11.
     pub fn place(&self, window: u32, rect: Rect) -> Result<()> {
