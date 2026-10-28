@@ -32,11 +32,12 @@ use crate::themes::{FRAME, Folder};
 use crate::users::User;
 use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, Rect, X11};
-use crate::{bing, cache, vt};
+use crate::{bing, cache, scenery, vt};
 use crate::{sessions, users};
 use looks::{Looks, ScreenAssets, SvgAssets};
 use model::{Greeter, Setup};
 use screen::Screen;
+pub use theme::design_unit;
 
 /// Frost's blurred wallpaper is darkened this much, as the mockup's
 /// `brightness(.86)`.
@@ -323,21 +324,24 @@ struct Screens {
 /// How Frost, or a theme's wallpaper layer, blurs the wallpaper.
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct Blur {
-    css_px: f32,
+    /// In pixels of the 3840 by 2160 frame: a share of the picture, which
+    /// fills the monitor whatever the look's scale.
+    frame_px: f32,
     brightness: f32,
 }
 
 /// How the look blurs the wallpaper, if it shows one.
 fn wallpaper_blur(theme: &Theme, folder: Option<&Folder>, config: &Config) -> Option<Blur> {
     match theme {
+        // Frost's blur is in the pixels of the mockup's frame.
         Theme::Frost => Some(Blur {
-            css_px: config.frost.blur,
+            frame_px: config.frost.blur * FRAME.0 / scenery::MOCKUP.0 as f32,
             brightness: BLURRED_BRIGHTNESS,
         }),
         Theme::Folder(_) => folder
             .and_then(|folder| folder.wallpaper)
             .map(|frame_px| Blur {
-                css_px: frame_px * theme::DESIGN_FRAME.0 / FRAME.0,
+                frame_px,
                 brightness: 1.0,
             }),
         _ => None,
@@ -490,10 +494,8 @@ fn load_backdrops(cx: &mut App, path: PathBuf, screens: Rc<Screens>, blur: Blur)
         .iter()
         .map(|(_, monitor)| {
             let (width, height) = (monitor.rect.width, monitor.rect.height);
-            (
-                (width, height),
-                blur.css_px * theme::design_unit(width as f32, height as f32),
-            )
+            let frame = (width as f32 / FRAME.0).min(height as f32 / FRAME.1);
+            ((width, height), blur.frame_px * frame)
         })
         .collect();
     cx.spawn(async move |cx| {

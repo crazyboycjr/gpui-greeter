@@ -23,7 +23,8 @@ pub fn svg(background: PaperBackground, night: bool, frame: &Frame) -> String {
 /// sheet of paper that holds the clock and the form, with a pencil, a cup of
 /// coffee, a fountain pen, paper clips, a sticky note and a succulent. On a
 /// wider or taller window the sheet grows and the things on the desk keep to
-/// its right side.
+/// its right side: the cup and the clips at the top, the pencil and the pen
+/// in the middle, the note and the succulent at the bottom.
 fn desk(night: bool, frame: &Frame) -> String {
     let (wood, grain, grain_opacity) = if night {
         ("#3a2c22", "#000000", 0.18)
@@ -35,7 +36,8 @@ fn desk(night: bool, frame: &Frame) -> String {
     let (sheet_width, sheet_height) = (990.0 + wider, 1060.0 + taller);
     let (sheet_top, half) = (-80.0 - taller / 2.0, taller / 2.0);
     let (grain_x, grain_y) = (width / 1600.0, height / 900.0);
-    let ring_x = 938.0 + wider;
+    // The ring the cup left keeps to the top beside it.
+    let (ring_x, ring_y) = (938.0 + wider, 176.0 - half);
     // The sheet's shadow shows only beside its sides, its top and bottom
     // lying beyond the window: strips along the sides cast it, far more
     // cheaply than the whole sheet.
@@ -69,7 +71,7 @@ fn desk(night: bool, frame: &Frame) -> String {
 <rect x="58" y="{sheet_top}" width="64" height="{sheet_height}" fill="#f7f2e7" filter="url(#lift-side)"/>
 <rect x="{sheet_right_strip}" y="{sheet_top}" width="64" height="{sheet_height}" fill="#f7f2e7" filter="url(#lift-side)"/>
 <rect x="58" y="{sheet_top}" width="{sheet_width}" height="{sheet_height}" fill="#f7f2e7"/>
-<circle cx="{ring_x}" cy="176" r="58" fill="none" stroke="#8a5b33" stroke-opacity=".1" stroke-width="5" stroke-dasharray="250 40 60 14"/>
+<circle cx="{ring_x}" cy="{ring_y}" r="58" fill="none" stroke="#8a5b33" stroke-opacity=".1" stroke-width="5" stroke-dasharray="250 40 60 14"/>
 </g>
 <g transform="translate({wider} {half})">
 <g transform="translate(1078 300) rotate(-7)" filter="url(#lift-sm)">
@@ -80,15 +82,6 @@ fn desk(night: bool, frame: &Frame) -> String {
 <rect x="-10" y="320" width="20" height="24" fill="#c4c2bc"/>
 <rect x="-10" y="344" width="20" height="26" rx="5" fill="#e3908a"/>
 </g>
-<g transform="translate(1340 236)">
-<circle r="128" fill="#f7f3ec" filter="url(#lift)"/>
-<circle r="98" fill="none" stroke="#e8e0d4" stroke-width="2"/>
-<g transform="rotate(32)"><rect x="70" y="-15" width="58" height="30" rx="15" fill="#fbfaf7" stroke="#e6ddd0" stroke-width="2"/></g>
-<circle r="80" fill="url(#cupInside)" filter="url(#lift-sm)"/>
-<circle r="64" fill="url(#coffee)"/>
-<ellipse cx="-18" cy="-20" rx="20" ry="11" fill="#c08a5c" fill-opacity=".35" transform="rotate(-30 -18 -20)"/>
-<g transform="rotate(-128)"><ellipse cx="0" cy="104" rx="11" ry="16" fill="#cfd3d6"/><rect x="-3" y="116" width="6" height="64" rx="3" fill="#cfd3d6"/></g>
-</g>
 <g transform="translate(1166 598) rotate(27)" filter="url(#lift-sm)">
 <polygon points="-58,0 -26,-7 -26,7" fill="#d6b36a"/>
 <line x1="-52" y1="0" x2="-30" y2="0" stroke="#7a6232" stroke-width="1.4"/>
@@ -98,10 +91,23 @@ fn desk(night: bool, frame: &Frame) -> String {
 <rect x="204" y="-13" width="130" height="26" rx="13" fill="url(#penBody)"/>
 <rect x="222" y="-18" width="98" height="6" rx="3" fill="#c9a55b"/>
 </g>
+</g>
+<g transform="translate({wider} 0)">
+<g transform="translate(1340 236)">
+<circle r="128" fill="#f7f3ec" filter="url(#lift)"/>
+<circle r="98" fill="none" stroke="#e8e0d4" stroke-width="2"/>
+<g transform="rotate(32)"><rect x="70" y="-15" width="58" height="30" rx="15" fill="#fbfaf7" stroke="#e6ddd0" stroke-width="2"/></g>
+<circle r="80" fill="url(#cupInside)" filter="url(#lift-sm)"/>
+<circle r="64" fill="url(#coffee)"/>
+<ellipse cx="-18" cy="-20" rx="20" ry="11" fill="#c08a5c" fill-opacity=".35" transform="rotate(-30 -18 -20)"/>
+<g transform="rotate(-128)"><ellipse cx="0" cy="104" rx="11" ry="16" fill="#cfd3d6"/><rect x="-3" y="116" width="6" height="64" rx="3" fill="#cfd3d6"/></g>
+</g>
 <g fill="none" stroke="#9aa4aa" stroke-width="3.2" stroke-linecap="round" filter="url(#lift-sm)">
 <path transform="translate(1150 102) rotate(-14)" d="M8 0 H54 A11 11 0 0 1 54 22 H4 A8 8 0 0 1 4 6 H46"/>
 <path transform="translate(1214 150) rotate(22)" d="M8 0 H54 A11 11 0 0 1 54 22 H4 A8 8 0 0 1 4 6 H46"/>
 </g>
+</g>
+<g transform="translate({wider} {taller})">
 <g transform="translate(1122 712) rotate(-6)" filter="url(#lift-sm)">
 <rect width="178" height="166" fill="#f4d47e"/>
 <rect width="178" height="24" fill="#ecc866"/>

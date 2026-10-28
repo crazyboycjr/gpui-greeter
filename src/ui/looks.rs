@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 use gpui_kit::Context;
 
 use super::model::Greeter;
+use super::theme::design_unit;
 use super::theme::folder::{MonitorPictures, Pictures, asset_key, pictures};
 use crate::cache;
 use crate::config::{Config, Theme};
@@ -281,8 +282,10 @@ pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[(u32, u3
             let folder = folder.cloned();
             std::thread::spawn(move || {
                 let started = Instant::now();
+                let unit = design_unit(pixels.0 as f32, pixels.1 as f32);
                 let scenery = look.and_then(|look| {
-                    match scenery::draw(look, pixels, cache::dir("scenery").as_deref()) {
+                    let cache = cache::dir("scenery");
+                    match scenery::draw(look, pixels, unit.into(), cache.as_deref()) {
                         Ok(scenery) => Some(Arc::new(scenery)),
                         Err(error) => {
                             log::error!("cannot draw the scenery for {pixels:?}: {error:#}");

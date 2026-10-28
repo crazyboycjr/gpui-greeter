@@ -22,11 +22,10 @@ use stored::Stored;
 
 pub use neon::{Band, Floor, Pulse};
 
-/// The mockups' frame, in their CSS pixels.
+/// The mockups' frame, in their CSS pixels, which their drawings fill.
 pub const MOCKUP: (f64, f64) = (1600.0, 900.0);
 
-/// A window measured in the mockups' pixels: the mockups' frame at the
-/// largest size that fits, grown along one side to the window's shape.
+/// A window measured in the mockups' pixels.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame {
     pub width: f64,
@@ -38,12 +37,11 @@ pub struct Frame {
 }
 
 impl Frame {
-    pub fn fit(pixels: (u32, u32)) -> Self {
-        let (width, height) = (f64::from(pixels.0), f64::from(pixels.1));
-        let scale = (width / MOCKUP.0).min(height / MOCKUP.1);
+    /// A window of `pixels`, `scale` of them to a mockup pixel.
+    pub fn new(pixels: (u32, u32), scale: f64) -> Self {
         Self {
-            width: width / scale,
-            height: height / scale,
+            width: f64::from(pixels.0) / scale,
+            height: f64::from(pixels.1) / scale,
             scale,
             pixels,
         }
@@ -114,10 +112,11 @@ pub enum Motion {
     Floor(Floor),
 }
 
-/// Draws `look` for a window of `pixels`, or reads it back from the
-/// `cache` folder, where the pictures drawn before are kept.
-pub fn draw(look: Look, pixels: (u32, u32), cache: Option<&Path>) -> Result<Scenery> {
-    let frame = Frame::fit(pixels);
+/// Draws `look` for a window of `pixels`, `unit` of them to a mockup pixel,
+/// or reads it back from the `cache` folder, where the pictures drawn
+/// before are kept.
+pub fn draw(look: Look, pixels: (u32, u32), unit: f64, cache: Option<&Path>) -> Result<Scenery> {
+    let frame = Frame::new(pixels, unit);
     let (svg, motion) = match look {
         Look::Paper { background, night } => (paper::svg(background, night, &frame), Motion::Still),
         Look::Neon { background, accent } => neon::svg(background, accent.0, &frame),
@@ -187,12 +186,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn frames_grow_along_one_side() {
+    fn frames_measure_the_window_in_mockup_pixels() {
         let near = |a: f64, b: f64| (a - b).abs() < 1e-9;
-        let wide = Frame::fit((3840, 1600));
-        assert!(near(wide.width, 2160.0) && near(wide.height, 900.0));
-        let tall = Frame::fit((1920, 1200));
-        assert!(near(tall.width, 1600.0) && near(tall.height, 1000.0) && near(tall.scale, 1.2));
+        let tall = Frame::new((1920, 1200), 1.2);
+        assert!(near(tall.width, 1600.0) && near(tall.height, 1000.0));
+        let (wider, taller) = tall.growth();
+        assert!(near(wider, 0.0) && near(taller, 100.0));
     }
 
     #[test]
@@ -217,7 +216,7 @@ mod tests {
             neon(NeonBackground::Circuit),
             neon(NeonBackground::Horizon),
         ] {
-            let scenery = draw(look, (320, 180), None).unwrap();
+            let scenery = draw(look, (320, 180), 0.2, None).unwrap();
             let size = scenery.picture.size(0);
             assert_eq!((size.width.0, size.height.0), (320, 180), "{look:?}");
             let pixels = scenery.picture.as_bytes(0).unwrap();

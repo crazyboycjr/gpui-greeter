@@ -622,7 +622,7 @@ mod tests {
 
     #[test]
     fn straight_traces_show_no_pulse() {
-        let (_, motion) = circuit_svg(0x45F0FF, &Frame::fit((1600, 900)));
+        let (_, motion) = circuit_svg(0x45F0FF, &Frame::new((1600, 900), 1.0));
         let Motion::Pulses(pulses) = motion else {
             panic!("the circuit moves by its pulses");
         };
@@ -631,7 +631,7 @@ mod tests {
 
     #[test]
     fn the_floor_runs_from_the_horizon_and_spreads_toward_the_viewer() {
-        let floor = Floor::under(&Frame::fit((1600, 900)));
+        let floor = Floor::under(&Frame::new((1600, 900), 1.0));
         assert_eq!((floor.horizon, floor.depth), (600.0, 300.0));
         let bands = floor.bands(0.0);
         assert_eq!(bands[0].top, 600.0);

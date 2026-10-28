@@ -20,18 +20,25 @@ use super::screen::Backdrops;
 use super::text::label;
 use crate::config::Theme;
 use crate::scenery::Scenery;
+use crate::themes::FRAME;
 use crate::x11::Monitor;
 
 /// The rem size the mockups' pixels are measured against.
 pub const DESIGN_REM: f32 = 16.0;
 
-/// The mockups' frame, in CSS pixels. Each window lays it out at the
-/// largest size that fits, so a theme keeps its proportions on any monitor,
-/// whatever its resolution and density.
-pub const DESIGN_FRAME: (f32, f32) = (1600.0, 900.0);
+/// How many pixels of a 3840 by 2160 screen make one of the mockups' CSS
+/// pixels: the density a desktop gives native interfaces there.
+pub const NATIVE: f32 = 1.75;
+
+/// The frame the looks are laid out on, in CSS pixels: a 3840 by 2160
+/// screen at the native density. Each window fits it to its monitor, so a
+/// look is as dense on any monitor, in proportion to its size; the looks
+/// keep their parts against the window's edges and its middle, as the
+/// mockups do, on any shape.
+pub const DESIGN_FRAME: (f32, f32) = (FRAME.0 / NATIVE, FRAME.1 / NATIVE);
 
 /// How many of a window's pixels make one of the mockups' CSS pixels,
-/// for a window of `width` by `height`.
+/// for a window of `width` by `height`, before any scale.
 pub fn design_unit(width: f32, height: f32) -> f32 {
     (width / DESIGN_FRAME.0).min(height / DESIGN_FRAME.1)
 }

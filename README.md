@@ -32,11 +32,13 @@ designed with an agent; see [Theme folders](#theme-folders).
 
 greetd runs the greeter as its `greeter` user through `startx`, in an X
 server of its own on VT 1. The greeter opens a window over every monitor
-and lays each one out on the mockups' 1600×900 frame, scaled to fit, so
-the looks keep their proportions on any monitor; GPUI draws at the
-monitor's pixel density. The login form is on the primary monitor (or the
-one under the pointer) and follows the pointer to another one. Nothing in
-it names a monitor, a port or a mode.
+and lays each one out as densely as a native interface: one of the
+mockups' pixels is 1.75 pixels of a 3840×2160 monitor, and in proportion
+on others, 0.875 on 1920×1080. Each look keeps its parts against the
+window's edges and its middle, as its mockup does, so it holds on any
+shape. The login form is on the primary monitor (or the one under the
+pointer) and follows the pointer to another one. Nothing in it names a
+monitor, a port or a mode.
 
 On Enter it asks greetd to log the user in, and once PAM accepts, to start
 the chosen X session the way tuigreet does, `startx /usr/bin/env <Exec>`,
