@@ -1,7 +1,8 @@
 # gpui-greeter's settings, installed as /etc/gpui-greeter/config.toml.
 # Every key may be left out; these are the defaults.
 
-# "paper", "paper-night", "frost" or "neon".
+# "paper", "paper-night", "frost" or "neon", or the name of a theme folder in
+# [themes] dir, which `gpui-greeter install-theme` puts there.
 theme = "paper"
 
 # "en" or "zh-CN".
@@ -48,3 +49,8 @@ dir = "/usr/share/xsessions"
 # What runs a session's command. startx brings the user's own ~/.xserverrc
 # and X setup along, as on a console.
 wrapper = "startx /usr/bin/env"
+
+[themes]
+# Theme folders, one per theme. A folder theme that cannot be loaded gives
+# way to Paper, and the log says why.
+dir = "/usr/local/share/gpui-greeter/themes"

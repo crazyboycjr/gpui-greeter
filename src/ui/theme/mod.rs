@@ -92,6 +92,8 @@ pub fn render(view: &View) -> AnyElement {
         Theme::PaperNight => paper::render(view, true),
         Theme::Frost => frost::render(view),
         Theme::Neon => neon::render(view),
+        // Theme folders are not drawn yet.
+        Theme::Folder(_) => paper::render(view, false),
     }
 }
 

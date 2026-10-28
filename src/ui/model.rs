@@ -169,8 +169,8 @@ impl Greeter {
         }
     }
 
-    pub fn theme(&self) -> Theme {
-        self.config.theme
+    pub fn theme(&self) -> &Theme {
+        &self.config.theme
     }
 
     pub fn user(&self) -> Option<&User> {
@@ -238,7 +238,7 @@ impl Greeter {
 
     /// The name of an action in the theme's words.
     pub fn action_name(&self, action: Action) -> &'static str {
-        let (s, neon) = (self.strings, self.theme() == Theme::Neon);
+        let (s, neon) = (self.strings, *self.theme() == Theme::Neon);
         match action {
             Action::Suspend => s.sleep,
             Action::Reboot if neon => s.neon.reboot,
@@ -331,7 +331,7 @@ impl Greeter {
     }
 
     pub fn lock(&mut self, cx: &mut Context<Self>) {
-        if self.theme() == Theme::Frost && !self.locked && !self.is_busy() {
+        if *self.theme() == Theme::Frost && !self.locked && !self.is_busy() {
             self.locked = true;
             self.lock_changes += 1;
             self.menu = None;
@@ -345,7 +345,7 @@ impl Greeter {
     }
 
     fn escape(&mut self, cx: &mut Context<Self>) {
-        if self.theme() == Theme::Frost && !self.locked {
+        if *self.theme() == Theme::Frost && !self.locked {
             self.lock(cx);
         } else {
             self.clear_typed();

@@ -92,7 +92,7 @@ impl Look {
                 background: config.neon.background,
                 accent: config.neon.accent,
             }),
-            Theme::Neon | Theme::Frost => None,
+            Theme::Neon | Theme::Frost | Theme::Folder(_) => None,
         }
     }
 }

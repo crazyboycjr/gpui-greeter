@@ -12,6 +12,7 @@ pub mod scenery;
 pub mod sessions;
 pub mod sync;
 pub mod system;
+pub mod themes;
 pub mod ui;
 pub mod users;
 pub mod wallpaper;

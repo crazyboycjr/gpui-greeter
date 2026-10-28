@@ -19,22 +19,44 @@ pub struct Config {
     pub neon: Neon,
     pub wallpaper: Wallpaper,
     pub sessions: Sessions,
+    pub themes: Themes,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Deserialize)]
-#[serde(rename_all = "kebab-case")]
+/// One of the built-in looks, or the name of a theme folder.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Deserialize)]
+#[serde(try_from = "String")]
 pub enum Theme {
     #[default]
     Paper,
     PaperNight,
     Frost,
     Neon,
+    /// A folder of that name in the themes folder.
+    Folder(String),
 }
 
 impl Theme {
     pub fn parse(name: &str) -> Option<Self> {
-        Self::deserialize(serde::de::value::StrDeserializer::<serde::de::value::Error>::new(name))
-            .ok()
+        Self::try_from(name.to_string()).ok()
+    }
+}
+
+impl TryFrom<String> for Theme {
+    type Error = String;
+
+    fn try_from(name: String) -> Result<Self, String> {
+        Ok(match name.as_str() {
+            "paper" => Theme::Paper,
+            "paper-night" => Theme::PaperNight,
+            "frost" => Theme::Frost,
+            "neon" => Theme::Neon,
+            _ if crate::themes::valid_name(&name) => Theme::Folder(name),
+            _ => {
+                return Err(format!(
+                    "{name:?} is neither a built-in theme nor a theme folder's name"
+                ));
+            }
+        })
     }
 }
 
@@ -222,6 +244,21 @@ impl Default for Sessions {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Themes {
+    /// Where theme folders are installed, one folder per theme.
+    pub dir: PathBuf,
+}
+
+impl Default for Themes {
+    fn default() -> Self {
+        Self {
+            dir: PathBuf::from("/usr/local/share/gpui-greeter/themes"),
+        }
+    }
+}
+
 impl Config {
     pub fn load(path: &Path) -> Self {
         let text = match std::fs::read_to_string(path) {
@@ -301,7 +338,18 @@ mod tests {
     #[test]
     fn parses_names_from_the_command_line() {
         assert_eq!(Theme::parse("frost"), Some(Theme::Frost));
-        assert_eq!(Theme::parse("night"), None);
+        assert_eq!(Theme::parse("night"), Some(Theme::Folder("night".into())));
+        assert_eq!(Theme::parse("Night Sky"), None);
+        assert_eq!(Theme::parse("../etc"), None);
         assert_eq!(Language::parse("zh-CN"), Some(Language::Chinese));
+    }
+
+    #[test]
+    fn a_theme_folder_is_named_by_the_theme_setting() {
+        let config: Config =
+            toml::from_str("theme = \"console\"\n[themes]\ndir = \"/srv/themes\"").unwrap();
+        assert_eq!(config.theme, Theme::Folder("console".into()));
+        assert_eq!(config.themes.dir, PathBuf::from("/srv/themes"));
+        assert!(toml::from_str::<Config>("theme = \"a/b\"").is_err());
     }
 }

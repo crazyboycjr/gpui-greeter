@@ -10,6 +10,8 @@ pub struct User {
     pub name: String,
     pub display_name: String,
     pub avatar: Option<PathBuf>,
+    /// The login shell, such as `/usr/bin/zsh`.
+    pub shell: String,
 }
 
 impl User {
@@ -84,6 +86,7 @@ fn parse(passwd: &str, shells: &[&str], uids: (u32, u32)) -> Vec<User> {
                 }
                 .to_string(),
                 avatar: None,
+                shell: shell.to_string(),
             })
         })
         .collect()
@@ -136,6 +139,7 @@ svc:x:1002:100::/srv:/usr/bin/nologin
             .collect();
         assert_eq!(names, [("alice", "alice"), ("ada", "Ada Lovelace")]);
         assert_eq!(users[1].initial(), "A");
+        assert_eq!(users[0].shell, "/bin/zsh");
     }
 
     #[test]
