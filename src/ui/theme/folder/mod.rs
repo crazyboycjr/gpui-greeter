@@ -726,11 +726,17 @@ impl Builder<'_> {
             )
         } else {
             let unit = self.view.unit * self.view.scale_factor;
+            let aspect = asset.aspect();
             let span = |length: Option<Length>| match length {
-                Some(Length::Px(px)) => px * zoom * CSS * unit,
-                _ => self.view.size.0 * unit,
+                Some(Length::Px(px)) => Some(px * zoom * CSS * unit),
+                _ => None,
             };
-            let pixels = (span(look.width), span(look.height));
+            let pixels = match (span(look.width), span(look.height)) {
+                (Some(width), Some(height)) => (width, height),
+                (Some(width), None) => (width, width / aspect),
+                (None, Some(height)) => (height * aspect, height),
+                (None, None) => (self.view.size.0 * unit, self.view.size.1 * unit),
+            };
             let image = self.frame.drawn.svg(file, pixels)?.clone();
             let corners = self.corners(&look.props, zoom);
             div().child(paint::picture(image, Fit::Stretch, picture.focus, corners))

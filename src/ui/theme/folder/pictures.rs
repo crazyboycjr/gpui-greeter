@@ -107,7 +107,8 @@ pub fn draw(folder: &Folder, pixels: (u32, u32), cache: Option<&Path>) -> Monito
             };
             let width = props.width.or(layer.base.width);
             let height = props.height.or(layer.base.height);
-            let Some(size) = sized(&folder.layers, index, width, height) else {
+            let aspect = folder.assets[file].aspect();
+            let Some(size) = sized(&folder.layers, index, width, height, Some(aspect)) else {
                 continue;
             };
             let device = |frame: f32| ((frame * unit * zoom).ceil() as u32).clamp(1, 16_384);

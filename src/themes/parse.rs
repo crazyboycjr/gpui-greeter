@@ -1645,8 +1645,12 @@ fn check_layers(
                 ),
             );
         }
+        let aspect = all_props
+            .clone()
+            .find_map(|props| props.file)
+            .map(|file| assets[file].aspect());
         if let Kind::Svg { tint: false, .. } = layer.kind
-            && static_size(layers, index).is_none()
+            && static_size(layers, index, aspect).is_none()
         {
             r.error(span.clone(), format!("{}: an svg without tint is drawn once at its size: give it a width or a height in frame pixels, or anchor = \"fill\"", layer.label()));
         }
@@ -1681,10 +1685,11 @@ fn check_layers(
 }
 
 /// The size a layer has whatever the screen: from frame pixels, or by
-/// filling a parent whose size is known, or the screen's frame.
-pub fn static_size(layers: &[Layer], index: usize) -> Option<(f32, f32)> {
+/// filling a parent whose size is known, or the screen's frame; for a
+/// picture of `aspect` (width over height), one side gives the other.
+pub fn static_size(layers: &[Layer], index: usize, aspect: Option<f32>) -> Option<(f32, f32)> {
     let base = &layers[index].base;
-    sized(layers, index, base.width, base.height)
+    sized(layers, index, base.width, base.height, aspect)
 }
 
 /// The size `static_size` gives a layer `width` by `height`.
@@ -1693,33 +1698,48 @@ pub fn sized(
     index: usize,
     width: Option<Length>,
     height: Option<Length>,
+    aspect: Option<f32>,
 ) -> Option<(f32, f32)> {
+    let aspect = aspect.filter(|aspect| aspect.is_finite() && *aspect > 0.0);
+    match (sides(layers, index, width, height), aspect) {
+        ((Some(width), Some(height)), _) => Some((width, height)),
+        ((Some(width), None), Some(aspect)) => Some((width, width / aspect)),
+        ((None, Some(height)), Some(aspect)) => Some((height * aspect, height)),
+        _ => None,
+    }
+}
+
+/// Each side of a layer's size that holds whatever the screen.
+fn sides(
+    layers: &[Layer],
+    index: usize,
+    width: Option<Length>,
+    height: Option<Length>,
+) -> (Option<f32>, Option<f32>) {
     let layer = &layers[index];
-    let parent = || match layer.parent {
-        None => Some(super::FRAME),
+    let parent = match layer.parent {
+        None => (Some(super::FRAME.0), Some(super::FRAME.1)),
         Some(parent) => match &layers[parent].pane {
-            Some(pane) => pane.content,
-            None => static_size(layers, parent),
+            Some(pane) => (pane.content.map(|c| c.0), pane.content.map(|c| c.1)),
+            None => {
+                let base = &layers[parent].base;
+                sides(layers, parent, base.width, base.height)
+            }
         },
     };
+    if layer.anchor == Anchor::Fill {
+        let [top, right, bottom, left] = layer.inset;
+        return (
+            parent.0.map(|width| width - left - right),
+            parent.1.map(|height| height - top - bottom),
+        );
+    }
     let px = |length: Option<Length>, whole: Option<f32>| match length {
         Some(Length::Px(px)) => Some(px),
         Some(Length::Percent(share)) => whole.map(|whole| whole * share),
         None => None,
     };
-    if layer.anchor == Anchor::Fill {
-        let (width, height) = parent()?;
-        let [top, right, bottom, left] = layer.inset;
-        return Some((width - left - right, height - top - bottom));
-    }
-    let parent = parent();
-    let width = px(width, parent.map(|p| p.0));
-    let height = px(height, parent.map(|p| p.1));
-    match (width, height) {
-        (Some(w), Some(h)) => Some((w, h)),
-        (Some(w), None) | (None, Some(w)) => Some((w, w)),
-        (None, None) => None,
-    }
+    (px(width, parent.0), px(height, parent.1))
 }
 
 fn line_span(text: &str, line: usize) -> Option<Range<usize>> {
@@ -1847,6 +1867,11 @@ mod tests {
         std::fs::write(
             dir.join("ring.svg"),
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><circle cx="50" cy="50" r="40"/></svg>"#,
+        )
+        .unwrap();
+        std::fs::write(
+            dir.join("tall.svg"),
+            r#"<svg xmlns="http://www.w3.org/2000/svg" width="67" height="104"><rect width="67" height="104"/></svg>"#,
         )
         .unwrap();
         let mut problems = Vec::new();
@@ -2033,6 +2058,31 @@ text = "{tiles.layout}"
             Some(tiles::Layout::Full)
         );
         assert_eq!(folder.layers[2].pane.as_ref().unwrap().max_scale_full, 3.4);
+    }
+
+    #[test]
+    fn a_picture_given_one_side_takes_the_other_from_its_shape() {
+        let (folder, problems) = theme(
+            r##"format = 1
+[[layer]]
+kind = "svg"
+file = "tall.svg"
+width = 402
+[[layer]]
+kind = "svg"
+file = "tall.svg"
+height = 624
+"##,
+        );
+        assert!(errors(&problems).is_empty(), "{problems:?}");
+        let folder = folder.unwrap();
+        let aspect = Some(folder.assets[0].aspect());
+        let (width, height) = static_size(&folder.layers, 0, aspect).unwrap();
+        assert_eq!(width, 402.0);
+        assert!((height - 624.0).abs() < 0.01, "{height}");
+        let (width, height) = static_size(&folder.layers, 1, aspect).unwrap();
+        assert!((width - 402.0).abs() < 0.01, "{width}");
+        assert_eq!(height, 624.0);
     }
 
     #[test]
