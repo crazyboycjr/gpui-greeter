@@ -5,16 +5,20 @@ drawn with [GPUI](https://www.gpui.rs) and longbridge's
 [gpui-kit](https://github.com/longbridge/gpui-kit). It comes in three looks,
 chosen in its settings:
 
-- **Paper**: a large Fraunces clock on warm paper (or on a dark ground, as
-  Paper Night), the name and an underlined password field beneath it, the
-  session at the bottom left and Sleep, Restart and Shut down at the bottom
-  right.
+- **Paper**: a large Fraunces clock on paper, the name and an underlined
+  password field beneath it, the session at the bottom left and Sleep,
+  Restart and Shut down at the bottom right. The paper is a sheet on a
+  wooden desk, among a pencil, a fountain pen, a cup of coffee and a
+  succulent; ledger paper; a drafting sheet, whose title block holds the
+  session and the power actions on F10, F11 and F12; or plain. Paper Night
+  is the same on a walnut desk or a dark ground.
 - **Frost**: a wallpaper, sharp, with a big clock. A click or a key blurs
   and dims it behind a round avatar, a frosted password pill, frosted power
   buttons and a session chip.
-- **Neon**: a terminal on a black grid with scanlines and a slow scan beam,
-  a status line that goes READY, AUTH, then GRANTED or DENIED, and F-key
-  buttons.
+- **Neon**: a terminal over a city at night, a circuit board with light
+  running along its traces, a synthwave sunset over a moving grid floor, or
+  a faint grid, all with scanlines and a slow scan beam; a status line that
+  goes READY, AUTH, then GRANTED or DENIED, and F-key buttons.
 
 It speaks English and Chinese (`language = "zh-CN"`); another language is
 one more table in `src/i18n.rs`.
@@ -95,8 +99,12 @@ arrives and keeps the last week's in
 ## Settings
 
 `dist/config.toml` lists every setting with its default: the theme, the
-language, each theme's accent, Frost's blur, dim and idle time, the
-wallpaper folder and pick, and how sessions start.
+language, each theme's accent and background, Frost's blur, dim and idle
+time, the wallpaper folder and pick, and how sessions start.
+
+Paper's and Neon's backgrounds are drawn once for each monitor, at its
+size, when the greeter starts, from the mockups' SVG (with resvg); what
+moves in them is drawn over the picture.
 
 ## Trying it out
 
@@ -111,8 +119,13 @@ prints the session it would start. Power buttons only log.
     scripts/try log
     scripts/try stop
 
+`scripts/try start neon --background circuit` picks a background, and
+`cargo run --example scenery -- paper-night-desk desk.png` draws one alone.
+
 `cargo test` covers the parts without a screen: the greetd conversation,
-desktop entries, users, the wallpaper copy, Bing's cache and the settings.
+desktop entries, users, the wallpaper copy, Bing's cache, the settings, and
+the backgrounds, whose skyline and circuit board must come out of the
+mockup's seeds exactly as the mockup grows them.
 
 ## Fonts
 

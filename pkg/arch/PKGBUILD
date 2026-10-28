@@ -4,7 +4,7 @@
 
 pkgname=gpui-greeter-git
 _name=gpui-greeter
-pkgver=0.1.0.r7.g12fa5e0
+pkgver=0.1.0.r7.gd329c88
 pkgrel=1
 pkgdesc='A greeter for greetd on X11, drawn with GPUI'
 arch=(x86_64)
@@ -12,12 +12,11 @@ arch=(x86_64)
 # License, whose texts are installed with them.
 license=()
 depends=(
-    fontconfig
-    freetype2
-    gcc-libs
+    bash
     glibc
     greetd
     greetd-agreety
+    libgcc
     libxcb
     libxkbcommon
     libxkbcommon-x11
@@ -58,6 +57,8 @@ build() {
     cd "$_name"
     export RUSTUP_TOOLCHAIN=stable
     export CARGO_TARGET_DIR="$srcdir/target"
+    # Paths in panic messages name the source, not this build's directory.
+    export RUSTFLAGS="${RUSTFLAGS-} --remap-path-prefix=$srcdir=/"
     cargo build --frozen --release
 }
 
