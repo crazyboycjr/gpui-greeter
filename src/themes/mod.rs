@@ -96,8 +96,6 @@ pub struct Folder {
     pub rest: bool,
     /// How long without input before the greeter goes back to rest.
     pub rest_after: Option<Duration>,
-    /// How long the welcome shows before the session starts.
-    pub welcome: Duration,
     /// The text style every layer inherits.
     pub text: Props,
     pub strings: Strings,
@@ -216,11 +214,6 @@ mod tests {
         );
         let hand = folder.layer_named("hand").unwrap();
         assert!(folder.layers[hand].motions[0].clock);
-        let sweep = folder.layer_named("sweep").unwrap();
-        assert!(matches!(
-            folder.layers[sweep].repeat,
-            Repeat::Copies { count: 60, .. }
-        ));
         let (again, _) = Folder::load(&dir.join("art/..")).map_err(|_| ()).unwrap();
         assert_eq!(again.name, "dial");
     }

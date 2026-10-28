@@ -31,8 +31,11 @@ choices the user can react to:
   choice, the power actions, anything else (a fetch block, a logo, a
   status bar). Show a rough sketch in words or ASCII before the details.
 - Which states should look different: a rest screen before the first key
-  (`rest = true`), typing, checking, a refused password, the welcome.
+  (`rest = true`), typing, checking, a refused password.
 - Motion: what moves, and when. Less is usually better on a login screen.
+  The session starts the moment the password is accepted: the greeter
+  never holds a welcome, so there is no welcome to design or animate, and
+  checking lasts only as long as PAM takes.
 - Languages: English, Chinese, or both (`[strings.en]`, `[strings.zh-CN]`).
 
 Agree on the design with the user before writing much theme.toml. If they
@@ -154,8 +157,7 @@ string without a translation.
 
 `preview` with `--shot` needs no display and no GPU: it starts an X server
 of its own and draws on the CPU. Take each state in each language, at 4K
-first. The welcome is shot while it shows, since many themes fade out at
-its end:
+first:
 
 ```sh
 dir=~/.local/share/gpui-greeter/themes-src/<name>
@@ -165,8 +167,6 @@ for lang in en zh-CN; do
     gpui-greeter preview "$dir" --state $state --lang $lang \
       --user alice --host example-host --shot "$out/$state-$lang.png"
   done
-  gpui-greeter preview "$dir" --state welcome --at 600 --lang $lang \
-    --user alice --host example-host --shot "$out/welcome-$lang.png"
 done
 ```
 

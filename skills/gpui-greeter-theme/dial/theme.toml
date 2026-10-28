@@ -13,8 +13,6 @@ background = "#14110f"
 # click brings the form, and a minute without input takes it away again.
 rest = true
 rest_after = 60
-# How long the welcome shows before the session starts, in ms.
-welcome = 1700
 fonts = ["fonts/NotoSerifDisplay-Light.ttf"]
 
 # What every text inherits unless a layer sets its own.
@@ -30,7 +28,6 @@ date = "{date:%A, %-d %B}"
 hint = "Press Enter"
 wake = "Press any key"
 wrong = "Wrong password"
-welcome = "Welcome back · {session}"
 confirm = "Press {armed.key} again"
 up = "up"
 sleep = "Sleep"
@@ -42,7 +39,6 @@ date = "{date:%-m月%-d日 %A}"
 hint = "按回车登录"
 wake = "按任意键"
 wrong = "密码不对"
-welcome = "欢迎回来 · {session}"
 confirm = "再按一次 {armed.key}"
 up = "已运行"
 sleep = "睡眠"
@@ -93,24 +89,6 @@ motion = { property = "rotate", from = 0, to = 360, duration = 900, easing = "st
 
 [layer.on.error]
 color = "#e8d5c0"
-
-# On success every tick lights, one after the other: sixty copies of the
-# hand, each turned a tick further and shown 12 ms later.
-[[layer]]
-id = "sweep"
-kind = "svg"
-file = "art/hand.svg"
-tint = true
-anchor = "center"
-y = -120
-width = 1240
-color = "#e8a33d"
-visible = false
-copies = { count = 60, rotate = 6, delay = 12 }
-transition = 120
-
-[layer.on.welcome]
-visible = true
 
 # The clock and the date, in the middle of the ring.
 [[layer]]
@@ -236,9 +214,6 @@ motion = { property = "opacity", keyframes = [[0, 1], [0.5, 0.35], [1, 1]], dura
 [layer.on.error]
 text = "{t.wrong}"
 color = "#e5703b"
-
-[layer.on.welcome]
-text = "{t.welcome}"
 
 [layer.on.zh-CN]
 tracking = 3
@@ -385,15 +360,3 @@ visible = false
 
 [layer.on.armed]
 visible = true
-
-# The welcome dims to black before the session starts.
-[[layer]]
-kind = "box"
-anchor = "fill"
-fill = "#0b0807"
-opacity = 0
-monitors = "all"
-
-[layer.on.welcome]
-opacity = 1
-transition = { delay = 1000, duration = 600, easing = "ease-in" }

@@ -488,9 +488,13 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
     let rest_after = top
         .number_in(&mut r, "rest_after", 0.0..86_400.0)
         .unwrap_or(60.0);
-    let welcome = top
-        .number_in(&mut r, "welcome", 300.0..5_000.0)
-        .unwrap_or(1_200.0);
+    if top.item("welcome").is_some() {
+        r.warn(
+            top.span("welcome"),
+            "theme.toml: `welcome` is no longer read: the session starts as soon as the \
+             password is accepted",
+        );
+    }
 
     let mut fonts = Vec::new();
     let fonts_span = top.span("fonts");
@@ -577,7 +581,6 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
         background,
         rest,
         rest_after: (rest_after > 0.0).then(|| Duration::from_secs_f32(rest_after)),
-        welcome: Duration::from_secs_f32(welcome / 1000.0),
         text: text_style,
         strings,
         keys,
@@ -2054,6 +2057,7 @@ color = "#e8d5c0"
 motion = { property = "rotate", from = 0, to = 360, duration = 60000, easing = "steps(60)", repeat = "infinite", sync = "clock" }
 action = "next-session"
 fired_by = ["previous-session", "next-session"]
+copies = { count = 60, rotate = 6, delay = 12 }
 
 [layer.on.error]
 color = "#b7410e"
@@ -2076,6 +2080,7 @@ color = "#b7410e"
             [Action::NextSession, Action::PreviousSession],
             "fired_by adds to the layer's own action"
         );
+        assert!(matches!(ring.repeat, Repeat::Copies { count: 60, .. }));
         assert!(
             folder
                 .strings
@@ -2295,6 +2300,24 @@ height = 624
         let (width, height) = static_size(&folder.layers, 1, aspect).unwrap();
         assert!((width - 402.0).abs() < 0.01, "{width}");
         assert_eq!(height, 624.0);
+    }
+
+    #[test]
+    fn a_welcome_time_is_left_unread_with_a_warning() {
+        let text = "format = 1\nwelcome = 1800\n[[layer]]\nkind = \"text\"\ntext = \"{time}\"\n";
+        let (folder, problems) = theme(text);
+        assert!(folder.is_some(), "{problems:?}");
+        let [problem] = &problems[..] else {
+            panic!("{problems:?}");
+        };
+        assert_eq!(
+            (problem.severity, problem.line),
+            (Severity::Warning, Some(2))
+        );
+        assert!(
+            problem.message.contains("`welcome` is no longer read"),
+            "{problem}"
+        );
     }
 
     #[test]

@@ -16,7 +16,7 @@ use crate::config::PaperBackground;
 use crate::i18n;
 use crate::power::Action;
 use crate::ui::model::Status;
-use crate::ui::motion::{Pulse, Shake, rise};
+use crate::ui::motion::{Pulse, Shake};
 use crate::ui::text::label;
 
 pub struct Palette {
@@ -60,7 +60,6 @@ const NIGHT: Palette = Palette {
 const SHEET: u32 = 0xF7F2E7;
 
 const SERIF_CLOCK: &str = "Fraunces 144pt";
-const SERIF_HEADING: &str = "Fraunces 44pt";
 const SERIF_TEXT: &str = "Fraunces 17pt";
 
 pub fn render(view: &View, night: bool) -> AnyElement {
@@ -168,11 +167,6 @@ fn main_column(view: &View, palette: &Palette) -> impl IntoElement {
             .tracking_em(0.02)
             .color(ink),
     );
-    let below = if greeter.phase == crate::ui::model::Phase::Welcome {
-        welcome(view, palette).into_any_element()
-    } else {
-        form(view, palette).into_any_element()
-    };
     // The column sits a little above the middle, as the mockup's
     // translateY(-54%) puts it.
     div()
@@ -186,7 +180,7 @@ fn main_column(view: &View, palette: &Palette) -> impl IntoElement {
         .justify_center()
         .child(clock)
         .child(date)
-        .child(below)
+        .child(form(view, palette))
 }
 
 fn form(view: &View, palette: &Palette) -> impl IntoElement {
@@ -313,43 +307,6 @@ fn dots(color: Hsla) -> impl IntoElement {
                 dot.opacity(Pulse::opacity(t, delay))
             })
     }))
-}
-
-fn welcome(view: &View, palette: &Palette) -> impl IntoElement {
-    let greeter = view.greeter;
-    let ink = color(palette.ink, 1.0);
-    let name = greeter
-        .user()
-        .map(|user| user.display_name.as_str())
-        .unwrap_or_default();
-    div()
-        .relative()
-        .mt(u(92.))
-        .flex()
-        .flex_col()
-        .gap(u(10.))
-        .child(
-            label(greeter.strings.welcome(name))
-                .font(SERIF_HEADING, FontWeight::NORMAL)
-                .size(44.)
-                .color(ink),
-        )
-        .child(
-            div().opacity(0.68).child(
-                label(format!(
-                    "{}{}",
-                    greeter.strings.starting,
-                    greeter.session_name()
-                ))
-                .font("Inter", FontWeight::LIGHT)
-                .size(14.)
-                .tracking_em(0.04)
-                .color(ink),
-            ),
-        )
-        .with_animation("welcome", rise(500), |welcome, t| {
-            welcome.opacity(t).top(u(8. * (1. - t)))
-        })
 }
 
 fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {

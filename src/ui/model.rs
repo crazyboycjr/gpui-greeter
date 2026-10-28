@@ -26,8 +26,6 @@ use crate::x11::{Monitor, X11};
 
 /// How long a power action waits for the second press that confirms it.
 const CONFIRM: Duration = Duration::from_secs(4);
-/// How long the welcome shows before the greeter makes way for the session.
-const WELCOME: Duration = Duration::from_millis(1200);
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Phase {
@@ -381,12 +379,6 @@ impl Greeter {
         }
         self.last_input = Instant::now();
         cx.notify();
-    }
-
-    fn welcome_time(&self) -> Duration {
-        self.folder
-            .as_ref()
-            .map_or(WELCOME, |folder| folder.welcome)
     }
 
     pub fn user(&self) -> Option<&User> {
@@ -811,18 +803,14 @@ impl Greeter {
                     return;
                 }
                 self.remember();
-                let welcome = self.welcome_time();
-                cx.spawn(async move |_, cx| {
-                    cx.background_executor().timer(welcome).await;
-                    cx.update(|cx| cx.quit());
-                })
-                .detach();
-                // The session waits for the greeter to go: should the toolkit
-                // hang on its way out, greetd's SIGTERM after five seconds
-                // would only reach the shell around startx, and leave this X
-                // server on the session's VT.
-                std::thread::spawn(move || {
-                    std::thread::sleep(welcome + Duration::from_secs(2));
+                // greetd starts the session once the greeter has gone, so it
+                // goes at once.
+                cx.quit();
+                // Should the toolkit hang on its way out, greetd's SIGTERM
+                // after five seconds would only reach the shell around startx,
+                // and leave this X server on the session's VT.
+                std::thread::spawn(|| {
+                    std::thread::sleep(Duration::from_secs(2));
                     std::process::exit(0);
                 });
             }

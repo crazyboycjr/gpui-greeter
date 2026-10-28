@@ -39,7 +39,6 @@ background = "#14110f"     # under every layer
 fonts = ["fonts/NotoSerifDisplay-Light.ttf"]
 rest = true                # start at rest (see States)
 rest_after = 60            # seconds without input before going back to rest; 0 never
-welcome = 1700             # ms the welcome shows before the session starts, 300 to 5000
 
 [text]                     # the text style every layer inherits
 font = "Inter"
@@ -202,10 +201,10 @@ not wrap.
 
 **field**: what has been typed, one `mask` character (`"•"` by default)
 for each, at most `max` (64) of them; the answer itself when PAM asks a
-question whose answer may show. While the password is checked and through
-the welcome it keeps the mask of what was sent. When empty it shows
-`placeholder`, a template, in `placeholder_color` (the text colour at half
-strength by default). Text style keys set its look.
+question whose answer may show. While the password is checked it keeps the
+mask of what was sent. When empty it shows `placeholder`, a template, in
+`placeholder_color` (the text colour at half strength by default). Text
+style keys set its look.
 
 A field is one line of its font tall (its `line_height`, if set), or as
 tall as its caret where that is taller, empty or not, and a `height` larger
@@ -216,9 +215,7 @@ Its caret: `caret` is `bar` (the default), `block` or `none`,
 `caret_color`, `caret_width` (3.6, or 0.6 em for a block) and `blink`, the
 period in ms (1060; 0 is steady); the blink restarts with each key, so the
 caret shows while typing. It stands before the placeholder and after what
-was typed. The caret hides during the welcome unless the theme sets
-`caret`; a theme that sets it and wants it gone then says so with `caret =
-"none"` in its `on.welcome`.
+was typed.
 
 **image**: `file`, a PNG, JPEG or WebP. `fit` is `contain` (the default),
 `cover` or `fill` (stretched); `position = [x, y]` is the point a cover
@@ -282,10 +279,15 @@ The login is always in one of six states:
 | `typing` | the field holds something |
 | `checking` | PAM is checking the password |
 | `error` | a password was refused or the login failed, until the next key |
-| `welcome` | the session is starting; the greeter quits after `welcome` ms |
+| `welcome` | the password was accepted: the greeter leaves at once |
 
 At rest, a key or a click leaves rest; a character typed also goes into the
 field. A theme without `rest` starts idle, and Escape clears the field.
+
+The session starts as soon as the password is accepted: `checking` lasts
+only as long as PAM takes, and the greeter never holds `welcome`, which is
+drawn for a frame at most. Design nothing for it, no animation and no
+fade: whatever a theme puts there is cut short before it shows.
 
 ### Conditions
 

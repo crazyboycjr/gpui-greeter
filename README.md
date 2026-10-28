@@ -41,10 +41,11 @@ it names a monitor, a port or a mode.
 On Enter it asks greetd to log the user in, and once PAM accepts, to start
 the chosen X session the way tuigreet does, `startx /usr/bin/env <Exec>`,
 so the user's own `~/.xserverrc` and `~/.xinitrc` apply. The greeter then
-exits, startx stops its X server, and greetd starts the session on the same
-VT. Power actions go to logind over D-Bus, and each asks for a second press
-to confirm. The last user and session are remembered; before the first
-login, the session is the one AccountsService remembers from LightDM.
+exits at once, startx stops its X server, and greetd starts the session on
+the same VT. Power actions go to logind over D-Bus, and each asks for a
+second press to confirm. The last user and session are remembered; before
+the first login, the session is the one AccountsService remembers from
+LightDM.
 
 While another VT is in front, such as a text console, the greeter takes
 its windows off the screen and draws nothing until its

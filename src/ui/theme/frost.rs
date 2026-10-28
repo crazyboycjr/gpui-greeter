@@ -21,14 +21,12 @@ const WHITE: u32 = 0xFFFFFF;
 
 pub fn render(view: &View) -> AnyElement {
     let greeter = view.greeter;
-    let blurred = !greeter.locked && greeter.phase != Phase::Welcome;
-    let changes = greeter.lock_changes * 2 + u32::from(greeter.phase == Phase::Welcome);
     let root = div()
         .size_full()
         .relative()
         .overflow_hidden()
         .bg(color(GROUND, 1.0))
-        .child(backdrop(view, blurred, changes));
+        .child(backdrop(view, !greeter.locked, greeter.lock_changes));
     if !view.has_form {
         return root.into_any_element();
     }
@@ -219,12 +217,6 @@ fn clock_screen(view: &View) -> impl IntoElement {
 }
 
 fn login(view: &View) -> impl IntoElement {
-    let greeter = view.greeter;
-    let middle = if greeter.phase == Phase::Welcome {
-        welcome(view).into_any_element()
-    } else {
-        form(view).into_any_element()
-    };
     div()
         .absolute()
         .inset_0()
@@ -236,7 +228,7 @@ fn login(view: &View) -> impl IntoElement {
             MouseButton::Left,
             view.on(|greeter, cx| greeter.close_menu(cx)),
         )
-        .child(middle)
+        .child(form(view))
         .child(power_buttons(view))
         .child(session_chip(view))
 }
@@ -439,38 +431,6 @@ fn status(view: &View) -> AnyElement {
         Status::Confirm(action) => text(&s.confirm(greeter.action_name(action)), white, 0.9),
         Status::Checking | Status::Welcome => div().into_any_element(),
     }
-}
-
-fn welcome(view: &View) -> impl IntoElement {
-    let greeter = view.greeter;
-    div()
-        .relative()
-        .flex()
-        .flex_col()
-        .items_center()
-        .gap(u(12.))
-        .child(shadowed(
-            label(greeter.strings.welcome_back)
-                .size(40.)
-                .font("Inter", FontWeight::LIGHT),
-            16.,
-            0.45,
-        ))
-        .child(
-            div().opacity(0.8).child(shadowed(
-                label(format!(
-                    "{}{}",
-                    greeter.strings.starting,
-                    greeter.session_name()
-                ))
-                .size(15.),
-                16.,
-                0.45,
-            )),
-        )
-        .with_animation("welcome", rise(550), |welcome, t| {
-            welcome.opacity(t).top(u(10. * (1. - t)))
-        })
 }
 
 fn power_buttons(view: &View) -> impl IntoElement {
