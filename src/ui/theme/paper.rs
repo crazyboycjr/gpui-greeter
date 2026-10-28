@@ -415,15 +415,23 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .items_end()
         .child(
             div()
-                .relative()
-                .when_some(greeter.menu, |anchor, highlighted| {
-                    anchor.child(deferred(
-                        menu(view, &MenuLook::bar(palette), highlighted, accent)
-                            .left(u(-12.))
-                            .bottom(u(52.)),
-                    ))
-                })
-                .child(session_button),
+                .flex()
+                .gap(u(36.))
+                .child(
+                    div()
+                        .relative()
+                        .when_some(greeter.menu, |anchor, highlighted| {
+                            anchor.child(deferred(
+                                menu(view, &MenuLook::bar(palette), highlighted, accent)
+                                    .left(u(-12.))
+                                    .bottom(u(52.)),
+                            ))
+                        })
+                        .child(session_button),
+                )
+                .when(greeter.looks.cycle.len() > 1, |left| {
+                    left.child(theme_button(view, ink))
+                }),
         )
         .child(
             div()
@@ -432,6 +440,36 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
                 .child(power(Action::Suspend, "sleep"))
                 .child(power(Action::Reboot, "restart"))
                 .child(power(Action::PowerOff, "shutdown")),
+        )
+}
+
+/// "Theme Paper": switches to the next look, as F9 does.
+fn theme_button(view: &View, ink: Hsla) -> impl IntoElement {
+    let greeter = view.greeter;
+    div()
+        .id("theme")
+        .flex()
+        .items_center()
+        .gap(u(8.))
+        .py(u(12.))
+        .cursor_pointer()
+        .opacity(0.7)
+        .hover(|button| button.opacity(1.0))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)))
+        .child(
+            label(greeter.strings.theme)
+                .font("Inter", FontWeight::LIGHT)
+                .size(14.)
+                .tracking_em(0.04)
+                .color(ink),
+        )
+        .child(
+            label(greeter.theme_title())
+                .size(14.)
+                .font("Inter", FontWeight::MEDIUM)
+                .tracking_em(0.04)
+                .color(ink),
         )
 }
 
@@ -603,11 +641,23 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .flex()
-                .child(
+                .child(if greeter.looks.cycle.len() > 1 {
+                    // The theme takes the project's place, as a control.
+                    entry(s.theme, greeter.theme_title())
+                        .id("theme")
+                        .border_r(u(1.))
+                        .border_b(u(1.))
+                        .cursor_pointer()
+                        .hover(|cell| cell.bg(hover))
+                        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                        .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)))
+                        .into_any_element()
+                } else {
                     entry(s.project, "gpui-greeter".into())
                         .border_r(u(1.))
-                        .border_b(u(1.)),
-                )
+                        .border_b(u(1.))
+                        .into_any_element()
+                })
                 .child(entry(s.host, greeter.machine.hostname.clone()).border_b(u(1.))),
         )
         .child(

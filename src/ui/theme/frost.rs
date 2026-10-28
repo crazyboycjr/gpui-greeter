@@ -537,14 +537,37 @@ fn session_chip(view: &View) -> impl IntoElement {
         .hover(|chip| chip.opacity(1.0))
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)));
+    let theme = frosted(div(), 0.12, 0.28)
+        .h(u(36.))
+        .px(u(14.))
+        .rounded(u(18.))
+        .flex()
+        .items_center()
+        .gap(u(8.))
+        .child(
+            svg()
+                .path("icons/theme.svg")
+                .size(u(15.))
+                .text_color(color(WHITE, 1.0)),
+        )
+        .child(label(greeter.theme_title()).size(14.))
+        .id("theme")
+        .cursor_pointer()
+        .opacity(0.8)
+        .hover(|chip| chip.opacity(1.0))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)));
     div()
         .absolute()
         .left(u(36.))
         .bottom(u(44.))
+        .flex()
+        .gap(u(10.))
         .when_some(greeter.menu, |anchor, highlighted| {
             anchor.child(menu(view, highlighted))
         })
         .child(chip)
+        .when(greeter.looks.cycle.len() > 1, |row| row.child(theme))
 }
 
 fn menu(view: &View, highlighted: usize) -> impl IntoElement {

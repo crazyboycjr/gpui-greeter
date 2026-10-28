@@ -581,6 +581,30 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
                 .tracking_em(0.08),
         )
         .child(text("F2", 12.).color(palette.accent).tracking_em(0.08));
+    // The theme, a line like the session's, in Neon's lower case.
+    let theme = div()
+        .id("theme")
+        .flex()
+        .items_center()
+        .gap(u(10.))
+        .px(u(10.))
+        .py(u(6.))
+        .border(u(1.))
+        .border_color(palette.line)
+        .cursor_pointer()
+        .hover(|button| button.bg(color(greeter.config.neon.accent.0, 0.12)))
+        .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)))
+        .child(
+            div()
+                .opacity(0.55)
+                .child(text(s.theme, 12.).tracking_em(0.08)),
+        )
+        .child(
+            text(greeter.theme_title().to_lowercase(), 12.)
+                .font(MONO, FontWeight::BOLD)
+                .tracking_em(0.08),
+        )
+        .child(text("F9", 12.).color(palette.accent).tracking_em(0.08));
     let header = div()
         .flex()
         .justify_between()
@@ -591,7 +615,15 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(palette.accent)
                 .tracking_em(0.12),
         )
-        .child(session);
+        .child(
+            div()
+                .flex()
+                .gap(u(10.))
+                .when(greeter.looks.cycle.len() > 1, |controls| {
+                    controls.child(theme)
+                })
+                .child(session),
+        );
     let look = FieldLook {
         family: MONO,
         weight: FontWeight::NORMAL,
