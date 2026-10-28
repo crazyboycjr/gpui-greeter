@@ -154,7 +154,9 @@ fn skyline(random: &mut Mulberry32, width: f64, sky: f64) -> Skyline {
 
 /// A city at night under a hazy sky: three rows of buildings, the nearer
 /// darker, their windows lit in the accent, glowing magenta signs and stars.
-/// On a taller frame the city keeps to the bottom.
+/// On a taller frame the city keeps to the bottom. The glow covers just the
+/// band where the glowing windows and signs lie, not twice their width as in
+/// the mockup, which only costs time.
 fn skyline_svg(accent: u32, frame: &Frame) -> (String, Motion) {
     let down = frame.height - MOCKUP.1;
     let city = skyline(&mut Mulberry32::new(7), frame.width, 470.0 + down);
@@ -164,7 +166,7 @@ fn skyline_svg(accent: u32, frame: &Frame) -> (String, Motion) {
         r##"{open}
 <defs>
 <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#04050a"/><stop offset=".45" stop-color="#070a12"/><stop offset=".78" stop-color="{haze}"/><stop offset="1" stop-color="#05070b"/></linearGradient>
-<filter id="neon-glow" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<filter id="neon-glow" filterUnits="userSpaceOnUse" x="0" y="580" width="{width}" height="330"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
 <rect width="{width}" height="{height}" fill="url(#sky)"/>
 <path d="{stars}" fill="#ffffff" fill-opacity=".45"/>
@@ -531,7 +533,9 @@ impl Floor {
         while left < 1.5 * width {
             let right = left + Self::LINE;
             let bottom = (middle + left * spread, middle + right * spread);
-            if bottom.1 > 0.0 && bottom.0 < width {
+            let seen =
+                (middle + right).max(bottom.1) > 0.0 && (middle + left).min(bottom.0) < width;
+            if seen {
                 let _ = write!(
                     path,
                     "M{} {}H{}L{} {}H{}Z",
@@ -573,11 +577,8 @@ impl Floor {
 mod tests {
     use super::*;
 
-    /// FNV-1a, to hold the mockup's path data in a few digits.
     fn fingerprint(text: &str) -> u64 {
-        text.bytes().fold(0xCBF2_9CE4_8422_2325, |hash, byte| {
-            (hash ^ u64::from(byte)).wrapping_mul(0x0100_0000_01B3)
-        })
+        super::super::stored::fingerprint(&[text.as_bytes()])
     }
 
     #[test]

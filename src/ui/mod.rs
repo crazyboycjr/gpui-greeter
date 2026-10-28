@@ -22,12 +22,12 @@ use gpui_kit::{
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
-use crate::bing;
 use crate::config::{Config, Pick, Theme};
 use crate::power::Power;
 use crate::scenery::{self, Look, Scenery};
 use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, X11};
+use crate::{bing, cache};
 use crate::{sessions, users};
 use model::{Greeter, Setup};
 use screen::Screen;
@@ -73,10 +73,10 @@ pub fn run(options: Options) -> Result<()> {
             assets::register_fonts(cx);
             let blur = setup.config.frost.blur;
             let greeter = cx.new(|cx| Greeter::new(setup, cx));
-            let mut sceneries = drawing.map(finish_scenery).unwrap_or_default();
+            let mut sceneries = drawing.map(finish_scenery).unwrap_or_default().into_iter();
             let mut screens = Vec::new();
             for (output, monitor) in monitors.iter().enumerate() {
-                let scenery = sceneries.get_mut(output).and_then(Option::take);
+                let scenery = sceneries.next().flatten();
                 match open_screen(cx, &greeter, output, monitor, scale, scenery) {
                     Ok((screen, xid)) => {
                         if let Some(xid) = xid
@@ -171,7 +171,7 @@ impl Wallpaper {
             }
             picked
         };
-        let bing_dir = bing::cache_dir().filter(|_| config.wallpaper.pick == Pick::Bing);
+        let bing_dir = cache::dir("bing").filter(|_| config.wallpaper.pick == Pick::Bing);
         let Some(dir) = bing_dir else {
             return Self {
                 now: local(),
@@ -240,13 +240,15 @@ fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: f32) {
 /// Starts drawing each monitor's scenery on a thread of its own, while the
 /// toolkit starts.
 fn draw_scenery(look: Look, monitors: &[Monitor]) -> Vec<JoinHandle<Option<Arc<Scenery>>>> {
+    let cache = cache::dir("scenery");
     monitors
         .iter()
         .map(|monitor| {
             let pixels = (monitor.rect.width, monitor.rect.height);
+            let cache = cache.clone();
             std::thread::spawn(move || {
                 let started = Instant::now();
-                match scenery::draw(look, pixels) {
+                match scenery::draw(look, pixels, cache.as_deref()) {
                     Ok(scenery) => {
                         log::info!("scenery for {pixels:?} drawn in {:?}", started.elapsed());
                         Some(Arc::new(scenery))

@@ -36,12 +36,17 @@ fn desk(night: bool, frame: &Frame) -> String {
     let (sheet_top, half) = (-80.0 - taller / 2.0, taller / 2.0);
     let (grain_x, grain_y) = (width / 1600.0, height / 900.0);
     let ring_x = 938.0 + wider;
+    // The sheet's shadow shows only beside its sides, its top and bottom
+    // lying beyond the window: strips along the sides cast it, far more
+    // cheaply than the whole sheet.
+    let sheet_right_strip = 58.0 + sheet_width - 64.0;
     let open = frame.svg();
     format!(
         r##"{open}
 <defs>
 <filter id="lift" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#2e1f12" flood-opacity=".26"/></filter>
 <filter id="lift-sm" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="1" dy="4" stdDeviation="3.5" flood-color="#2e1f12" flood-opacity=".3"/></filter>
+<filter id="lift-side" x="-100%" y="-5%" width="300%" height="110%"><feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#2e1f12" flood-opacity=".26"/></filter>
 <radialGradient id="coffee" cx=".42" cy=".4" r=".62"><stop offset="0" stop-color="#94623d"/><stop offset=".5" stop-color="#623c22"/><stop offset="1" stop-color="#3b2314"/></radialGradient>
 <radialGradient id="cupInside" cx=".5" cy=".5" r=".5"><stop offset=".78" stop-color="#ffffff"/><stop offset="1" stop-color="#e9e2d7"/></radialGradient>
 <linearGradient id="window" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fffaf0" stop-opacity=".26"/><stop offset=".5" stop-color="#fffaf0" stop-opacity="0"/></linearGradient>
@@ -61,7 +66,9 @@ fn desk(night: bool, frame: &Frame) -> String {
 <path d="M0 888 C280 904 660 872 1000 894 S1380 908 1600 882"/>
 </g>
 <g transform="translate(0 {half}) rotate(-1.1 560 450)">
-<rect x="58" y="{sheet_top}" width="{sheet_width}" height="{sheet_height}" fill="#f7f2e7" filter="url(#lift)"/>
+<rect x="58" y="{sheet_top}" width="64" height="{sheet_height}" fill="#f7f2e7" filter="url(#lift-side)"/>
+<rect x="{sheet_right_strip}" y="{sheet_top}" width="64" height="{sheet_height}" fill="#f7f2e7" filter="url(#lift-side)"/>
+<rect x="58" y="{sheet_top}" width="{sheet_width}" height="{sheet_height}" fill="#f7f2e7"/>
 <circle cx="{ring_x}" cy="176" r="58" fill="none" stroke="#8a5b33" stroke-opacity=".1" stroke-width="5" stroke-dasharray="250 40 60 14"/>
 </g>
 <g transform="translate({wider} {half})">
@@ -148,8 +155,8 @@ fn ledger(night: bool, frame: &Frame) -> String {
         .take_while(|&y| y < frame.height)
         .collect();
     sheet.rows(&rules, 1.0, rule);
-    sheet.double_rule(Axis::Rows, (112.0, 118.0), header);
-    sheet.double_rule(Axis::Columns, (124.0, 130.0), margin);
+    sheet.double_rule(Axis::Rows, 112.0, header);
+    sheet.double_rule(Axis::Columns, 124.0, margin);
     sheet.finish()
 }
 
@@ -242,17 +249,19 @@ impl Sheet {
         self.fill(&path, color);
     }
 
-    /// A box with one-pixel CSS borders on two opposite sides, from `span.0`
-    /// to `span.1` across the sheet, running its full length.
-    fn double_rule(&mut self, axis: Axis, span: (f64, f64), color: (u32, f64)) {
+    /// A box 4 CSS pixels wide with one-pixel borders on two opposite sides,
+    /// from `at` across the sheet and running its full length. A browser
+    /// lays the borders out at their whole-pixel width.
+    fn double_rule(&mut self, axis: Axis, at: f64, color: (u32, f64)) {
         let thickness = self.border_width(1.0);
-        let (start, end) = (self.edge(span.0), self.edge(span.1));
+        let start = self.edge(at);
+        let end = (at * self.frame.scale + 4.0 * self.frame.scale + 2.0 * thickness).round();
         let (width, height) = self.frame.pixels;
         let mut path = String::new();
-        for at in [start, end - thickness] {
+        for line in [start, end - thickness] {
             let _ = match axis {
-                Axis::Rows => write!(path, "M0 {at}h{width}v{thickness}h-{width}Z"),
-                Axis::Columns => write!(path, "M{at} 0v{height}h{thickness}v-{height}Z"),
+                Axis::Rows => write!(path, "M0 {line}h{width}v{thickness}h-{width}Z"),
+                Axis::Columns => write!(path, "M{line} 0v{height}h{thickness}v-{height}Z"),
             };
         }
         self.fill(&path, color);

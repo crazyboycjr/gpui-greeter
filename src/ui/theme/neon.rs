@@ -159,64 +159,51 @@ fn scanlines(view: &View) -> impl IntoElement {
 
 /// What moves in the drawn background, over its picture.
 fn motion(view: &View, scenery: &Arc<Scenery>) -> AnyElement {
+    let (id, animation) = match &scenery.motion {
+        Motion::Still => return div().into_any_element(),
+        Motion::Beacons(_) => ("beacons", Beacon::animation()),
+        Motion::Pulses(_) => ("pulses", run(Duration::from_secs_f64(Pulse::SECONDS))),
+        Motion::Floor(_) => ("floor", run(Duration::from_secs_f64(Floor::SECONDS))),
+    };
     let (unit, accent) = (view.unit, view.greeter.config.neon.accent.0);
     let scenery = scenery.clone();
-    match &scenery.motion {
-        Motion::Still => div().into_any_element(),
-        Motion::Beacons(_) => moving(
-            "beacons",
-            Beacon::animation(),
-            move |t, bounds, window, _| {
-                let Motion::Beacons(tips) = &scenery.motion else {
-                    return;
-                };
+    moving(id, animation, move |t, bounds, window, cx| {
+        let at =
+            |(x, y): (f64, f64)| bounds.origin + point(px(x as f32 * unit), px(y as f32 * unit));
+        match &scenery.motion {
+            Motion::Still => {}
+            Motion::Beacons(tips) => {
                 let red = color(0xFF3B5C, Beacon::opacity(t));
-                for &(x, y) in tips {
-                    let corner = bounds.origin + point(px(x as f32 * unit), px(y as f32 * unit));
-                    window.paint_quad(fill(
-                        Bounds::new(corner, size(px(5. * unit), px(5. * unit))),
-                        red,
-                    ));
+                let side = size(px(5. * unit), px(5. * unit));
+                for &tip in tips {
+                    window.paint_quad(fill(Bounds::new(at(tip), side), red));
                 }
-            },
-        ),
-        Motion::Pulses(_) => {
-            let animation = run(Duration::from_secs_f64(Pulse::SECONDS));
-            moving("pulses", animation, move |t, bounds, window, cx| {
-                let Motion::Pulses(pulses) = &scenery.motion else {
-                    return;
-                };
+            }
+            Motion::Pulses(pulses) => {
                 for pulse in pulses {
                     paint_pulse(
                         pulse,
                         f64::from(t),
                         unit,
-                        bounds.origin,
+                        &at,
                         color(accent, 1.0),
                         window,
                         cx,
                     );
                 }
-            })
-        }
-        Motion::Floor(_) => {
-            let animation = run(Duration::from_secs_f64(Floor::SECONDS));
-            moving("floor", animation, move |t, bounds, window, _| {
-                let Motion::Floor(floor) = &scenery.motion else {
-                    return;
-                };
+            }
+            Motion::Floor(floor) => {
                 for band in floor.bands(f64::from(t)) {
-                    let top = bounds.origin.y + px(band.top as f32 * unit);
-                    let bottom = bounds.origin.y + px(band.bottom as f32 * unit);
+                    let (top, bottom) = (at((0.0, band.top)).y, at((0.0, band.bottom)).y);
                     let line = Bounds::new(
                         point(bounds.left(), top),
                         size(bounds.size.width, bottom - top),
                     );
                     window.paint_quad(fill(line, floor_line(accent, band.shade)));
                 }
-            })
+            }
         }
-    }
+    })
 }
 
 /// A layer over the window that paints itself afresh at each step of a
@@ -261,12 +248,12 @@ fn floor_line(accent: u32, shade: f64) -> Hsla {
 
 /// The dashes of light on a trace `run` of the way through their loop: each
 /// part of a dash on a straight stretch is a glowing stroke, turned to lie
-/// along it.
+/// along it. `at` places a point of the frame in the window.
 fn paint_pulse(
     pulse: &Pulse,
     run: f64,
     unit: f32,
-    origin: gpui_kit::Point<Pixels>,
+    at: &dyn Fn((f64, f64)) -> gpui_kit::Point<Pixels>,
     accent: Hsla,
     window: &mut Window,
     cx: &mut App,
@@ -275,11 +262,8 @@ fn paint_pulse(
         .points
         .windows(2)
         .map(|ends| {
-            (
-                ends[0],
-                ends[1],
-                (ends[1].0 - ends[0].0).hypot(ends[1].1 - ends[0].1),
-            )
+            let length = (ends[1].0 - ends[0].0).hypot(ends[1].1 - ends[0].1);
+            (ends[0], ends[1], length)
         })
         .collect();
     let length: f64 = stretches.iter().map(|stretch| stretch.2).sum();
@@ -290,15 +274,17 @@ fn paint_pulse(
         for &(from, to, stretch) in &stretches {
             let (first, last) = (dash.max(along), (dash + Pulse::DASH).min(along + stretch));
             if last > first {
-                let at = |distance: f64| {
+                let point_at = |distance: f64| {
                     let share = (distance - along) / stretch;
                     (
                         from.0 + (to.0 - from.0) * share,
                         from.1 + (to.1 - from.1) * share,
                     )
                 };
+                let (start, end) = (point_at(first), point_at(last));
+                let middle = at(((start.0 + end.0) / 2.0, (start.1 + end.1) / 2.0));
                 let angle = (to.1 - from.1).atan2(to.0 - from.0);
-                paint_glow(at(first), at(last), angle, unit, origin, accent, window, cx);
+                paint_glow(last - first, middle, angle, unit, accent, window, cx);
             }
             along += stretch;
         }
@@ -306,31 +292,26 @@ fn paint_pulse(
     }
 }
 
-/// One straight part of a dash, from `start` to `end` in mockup pixels.
-#[allow(clippy::too_many_arguments)]
+/// One straight part of a dash, `length` mockup pixels long, centred on
+/// `middle` and turned by `angle`.
 fn paint_glow(
-    start: (f64, f64),
-    end: (f64, f64),
+    length: f64,
+    middle: gpui_kit::Point<Pixels>,
     angle: f64,
     unit: f32,
-    origin: gpui_kit::Point<Pixels>,
     accent: Hsla,
     window: &mut Window,
     cx: &mut App,
 ) {
-    let length = (end.0 - start.0).hypot(end.1 - start.1);
     let halves = ((length * 2.0).round() as usize).min(GLOW_HALVES);
     if halves == 0 {
         return;
     }
     let (key, svg) = &glows()[halves];
-    let reach = halves as f32 / 2.0 + 2.0 * GLOW_MARGIN;
-    let middle = origin
-        + point(
-            px((start.0 + end.0) as f32 / 2.0 * unit),
-            px((start.1 + end.1) as f32 / 2.0 * unit),
-        );
-    let extent = size(px(reach * unit), px(2.0 * GLOW_MARGIN * unit));
+    let extent = size(
+        px((halves as f32 / 2.0 + 2.0 * GLOW_MARGIN) * unit),
+        px(2.0 * GLOW_MARGIN * unit),
+    );
     let bounds = Bounds::new(
         middle - point(extent.width / 2.0, extent.height / 2.0),
         extent,
@@ -633,7 +614,7 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
                     .opacity(0.5)
                     .child(text(format!("> {name}"), 18.)),
             )
-            .child(div().flex_1().min_w_0().py(u(4.)).child(value))
+            .child(div().flex_1().min_w_0().child(value))
     };
     let user = greeter
         .user()
@@ -651,7 +632,10 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
         ))
         .child(row(
             s.password,
-            field_text(view, &look, s.placeholder).into_any_element(),
+            div()
+                .py(u(4.))
+                .child(field_text(view, &look, s.placeholder))
+                .into_any_element(),
         ));
     div()
         .relative()

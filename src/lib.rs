@@ -1,6 +1,7 @@
 //! gpui-greeter: a greeter for greetd on X11, drawn with GPUI.
 
 pub mod bing;
+pub mod cache;
 pub mod config;
 pub mod greetd;
 pub mod i18n;

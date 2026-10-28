@@ -6,7 +6,9 @@ mod grain;
 mod neon;
 mod paper;
 mod random;
+mod stored;
 
+use std::path::Path;
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result};
@@ -16,6 +18,7 @@ use resvg::{tiny_skia, usvg};
 
 use crate::config::{Config, NeonBackground, PaperBackground, Rgb, Theme};
 use crate::wallpaper::render_image;
+use stored::Stored;
 
 pub use neon::{Band, Floor, Pulse};
 
@@ -111,24 +114,41 @@ pub enum Motion {
     Floor(Floor),
 }
 
-/// Draws `look` for a window of `pixels`.
-pub fn draw(look: Look, pixels: (u32, u32)) -> Result<Scenery> {
+/// Draws `look` for a window of `pixels`, or reads it back from the
+/// `cache` folder, where the pictures drawn before are kept.
+pub fn draw(look: Look, pixels: (u32, u32), cache: Option<&Path>) -> Result<Scenery> {
     let frame = Frame::fit(pixels);
     let (svg, motion) = match look {
         Look::Paper { background, night } => (paper::svg(background, night, &frame), Motion::Still),
         Look::Neon { background, accent } => neon::svg(background, accent.0, &frame),
     };
-    let mut canvas = rasterize(&svg, pixels)?;
-    if matches!(look, Look::Paper { .. }) {
-        grain::spread(&mut canvas, frame.scale)?;
-    }
+    let grain = matches!(look, Look::Paper { .. });
+    let stored = cache.map(|dir| Stored::new(dir, &svg, pixels, grain));
+    let rgba = match stored.as_ref().and_then(Stored::load) {
+        Some(rgba) => rgba,
+        None => {
+            let rgba = paint(&svg, &frame, grain)?;
+            if let Some(stored) = &stored {
+                stored.save(&rgba);
+            }
+            rgba
+        }
+    };
     // Every scenery is opaque, so its premultiplied pixels are plain ones.
-    let picture = RgbaImage::from_raw(pixels.0, pixels.1, canvas.take())
+    let picture = RgbaImage::from_raw(pixels.0, pixels.1, rgba)
         .context("the scenery's pixels do not fill its picture")?;
     Ok(Scenery {
         picture: render_image(picture),
         motion,
     })
+}
+
+fn paint(svg: &str, frame: &Frame, grain: bool) -> Result<Vec<u8>> {
+    let mut canvas = rasterize(svg, frame.pixels)?;
+    if grain {
+        grain::spread(&mut canvas, frame.scale)?;
+    }
+    Ok(canvas.take())
 }
 
 fn rasterize(svg: &str, (width, height): (u32, u32)) -> Result<tiny_skia::Pixmap> {
@@ -197,7 +217,7 @@ mod tests {
             neon(NeonBackground::Circuit),
             neon(NeonBackground::Horizon),
         ] {
-            let scenery = draw(look, (320, 180)).unwrap();
+            let scenery = draw(look, (320, 180), None).unwrap();
             let size = scenery.picture.size(0);
             assert_eq!((size.width.0, size.height.0), (320, 180), "{look:?}");
             let pixels = scenery.picture.as_bytes(0).unwrap();

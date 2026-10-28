@@ -14,13 +14,6 @@ const KEEP: usize = 7;
 /// Bing's UHD pictures run to a few megabytes.
 const LARGEST: u64 = 40 << 20;
 
-pub fn cache_dir() -> Option<PathBuf> {
-    let cache = std::env::var_os("XDG_CACHE_HOME")
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".cache")))?;
-    Some(cache.join("gpui-greeter/bing"))
-}
-
 /// The picture fetched on `day` (as `2026-10-27`), if it was.
 pub fn of_day(dir: &Path, day: &str) -> Option<PathBuf> {
     Some(dir.join(format!("{day}.jpg"))).filter(|path| path.is_file())

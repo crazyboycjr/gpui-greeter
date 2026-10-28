@@ -527,6 +527,7 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
     };
     let session = cell(1., s.session.to_string())
         .id("session")
+        .border_r(u(1.))
         .cursor_pointer()
         .hover(|cell| cell.bg(hover))
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
@@ -537,10 +538,12 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                 .font("Inter", FontWeight::MEDIUM)
                 .color(ink),
         );
-    let power = greeter.power_keys().iter().map(|&(key, action)| {
+    let keys = greeter.power_keys();
+    let actions = keys.iter().enumerate().map(|(index, &(key, action))| {
         let armed = greeter.status() == Status::Confirm(action);
         cell(1., key.to_uppercase())
             .id(key)
+            .when(index + 1 < keys.len(), |cell| cell.border_r(u(1.)))
             .cursor_pointer()
             .hover(|cell| cell.bg(hover))
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
@@ -550,9 +553,6 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                     .color(if armed { accent } else { ink }),
             )
     });
-    let actions = power
-        .enumerate()
-        .map(|(index, cell)| cell.when(index < 2, |cell| cell.border_r(u(1.))));
     div()
         .absolute()
         .right(u(40.))
@@ -581,8 +581,6 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                     div()
                         .relative()
                         .flex()
-                        .border_r(u(1.))
-                        .border_color(thin)
                         .when_some(greeter.menu, |anchor, highlighted| {
                             anchor.child(
                                 menu(view, &MenuLook::sheet(palette), highlighted, accent)
