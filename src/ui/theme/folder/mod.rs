@@ -556,6 +556,9 @@ impl Builder<'_> {
         if let Some(features) = &props.features {
             label = label.features(FontFeatures(Arc::new(features.to_vec())));
         }
+        if let Some(families) = &props.fallback {
+            label = label.fallback(families.clone());
+        }
         label
     }
 

@@ -1230,6 +1230,18 @@ fn read_motion(
 
 fn read_text_style(f: &mut Fields, r: &mut Reader, props: &mut Props) {
     props.font = f.string(r, "font").map(Into::into);
+    props.fallback = f.item("fallback").and_then(|item| {
+        let families: Option<Vec<Arc<str>>> = match item.as_str() {
+            Some(family) => Some(vec![family.into()]),
+            None => item
+                .as_array()
+                .and_then(|array| array.iter().map(|v| v.as_str().map(Into::into)).collect()),
+        };
+        if families.is_none() {
+            f.wrong(r, "fallback", "a family, or an array of families");
+        }
+        families.map(Into::into)
+    });
     props.size = f.number_in(r, "size", 1.0..2000.0);
     props.weight = f.item("weight").and_then(|item| {
         let weight = as_number(item)

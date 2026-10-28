@@ -300,6 +300,8 @@ pub struct Props {
     pub clip: Option<[f32; 4]>,
 
     pub font: Option<Arc<str>>,
+    /// Families that draw what `font` lacks, ahead of the greeter's own.
+    pub fallback: Option<Arc<[Arc<str>]>>,
     pub size: Option<f32>,
     pub weight: Option<f32>,
     pub italic: Option<bool>,
@@ -350,8 +352,8 @@ impl Props {
     pub fn apply(&mut self, other: &Props) {
         merge!(self, other:
             visible, opacity, x, y, width, height, scale, rotate, clip,
-            font, size, weight, italic, color, tracking, line_height, case, features, shadow,
-            text_align, text, file, fill, border, border_color, dashed, radius, padding, gap,
+            font, fallback, size, weight, italic, color, tracking, line_height, case, features,
+            shadow, text_align, text, file, fill, border, border_color, dashed, radius, padding, gap,
             align, justify, box_shadow, caret, caret_color, placeholder, placeholder_color,
             blurred, layout, focus,
         );
@@ -369,6 +371,7 @@ impl Props {
         }
         inherit!(
             font,
+            fallback,
             size,
             weight,
             italic,

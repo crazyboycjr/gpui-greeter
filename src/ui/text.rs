@@ -2,6 +2,8 @@
 //! GPUI's text has no notion of, and with soft text shadows, drawn as faint
 //! copies of the glyphs around them.
 
+use std::sync::Arc;
+
 use gpui_kit::{
     App, Bounds, Element, ElementId, FontFallbacks, FontFeatures, FontStyle, FontWeight,
     GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId, Pixels, Point, ShapedLine,
@@ -11,13 +13,17 @@ use smallvec::SmallVec;
 
 use super::theme::DESIGN_REM;
 
-/// Families that draw what the bundled fonts lack, Chinese above all.
-pub fn fallbacks() -> FontFallbacks {
-    FontFallbacks::from_fonts(vec![
-        "Noto Sans CJK SC".into(),
-        "Noto Sans SC".into(),
-        "DejaVu Sans".into(),
-    ])
+/// Families that draw what the bundled fonts lack, Chinese above all,
+/// after a theme's own.
+fn fallbacks(first: &[Arc<str>]) -> FontFallbacks {
+    let greeters = ["Noto Sans CJK SC", "Noto Sans SC", "DejaVu Sans"];
+    FontFallbacks::from_fonts(
+        first
+            .iter()
+            .map(|family| family.to_string())
+            .chain(greeters.map(String::from))
+            .collect(),
+    )
 }
 
 pub fn label(text: impl Into<SharedString>) -> Label {
@@ -27,6 +33,7 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         weight: FontWeight::NORMAL,
         italic: false,
         features: FontFeatures::default(),
+        fallback: None,
         size: 16.0,
         color: gpui_kit::white(),
         tracking: Tracking::Px(0.0),
@@ -43,6 +50,7 @@ pub struct Label {
     weight: FontWeight,
     italic: bool,
     features: FontFeatures,
+    fallback: Option<Arc<[Arc<str>]>>,
     size: f32,
     color: Hsla,
     tracking: Tracking,
@@ -85,6 +93,12 @@ impl Label {
     /// OpenType features, such as tabular figures.
     pub fn features(mut self, features: FontFeatures) -> Self {
         self.features = features;
+        self
+    }
+
+    /// Families that draw what the font lacks, ahead of the greeter's own.
+    pub fn fallback(mut self, families: Arc<[Arc<str>]>) -> Self {
+        self.fallback = Some(families);
         self
     }
 
@@ -180,7 +194,7 @@ impl Element for Label {
                     FontStyle::Normal
                 },
                 features: self.features.clone(),
-                fallbacks: Some(fallbacks()),
+                fallbacks: Some(fallbacks(self.fallback.as_deref().unwrap_or_default())),
                 ..font(self.family.clone())
             },
             color: self.color,
