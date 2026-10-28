@@ -190,6 +190,37 @@ mod tests {
     use super::*;
 
     #[test]
+    fn the_example_theme_reads_without_a_problem() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("skills/gpui-greeter-theme/dial");
+        let (folder, warnings) = Folder::load(&dir).unwrap_or_else(|problems| {
+            panic!(
+                "{}",
+                problems
+                    .iter()
+                    .map(ToString::to_string)
+                    .collect::<Vec<_>>()
+                    .join("\n")
+            )
+        });
+        assert!(warnings.is_empty(), "{warnings:?}");
+        assert_eq!(folder.name, "dial");
+        assert!(folder.rest);
+        assert!(
+            folder.fonts[0]
+                .families
+                .iter()
+                .any(|f| f == "Noto Serif Display")
+        );
+        let hand = folder.layer_named("hand").unwrap();
+        assert!(folder.layers[hand].motions[0].clock);
+        let sweep = folder.layer_named("sweep").unwrap();
+        assert!(matches!(
+            folder.layers[sweep].repeat,
+            Repeat::Copies { count: 60, .. }
+        ));
+    }
+
+    #[test]
     fn names_stay_inside_the_themes_folder() {
         assert!(valid_name("console"));
         assert!(valid_name("my-theme_2"));

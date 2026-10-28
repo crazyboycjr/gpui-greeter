@@ -9,5 +9,7 @@ post_install() {
 ==> Make greetd the display manager from the next boot, and go back:
       sudo gpui-greeter-switch greetd
       sudo gpui-greeter-switch lightdm
+==> Design themes of your own with an agent: see "Theme folders" in
+    /usr/share/doc/gpui-greeter/README.md
 TEXT
 }

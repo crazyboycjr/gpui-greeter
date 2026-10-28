@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3840" height="2160" viewBox="0 0 3840 2160">
+  <!-- A warm glow behind the dial, and a fine grain over everything. -->
+  <defs>
+    <radialGradient id="glow" cx="0.5" cy="0.45" r="0.62">
+      <stop offset="0" stop-color="#3b2a1e" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#3b2a1e" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="7" stitchTiles="stitch"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 1  0 0 0 0 0.92  0 0 0 0 0.84  0 0 0 0.07 0"/>
+    </filter>
+  </defs>
+  <rect width="3840" height="2160" fill="url(#glow)"/>
+  <rect width="3840" height="2160" filter="url(#grain)"/>
+</svg>

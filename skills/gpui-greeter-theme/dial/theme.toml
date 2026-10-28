@@ -1,0 +1,399 @@
+# Dial: a clock in a ring of sixty ticks, one of them lit and moving with
+# the seconds. A small example of the theme folder format; reference.md,
+# beside this folder, documents every key.
+#
+# Lengths are pixels of a 3840 by 2160 frame, which each monitor scales to
+# fit. Colours are #rrggbb or #rrggbbaa.
+
+format = 1
+name = "Dial"
+description = "A clock in a ring of ticks, the form beneath it."
+background = "#14110f"
+# The greeter starts at rest, showing the clock alone; the first key or
+# click brings the form, and a minute without input takes it away again.
+rest = true
+rest_after = 60
+# How long the welcome shows before the session starts, in ms.
+welcome = 1700
+fonts = ["fonts/NotoSerifDisplay-Light.ttf"]
+
+# What every text inherits unless a layer sets its own.
+[text]
+font = "Inter"
+size = 31
+weight = 500
+color = "#a8917c"
+tracking = 7
+
+[strings.en]
+date = "{date:%A, %-d %B}"
+hint = "Press Enter"
+wake = "Press any key"
+wrong = "Wrong password"
+welcome = "Welcome back · {session}"
+confirm = "Press {armed.key} again"
+up = "up"
+sleep = "Sleep"
+restart = "Restart"
+shut_down = "Shut down"
+
+[strings.zh-CN]
+date = "{date:%-m月%-d日 %A}"
+hint = "按回车登录"
+wake = "按任意键"
+wrong = "密码不对"
+welcome = "欢迎回来 · {session}"
+confirm = "再按一次 {armed.key}"
+up = "已运行"
+sleep = "睡眠"
+restart = "重启"
+shut_down = "关机"
+
+# The glow and the grain, drawn once per monitor size and kept on disk.
+[[layer]]
+id = "ground"
+kind = "svg"
+file = "art/ground.svg"
+anchor = "fill"
+fit = "cover"
+monitors = "all"
+
+# The ring of ticks: an SVG of one colour, which states can change and
+# motions can turn. It knocks when a password is refused.
+[[layer]]
+id = "ticks"
+kind = "svg"
+file = "art/ticks.svg"
+tint = true
+anchor = "center"
+y = -120
+width = 1240
+color = "#4a3d33"
+transition = 300
+
+[layer.on.error]
+color = "#7a3424"
+motion = { property = "rotate", keyframes = [[0, 0], [0.15, -2.5], [0.35, 2], [0.55, -1.2], [0.75, 0.6], [1, 0]], duration = 500, easing = "cubic-bezier(.36, .07, .19, .97)" }
+
+# The lit tick goes round once a minute, a tick at a time, by the clock;
+# while the password is checked it races.
+[[layer]]
+id = "hand"
+kind = "svg"
+file = "art/hand.svg"
+tint = true
+anchor = "center"
+y = -120
+width = 1240
+color = "#e8a33d"
+motion = { property = "rotate", from = 0, to = 360, duration = 60000, easing = "steps(60)", repeat = "infinite", sync = "clock" }
+
+[layer.on.checking]
+motion = { property = "rotate", from = 0, to = 360, duration = 900, easing = "steps(60)", repeat = "infinite" }
+
+[layer.on.error]
+color = "#e8d5c0"
+
+# On success every tick lights, one after the other: sixty copies of the
+# hand, each turned a tick further and shown 12 ms later.
+[[layer]]
+id = "sweep"
+kind = "svg"
+file = "art/hand.svg"
+tint = true
+anchor = "center"
+y = -120
+width = 1240
+color = "#e8a33d"
+visible = false
+copies = { count = 60, rotate = 6, delay = 12 }
+transition = 120
+
+[layer.on.welcome]
+visible = true
+
+# The clock and the date, in the middle of the ring.
+[[layer]]
+id = "clock"
+layout = "column"
+align = "center"
+gap = 6
+anchor = "center"
+y = -150
+transition = { duration = 500, easing = "ease-out" }
+
+[layer.on.rest]
+scale = 1.12
+
+[[layer]]
+parent = "clock"
+kind = "text"
+text = "{time}"
+font = "Noto Serif Display"
+weight = 300
+size = 330
+tracking = -4
+color = "#ece4d8"
+features = ["lnum", "tnum"]
+
+[[layer]]
+parent = "clock"
+kind = "text"
+text = "{t.date}"
+case = "upper"
+
+[layer.on.zh-CN]
+tracking = 4
+
+# What the machine is, in the top left corner.
+[[layer]]
+id = "facts"
+layout = "column"
+gap = 12
+anchor = "top-left"
+x = 130
+y = 120
+size = 29
+weight = 400
+tracking = 3
+color = "#7d6c5d"
+
+[[layer]]
+parent = "facts"
+kind = "text"
+text = "{user}@{host}"
+
+[[layer]]
+parent = "facts"
+kind = "text"
+text = "{os} · {kernel}"
+
+[[layer]]
+parent = "facts"
+kind = "text"
+text = "{t.up} {uptime}"
+
+# The form under the ring, hidden at rest.
+[[layer]]
+id = "form"
+layout = "column"
+align = "center"
+gap = 34
+anchor = "center"
+y = 640
+transition = { duration = 300, easing = "ease" }
+
+[layer.on.rest]
+visible = false
+
+[[layer]]
+id = "line"
+parent = "form"
+layout = "row"
+align = "center"
+gap = 30
+width = 840
+padding = [0, 4, 18, 4]
+border = [0, 0, 3.6, 0]
+border_color = "#e8d5c047"
+transition = 200
+
+[layer.on."typing, checking"]
+border_color = "#e8a33d"
+
+[layer.on.error]
+border_color = "#e5703b"
+motion = { property = "x", keyframes = [[0, 0], [0.2, -10], [0.4, 17], [0.6, -17], [0.8, 10], [1, 0]], duration = 450, easing = "cubic-bezier(.36, .07, .19, .97)" }
+
+[[layer]]
+parent = "line"
+kind = "text"
+text = "{user}"
+case = "upper"
+
+[[layer]]
+parent = "line"
+kind = "field"
+grow = 1
+size = 48
+weight = 400
+tracking = 10
+color = "#ece4d8"
+caret_color = "#e8a33d"
+
+# One line of status under the field, its words by state.
+[[layer]]
+parent = "form"
+kind = "text"
+text = "{t.hint}"
+case = "upper"
+color = "#7d6c5d"
+
+[layer.on.checking]
+text = "{t.checking}"
+motion = { property = "opacity", keyframes = [[0, 1], [0.5, 0.35], [1, 1]], duration = 1000, easing = "ease-in-out", repeat = "infinite" }
+
+[layer.on.error]
+text = "{t.wrong}"
+color = "#e5703b"
+
+[layer.on.welcome]
+text = "{t.welcome}"
+
+[layer.on.zh-CN]
+tracking = 3
+
+# At rest, a hint at the bottom that breathes.
+[[layer]]
+kind = "text"
+text = "{t.wake}"
+case = "upper"
+color = "#8f7d6c"
+anchor = "bottom"
+y = -150
+visible = false
+transition = 300
+motion = { property = "opacity", keyframes = [[0, 0.45], [0.5, 1], [1, 0.45]], duration = 2400, easing = "ease-in-out", repeat = "infinite" }
+
+[layer.on.rest]
+visible = true
+
+# The session, bottom left: a click or Tab picks the next one.
+[[layer]]
+id = "session"
+layout = "row"
+align = "center"
+gap = 22
+anchor = "bottom-left"
+x = 130
+y = -120
+action = "next-session"
+color = "#a8917c"
+
+[layer.on.hover]
+color = "#ece4d8"
+
+[[layer]]
+parent = "session"
+kind = "text"
+text = "{session}"
+case = "upper"
+
+[[layer]]
+parent = "session"
+kind = "svg"
+file = "art/chevron.svg"
+tint = true
+width = 24
+
+# Sleep, restart and shut down, bottom right. The first press arms an
+# action; a second within four seconds runs it.
+[[layer]]
+id = "power"
+layout = "row"
+gap = 64
+anchor = "bottom-right"
+x = -130
+y = -120
+color = "#a8917c"
+
+[[layer]]
+id = "sleep"
+parent = "power"
+layout = "row"
+gap = 16
+action = "suspend"
+
+[layer.on.hover]
+color = "#ece4d8"
+
+[layer.on.armed]
+color = "#e8a33d"
+
+[[layer]]
+parent = "sleep"
+kind = "text"
+text = "F10"
+color = "#7d6c5d"
+
+[[layer]]
+parent = "sleep"
+kind = "text"
+text = "{t.sleep}"
+case = "upper"
+
+[[layer]]
+id = "restart"
+parent = "power"
+layout = "row"
+gap = 16
+action = "reboot"
+
+[layer.on.hover]
+color = "#ece4d8"
+
+[layer.on.armed]
+color = "#e8a33d"
+
+[[layer]]
+parent = "restart"
+kind = "text"
+text = "F11"
+color = "#7d6c5d"
+
+[[layer]]
+parent = "restart"
+kind = "text"
+text = "{t.restart}"
+case = "upper"
+
+[[layer]]
+id = "shut-down"
+parent = "power"
+layout = "row"
+gap = 16
+action = "poweroff"
+
+[layer.on.hover]
+color = "#ece4d8"
+
+[layer.on.armed]
+color = "#e8a33d"
+
+[[layer]]
+parent = "shut-down"
+kind = "text"
+text = "F12"
+color = "#7d6c5d"
+
+[[layer]]
+parent = "shut-down"
+kind = "text"
+text = "{t.shut_down}"
+case = "upper"
+
+# Above the power actions while one waits for its second press.
+[[layer]]
+kind = "text"
+text = "{t.confirm}"
+case = "upper"
+color = "#e8a33d"
+anchor = "bottom-right"
+x = -130
+y = -200
+visible = false
+
+[layer.on.armed]
+visible = true
+
+# The welcome dims to black before the session starts.
+[[layer]]
+kind = "box"
+anchor = "fill"
+fill = "#0b0807"
+opacity = 0
+monitors = "all"
+
+[layer.on.welcome]
+opacity = 1
+transition = { delay = 1000, duration = 600, easing = "ease-in" }

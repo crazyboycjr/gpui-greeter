@@ -23,6 +23,9 @@ chosen in its settings:
 It speaks English and Chinese (`language = "zh-CN"`); another language is
 one more table in `src/i18n.rs`.
 
+Other looks come as theme folders, which live outside the package and can be
+designed with an agent; see [Theme folders](#theme-folders).
+
 ## How it fits together
 
 greetd runs the greeter as its `greeter` user through `startx`, in an X
@@ -108,6 +111,41 @@ resvg) at each monitor's size, and kept in
 size, so that later starts read them back instead of drawing them again;
 what moves in them is drawn over the picture.
 
+## Theme folders
+
+Besides its own looks, the greeter draws theme folders: a `theme.toml` of
+layers on a 3840 by 2160 frame, with the pictures, SVGs and fonts they draw,
+kept outside the package in `/usr/local/share/gpui-greeter/themes`, one
+folder per theme. `theme = "<name>"` selects one. Layers anchor to the
+screen's edges or its centre, change with the state of the login, and can
+move; text fills in the time, the user, the session, PAM's words and facts
+about the machine, read from files: a theme never runs anything.
+[The format](skills/gpui-greeter-theme/reference.md) is documented beside an
+example theme, [dial](skills/gpui-greeter-theme/dial).
+
+    gpui-greeter check-theme DIR
+    gpui-greeter preview DIR --state error --lang zh-CN --shot error.png
+    sudo gpui-greeter install-theme DIR --select
+
+`check-theme` names what is wrong by file and line. `preview` shows the
+theme against a fake greetd; with `--shot` it needs no display, drawing in
+an Xvfb of its own with lavapipe. `install-theme` checks the folder, copies
+its files, owned by root and readable by the greeter, and `--select` sets
+`theme` in the settings. A theme that cannot be read gives way to Paper,
+and `journalctl -t gpui-greeter` says why.
+
+### Designing a theme with an agent
+
+The package comes with a skill that walks an agent such as Claude Code
+through designing a theme with you: drawing out the idea, gathering fonts
+and pictures lawfully, previewing every state, and installing it. Add it to
+Claude Code with
+
+    mkdir -p ~/.claude/skills
+    ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme ~/.claude/skills/
+
+and ask it for a new login screen.
+
 ## Trying it out
 
 `scripts/try` runs the greeter in an invisible X server (Xvfb, drawn by
@@ -121,13 +159,15 @@ prints the session it would start. Power buttons only log.
     scripts/try log
     scripts/try stop
 
-`scripts/try start neon --background circuit` picks a background, and
+`scripts/try start neon --background circuit` picks a background,
+`scripts/try start path/to/theme` runs a theme folder, and
 `cargo run --example scenery -- paper-night-desk desk.png` draws one alone.
 
 `cargo test` covers the parts without a screen: the greetd conversation,
-desktop entries, users, the wallpaper copy, Bing's cache, the settings, and
-the backgrounds, whose skyline and circuit board must come out of the
-mockup's seeds exactly as the mockup grows them.
+desktop entries, users, the wallpaper copy, Bing's cache, the settings, the
+theme format and the example theme, and the backgrounds, whose skyline and
+circuit board must come out of the mockup's seeds exactly as the mockup
+grows them.
 
 ## Fonts
 
