@@ -991,13 +991,18 @@ impl Fill for Filler<'_> {
         let s = greeter.strings;
         let user = greeter.user();
         match binding {
-            Binding::Time => {
-                out.push_str(&format_time(&greeter.now, arg.unwrap_or("%H:%M"), language))
+            Binding::Time(names) => out.push_str(&format_time(
+                &greeter.now,
+                arg.unwrap_or("%H:%M"),
+                names.unwrap_or(language),
+            )),
+            Binding::Date(names) => {
+                let names = names.unwrap_or(language);
+                match arg {
+                    Some(format) => out.push_str(&format_time(&greeter.now, format, names)),
+                    None => out.push_str(&i18n::long_date(names, &greeter.now)),
+                }
             }
-            Binding::Date => match arg {
-                Some(format) => out.push_str(&format_time(&greeter.now, format, language)),
-                None => out.push_str(&i18n::long_date(language, &greeter.now)),
-            },
             Binding::User => out.push_str(user.map_or("", |user| user.name.as_str())),
             Binding::UserName => out.push_str(user.map_or("", |user| user.display_name.as_str())),
             Binding::UserInitial => {

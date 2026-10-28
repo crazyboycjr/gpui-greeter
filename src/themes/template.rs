@@ -27,8 +27,10 @@ pub enum Piece {
 /// What a binding stands for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Binding {
-    Time,
-    Date,
+    /// The time, with its names in this language whatever the greeter
+    /// speaks, if one is given.
+    Time(Option<Language>),
+    Date(Option<Language>),
     /// The login name.
     User,
     /// The full name, or the login name without one.
@@ -73,9 +75,13 @@ pub enum Binding {
     String(Arc<str>),
 }
 
-const NAMES: [(&str, Binding); 33] = [
-    ("time", Binding::Time),
-    ("date", Binding::Date),
+const NAMES: [(&str, Binding); 37] = [
+    ("time", Binding::Time(None)),
+    ("time.en", Binding::Time(Some(Language::English))),
+    ("time.zh-CN", Binding::Time(Some(Language::Chinese))),
+    ("date", Binding::Date(None)),
+    ("date.en", Binding::Date(Some(Language::English))),
+    ("date.zh-CN", Binding::Date(Some(Language::Chinese))),
     ("user", Binding::User),
     ("user.name", Binding::UserName),
     ("user.initial", Binding::UserInitial),
@@ -212,7 +218,7 @@ fn binding(inside: &str) -> Result<Piece, String> {
     };
     match (&binding, arg) {
         (_, None) => {}
-        (Binding::Time | Binding::Date, Some(format)) => check_format(format)?,
+        (Binding::Time(_) | Binding::Date(_), Some(format)) => check_format(format)?,
         (Binding::Uptime, Some("short")) => {}
         (Binding::Typed | Binding::Sent, Some(glyph)) if !glyph.is_empty() => {}
         (_, Some(arg)) => return Err(format!("{{{name}}} takes no \":{arg}\"")),
@@ -424,9 +430,24 @@ mod tests {
             "{time:%Q}",
             "{t.}",
             "{typed:}",
+            "{date.fr:%a}",
         ] {
             assert!(Template::parse(wrong).is_err(), "{wrong}");
         }
+    }
+
+    #[test]
+    fn dates_can_keep_one_language() {
+        let bar = Template::parse("{date.en:%a %b %-d} {time.zh-CN:%p} {date}").unwrap();
+        let bindings: Vec<&Binding> = bar.bindings().collect();
+        assert_eq!(
+            bindings,
+            [
+                &Binding::Date(Some(Language::English)),
+                &Binding::Time(Some(Language::Chinese)),
+                &Binding::Date(None),
+            ]
+        );
     }
 
     fn wednesday() -> Zoned {
