@@ -2208,6 +2208,7 @@ name = "gpui-greeter"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-channel",
  "env_logger",
  "fast_image_resize",
  "gpui-kit",
@@ -2217,6 +2218,7 @@ dependencies = [
  "log",
  "raw-window-handle",
  "resvg 0.46.0",
+ "rustix",
  "serde",
  "serde_json",
  "smallvec",

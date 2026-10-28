@@ -46,6 +46,11 @@ VT. Power actions go to logind over D-Bus, and each asks for a second press
 to confirm. The last user and session are remembered; before the first
 login, the session is the one AccountsService remembers from LightDM.
 
+While another VT is in front, as after Ctrl+Alt+F7 to a running session,
+the greeter takes its windows off the screen and draws nothing until its
+own VT is back. logind's view of the greeter's session says when, or the
+kernel's active console where logind cannot.
+
 The password is kept in memory that is wiped once it is sent, and never
 logged. If the greeter's X server cannot start, greetd's command falls back
 to agreety, a text login on the same VT whose session is the user's

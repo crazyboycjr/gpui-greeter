@@ -167,6 +167,7 @@ impl Render for Screen {
         let screen = cx.entity();
         let pace = Pace::default();
         let mut pending = false;
+        let on_screen = self.greeter.read(cx).on_screen;
         let content = {
             let greeter = self.greeter.read(cx);
             let assets = greeter.looks.screen(greeter.theme(), self.output);
@@ -220,9 +221,10 @@ impl Render for Screen {
                 state.settled_since = Some(now);
             }
         }
-        if pace.smooth.get() {
+        // Off the screen, nothing moves until the greeter's VT is back.
+        if on_screen && pace.smooth.get() {
             window.request_animation_frame();
-        } else if let Some(at) = pace.wake.get() {
+        } else if let Some(at) = pace.wake.get().filter(|_| on_screen) {
             self.wake_at(at, cx);
         }
         div()

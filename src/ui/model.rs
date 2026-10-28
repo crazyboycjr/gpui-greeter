@@ -202,6 +202,9 @@ pub struct Greeter {
     /// What is in use of the memory, for `{memory}`.
     pub memory: String,
     pub last_input: Instant,
+    /// Whether the greeter's VT is the one on screen; while it is not, the
+    /// windows are off the screen and nothing is drawn.
+    pub on_screen: bool,
     typed: Typed,
     sent_len: usize,
     armed: Option<Armed>,
@@ -302,6 +305,7 @@ impl Greeter {
             armed: None,
             focused: None,
             last_input: Instant::now(),
+            on_screen: true,
             greetd: Arc::new(Mutex::new(None)),
             power,
             x11,
@@ -1009,8 +1013,49 @@ impl Greeter {
         if !self.locked && idle.is_some_and(|idle| self.last_input.elapsed() >= idle) {
             self.lock(cx);
         }
-        self.keep_focus();
-        cx.notify();
+        if self.on_screen {
+            self.keep_focus();
+            cx.notify();
+        }
+    }
+
+    /// The greeter's VT went to the background, or came back. While it is
+    /// away the windows are off the screen, where GPUI draws nothing for
+    /// them: an X server whose VT is in the background shows no frame, and
+    /// on NVIDIA each frame drawn then loses the GPU device, which GPUI
+    /// would recreate again and again. Back, the windows return, and their
+    /// first frame recovers the device if it was lost.
+    pub fn set_on_screen(&mut self, shown: bool, cx: &mut Context<Self>) {
+        if shown == self.on_screen {
+            return;
+        }
+        self.on_screen = shown;
+        if shown {
+            log::info!("the greeter's VT is on screen again: drawing again");
+        } else {
+            log::info!("the greeter's VT went to the background: drawing stops until it is back");
+        }
+        for (output, xid) in self.windows.iter().enumerate() {
+            let (Some(xid), Some(monitor)) = (*xid, self.monitors.get(output)) else {
+                continue;
+            };
+            let done = if shown {
+                self.x11.show(xid, monitor.rect)
+            } else {
+                self.x11.hide(xid)
+            };
+            if let Err(error) = done {
+                log::warn!(
+                    "cannot show or hide the window on {:?}: {error:#}",
+                    monitor.rect
+                );
+            }
+        }
+        self.focused = None;
+        if shown {
+            self.keep_focus();
+            cx.notify();
+        }
     }
 
     /// The form's window takes the keyboard, once it is on screen.

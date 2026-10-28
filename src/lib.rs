@@ -15,5 +15,6 @@ pub mod system;
 pub mod themes;
 pub mod ui;
 pub mod users;
+pub mod vt;
 pub mod wallpaper;
 pub mod x11;

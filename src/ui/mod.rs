@@ -32,7 +32,7 @@ use crate::themes::{FRAME, Folder};
 use crate::users::User;
 use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, Rect, X11};
-use crate::{bing, cache};
+use crate::{bing, cache, vt};
 use crate::{sessions, users};
 use looks::{Looks, ScreenAssets, SvgAssets};
 use model::{Greeter, Setup};
@@ -183,6 +183,9 @@ pub fn run(options: Options) -> Result<()> {
                 shown: RefCell::new(None),
             });
             follow_wallpaper(cx, greeter.clone(), screens, config);
+            if preview.is_none() {
+                follow_vt(cx, greeter.clone());
+            }
             if switching {
                 // The looks either side, once the first frames are out.
                 cx.spawn(async move |cx| {
@@ -355,6 +358,21 @@ fn follow_wallpaper(cx: &mut App, greeter: Entity<Greeter>, screens: Rc<Screens>
     };
     update(greeter.clone(), cx);
     cx.observe(&greeter, update).detach();
+}
+
+/// Takes the windows off the screen while the greeter's VT is in the
+/// background, and puts them back when it returns.
+fn follow_vt(cx: &mut App, greeter: Entity<Greeter>) {
+    let (sender, receiver) = async_channel::unbounded();
+    vt::watch(move |shown| {
+        let _ = sender.send_blocking(shown);
+    });
+    cx.spawn(async move |cx| {
+        while let Ok(shown) = receiver.recv().await {
+            greeter.update(cx, |greeter, cx| greeter.set_on_screen(shown, cx));
+        }
+    })
+    .detach();
 }
 
 /// Fetches today's picture, trying again for a while in case the network

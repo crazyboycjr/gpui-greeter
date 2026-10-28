@@ -1,6 +1,6 @@
 //! What GPUI does not do on X11 for a greeter: list the monitors with their
-//! pixel density, place a window exactly over one, give it the keyboard,
-//! and read and switch the keyboard layout.
+//! pixel density, place a window exactly over one or take it off the
+//! screen, give it the keyboard, and read and switch the keyboard layout.
 
 use anyhow::{Context as _, Result};
 use x11rb::connection::Connection;
@@ -212,6 +212,21 @@ impl X11 {
             .height(rect.height)
             .stack_mode(xproto::StackMode::ABOVE);
         self.conn.configure_window(window, &aux)?;
+        self.conn.flush()?;
+        Ok(())
+    }
+
+    /// Takes `window` off the screen; GPUI draws no frames for it then.
+    pub fn hide(&self, window: u32) -> Result<()> {
+        self.conn.unmap_window(window)?;
+        self.conn.flush()?;
+        Ok(())
+    }
+
+    /// Puts `window` back on the screen, exactly over `rect`.
+    pub fn show(&self, window: u32, rect: Rect) -> Result<()> {
+        self.place(window, rect)?;
+        self.conn.map_window(window)?;
         self.conn.flush()?;
         Ok(())
     }
