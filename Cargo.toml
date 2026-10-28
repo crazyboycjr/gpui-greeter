@@ -1,0 +1,51 @@
+[package]
+name = "gpui-greeter"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "A greeter for greetd on X11, drawn with GPUI"
+publish = false
+
+[dependencies]
+anyhow = "1"
+env_logger = { version = "0.11", default-features = false }
+fast_image_resize = { version = "6.1", features = ["image"] }
+gpui-kit = { version = "=0.8.0", default-features = false, features = ["component"] }
+greetd_ipc = "0.10.3"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+jiff = "0.2"
+log = "0.4"
+raw-window-handle = "0.6"
+# The same as GPUI's, which draws SVG with it.
+resvg = { version = "0.46", default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+smallvec = "1"
+toml = "0.9"
+ureq = { version = "3", default-features = false, features = ["rustls"] }
+x11rb = { version = "0.14", features = ["dpms", "randr", "xkb"] }
+zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
+zeroize = "1"
+
+# Pictures decode, scale and draw at their release speed in debug builds too.
+[profile.dev.package]
+image.opt-level = 3
+zune-jpeg.opt-level = 3
+png.opt-level = 3
+image-webp.opt-level = 3
+fast_image_resize.opt-level = 3
+resvg.opt-level = 3
+usvg.opt-level = 3
+tiny-skia.opt-level = 3
+tiny-skia-path.opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true
+
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false

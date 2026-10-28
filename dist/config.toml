@@ -1,0 +1,50 @@
+# gpui-greeter's settings, installed as /etc/gpui-greeter/config.toml.
+# Every key may be left out; these are the defaults.
+
+# "paper", "paper-night", "frost" or "neon".
+theme = "paper"
+
+# "en" or "zh-CN".
+language = "en"
+
+[paper]
+# The caret and the session menu's mark. The mockup offered
+# "#B0612E", "#3E6E8E", "#5B7F4F" and "#8A5BA6".
+accent = "#B0612E"
+# What lies under the clock: "desk" (a sheet of paper on a wooden desk),
+# "ledger" (blue rules and a red margin), "drafting" (a drafting sheet whose
+# title block holds the session and the power actions) or "plain".
+background = "desk"
+
+[frost]
+# How much the wallpaper blurs (in the mockup's pixels, 8 to 48) and darkens
+# (0 to 0.6) behind the login form.
+blur = 30
+dim = 0.28
+# Seconds without a key or a click before the form gives way to the clock.
+idle_seconds = 60
+
+[neon]
+# The mockup offered "#45F0FF", "#9CFF5A", "#FFB547" and "#FF4FD8".
+accent = "#45F0FF"
+scanlines = true
+# What lies behind the terminal: "skyline" (a city at night), "circuit" (a
+# circuit board with running pulses), "horizon" (a synthwave sunset over a
+# moving grid floor) or "grid".
+background = "skyline"
+
+[wallpaper]
+# Frost's pictures: `gpui-greeter sync-wallpapers` copies them here.
+dir = "/usr/local/share/gpui-greeter/wallpapers"
+# "random" (each start), "daily", "bing" (Bing's picture of the day, a
+# random one until it has been fetched) or the name of a file in dir.
+pick = "random"
+# Where "bing" finds the picture of the day: Bing's archive, whose answer
+# names the picture, or any address that answers with a picture itself.
+bing_url = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1"
+
+[sessions]
+dir = "/usr/share/xsessions"
+# What runs a session's command. startx brings the user's own ~/.xserverrc
+# and X setup along, as on a console.
+wrapper = "startx /usr/bin/env"

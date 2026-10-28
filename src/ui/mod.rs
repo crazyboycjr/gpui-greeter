@@ -1,0 +1,361 @@
+//! The greeter on screen: a window over each monitor, the login form on one
+//! of them, drawn with GPUI and gpui-kit.
+
+mod assets;
+mod model;
+mod motion;
+mod screen;
+mod text;
+mod theme;
+
+use std::cell::Cell;
+use std::path::PathBuf;
+use std::rc::Rc;
+use std::sync::Arc;
+use std::thread::JoinHandle;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use anyhow::Result;
+use gpui_kit::{
+    App, AppContext as _, Bounds, Entity, Window, WindowBackgroundAppearance, WindowBounds,
+    WindowKind, WindowOptions, point, px, size,
+};
+use raw_window_handle::{HasWindowHandle, RawWindowHandle};
+
+use crate::bing;
+use crate::config::{Config, Pick, Theme};
+use crate::power::Power;
+use crate::scenery::{self, Look, Scenery};
+use crate::wallpaper::{self, Backdrop, Picture};
+use crate::x11::{Monitor, X11};
+use crate::{sessions, users};
+use model::{Greeter, Setup};
+use screen::Screen;
+
+/// Frost's blurred wallpaper is darkened this much, as the mockup's
+/// `brightness(.86)`.
+const BLURRED_BRIGHTNESS: f32 = 0.86;
+
+pub struct Options {
+    pub config: Config,
+    /// Power actions are only logged.
+    pub dry_run: bool,
+}
+
+pub fn run(options: Options) -> Result<()> {
+    let Options { config, dry_run } = options;
+    let x11 = Rc::new(X11::connect()?);
+    x11.keep_monitors_awake();
+    let monitors = x11.monitors();
+    let drawing = Look::of(&config).map(|look| draw_scenery(look, &monitors));
+    let form = form_monitor(&monitors, x11.pointer());
+    let scale = set_scale(&monitors[form]);
+    let wallpaper = (config.theme == Theme::Frost).then(|| Wallpaper::pick(&config));
+    let setup = Setup {
+        users: users::load(),
+        sessions: sessions::load(&config.sessions.dir),
+        monitors: monitors.clone(),
+        form,
+        x11: x11.clone(),
+        power: Power { dry_run },
+        config,
+    };
+    log::info!(
+        "{} monitor(s), the form on {:?}, scale {scale}",
+        monitors.len(),
+        monitors[form].rect
+    );
+
+    gpui_kit::application()
+        .with_assets(assets::Icons)
+        .run(move |cx| {
+            gpui_kit::init(cx);
+            assets::register_fonts(cx);
+            let blur = setup.config.frost.blur;
+            let greeter = cx.new(|cx| Greeter::new(setup, cx));
+            let mut sceneries = drawing.map(finish_scenery).unwrap_or_default();
+            let mut screens = Vec::new();
+            for (output, monitor) in monitors.iter().enumerate() {
+                let scenery = sceneries.get_mut(output).and_then(Option::take);
+                match open_screen(cx, &greeter, output, monitor, scale, scenery) {
+                    Ok((screen, xid)) => {
+                        if let Some(xid) = xid
+                            && let Err(error) = x11.place(xid, monitor.rect)
+                        {
+                            log::warn!("cannot place the window on {:?}: {error:#}", monitor.rect);
+                        }
+                        greeter.update(cx, |greeter, _| greeter.set_window(output, xid));
+                        screens.push((screen, monitor.clone()));
+                    }
+                    Err(error) => {
+                        log::error!("cannot open a window on {:?}: {error:#}", monitor.rect)
+                    }
+                }
+            }
+            if let Some(wallpaper) = wallpaper {
+                let screens = Screens {
+                    windows: screens,
+                    requests: Cell::new(0),
+                };
+                wallpaper.show(cx, Rc::new(screens), blur);
+            }
+        });
+    Ok(())
+}
+
+/// The primary monitor, else the one under the pointer, else the largest.
+fn form_monitor(monitors: &[Monitor], pointer: Option<(i32, i32)>) -> usize {
+    let under_pointer = pointer.and_then(|at| {
+        monitors
+            .iter()
+            .position(|monitor| monitor.rect.contains_point(at))
+    });
+    monitors
+        .iter()
+        .position(|monitor| monitor.primary)
+        .or(under_pointer)
+        .or_else(|| {
+            (0..monitors.len()).max_by_key(|&i| {
+                u64::from(monitors[i].rect.width) * u64::from(monitors[i].rect.height)
+            })
+        })
+        .unwrap_or(0)
+}
+
+/// GPUI applies one scale to every window; it is the form's monitor's,
+/// from its pixel density, unless GPUI_X11_SCALE_FACTOR says otherwise.
+fn set_scale(monitor: &Monitor) -> f32 {
+    if let Some(scale) = std::env::var("GPUI_X11_SCALE_FACTOR")
+        .ok()
+        .and_then(|value| value.parse().ok())
+    {
+        return scale;
+    }
+    let scale = monitor.scale();
+    // SAFETY: GPUI and every other thread start later.
+    unsafe { std::env::set_var("GPUI_X11_SCALE_FACTOR", scale.to_string()) };
+    scale
+}
+
+/// Frost's wallpaper: the picture to show now, and, when the pick is
+/// Bing's picture of the day and today's is not fetched yet, where to fetch
+/// it from, to show once it arrives.
+struct Wallpaper {
+    now: Option<PathBuf>,
+    bing: Option<BingFetch>,
+}
+
+#[derive(Clone)]
+struct BingFetch {
+    url: String,
+    dir: PathBuf,
+    day: String,
+}
+
+impl Wallpaper {
+    fn pick(config: &Config) -> Self {
+        let today = jiff::Zoned::now().date();
+        let local = || {
+            let pictures = wallpaper::candidates(&config.wallpaper.dir);
+            let seed = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |time| {
+                    time.as_nanos() as u64 ^ u64::from(std::process::id())
+                });
+            let day = today
+                .since(jiff::civil::date(2000, 1, 1))
+                .map_or(0, |span| span.get_days().into());
+            let picked = wallpaper::choose(&pictures, &config.wallpaper.pick, seed, day);
+            if picked.is_none() {
+                log::warn!("no wallpaper in {}", config.wallpaper.dir.display());
+            }
+            picked
+        };
+        let bing_dir = bing::cache_dir().filter(|_| config.wallpaper.pick == Pick::Bing);
+        let Some(dir) = bing_dir else {
+            return Self {
+                now: local(),
+                bing: None,
+            };
+        };
+        let day = today.to_string();
+        if let Some(fetched) = bing::of_day(&dir, &day) {
+            return Self {
+                now: Some(fetched),
+                bing: None,
+            };
+        }
+        Self {
+            now: bing::latest(&dir).or_else(local),
+            bing: Some(BingFetch {
+                url: config.wallpaper.bing_url.clone(),
+                dir,
+                day,
+            }),
+        }
+    }
+
+    fn show(self, cx: &mut App, screens: Rc<Screens>, blur: f32) {
+        if let Some(path) = self.now {
+            load_backdrops(cx, path, screens.clone(), blur);
+        }
+        if let Some(fetch) = self.bing {
+            fetch_bing(cx, fetch, screens, blur);
+        }
+    }
+}
+
+/// The windows Frost's wallpaper goes to, and how many pictures were asked
+/// for: a window keeps the one asked for last, whichever is made first.
+struct Screens {
+    windows: Vec<(Entity<Screen>, Monitor)>,
+    requests: Cell<u64>,
+}
+
+/// Fetches today's picture, trying again for a while in case the network
+/// comes up after the greeter.
+fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: f32) {
+    const ATTEMPTS: u32 = 6;
+    const PAUSE: Duration = Duration::from_secs(20);
+    cx.spawn(async move |cx| {
+        for attempt in 1..=ATTEMPTS {
+            let job = fetch.clone();
+            let fetched = cx
+                .background_executor()
+                .spawn(async move { bing::fetch(&job.url, &job.dir, &job.day) })
+                .await;
+            match fetched {
+                Ok(path) => {
+                    cx.update(|cx| load_backdrops(cx, path, screens, blur));
+                    return;
+                }
+                Err(error) => log::warn!("Bing's picture, attempt {attempt}: {error:#}"),
+            }
+            cx.background_executor().timer(PAUSE).await;
+        }
+    })
+    .detach();
+}
+
+/// Starts drawing each monitor's scenery on a thread of its own, while the
+/// toolkit starts.
+fn draw_scenery(look: Look, monitors: &[Monitor]) -> Vec<JoinHandle<Option<Arc<Scenery>>>> {
+    monitors
+        .iter()
+        .map(|monitor| {
+            let pixels = (monitor.rect.width, monitor.rect.height);
+            std::thread::spawn(move || {
+                let started = Instant::now();
+                match scenery::draw(look, pixels) {
+                    Ok(scenery) => {
+                        log::info!("scenery for {pixels:?} drawn in {:?}", started.elapsed());
+                        Some(Arc::new(scenery))
+                    }
+                    Err(error) => {
+                        log::error!("cannot draw the scenery for {pixels:?}: {error:#}");
+                        None
+                    }
+                }
+            })
+        })
+        .collect()
+}
+
+/// Each monitor's scenery, once drawn: the windows open with it, so that
+/// the look never shows without it.
+fn finish_scenery(drawing: Vec<JoinHandle<Option<Arc<Scenery>>>>) -> Vec<Option<Arc<Scenery>>> {
+    drawing
+        .into_iter()
+        .map(|thread| thread.join().ok().flatten())
+        .collect()
+}
+
+fn open_screen(
+    cx: &mut App,
+    greeter: &Entity<Greeter>,
+    output: usize,
+    monitor: &Monitor,
+    scale: f32,
+    scenery: Option<Arc<Scenery>>,
+) -> Result<(Entity<Screen>, Option<u32>)> {
+    let rect = monitor.rect;
+    let logical = |pixels: f32| px(pixels / scale);
+    let bounds = Bounds::new(
+        point(logical(rect.x as f32), logical(rect.y as f32)),
+        size(logical(rect.width as f32), logical(rect.height as f32)),
+    );
+    let options = WindowOptions {
+        window_bounds: Some(WindowBounds::Windowed(bounds)),
+        titlebar: None,
+        focus: false,
+        show: true,
+        kind: WindowKind::Normal,
+        is_movable: false,
+        is_resizable: false,
+        is_minimizable: false,
+        window_background: WindowBackgroundAppearance::Opaque,
+        app_id: Some("gpui-greeter".into()),
+        ..Default::default()
+    };
+    let (handle, screen) = gpui_kit::open_window(options, cx, |window, cx| {
+        cx.new(|cx| {
+            Screen::new(
+                greeter.clone(),
+                output,
+                monitor.clone(),
+                scenery,
+                window,
+                cx,
+            )
+        })
+    })?;
+    let xid = handle.update(cx, |_, window, _| xid(window)).ok().flatten();
+    Ok((screen, xid))
+}
+
+fn xid(window: &Window) -> Option<u32> {
+    match HasWindowHandle::window_handle(window).ok()?.as_raw() {
+        RawWindowHandle::Xcb(handle) => Some(handle.window.get()),
+        RawWindowHandle::Xlib(handle) => u32::try_from(handle.window).ok(),
+        _ => None,
+    }
+}
+
+/// Makes each monitor's sharp and blurred wallpaper in the background and
+/// hands it to its window.
+fn load_backdrops(cx: &mut App, path: PathBuf, screens: Rc<Screens>, blur: f32) {
+    log::info!("wallpaper {}", path.display());
+    let request = screens.requests.get() + 1;
+    screens.requests.set(request);
+    let jobs: Vec<((u32, u32), f32)> = screens
+        .windows
+        .iter()
+        .map(|(_, monitor)| {
+            let (width, height) = (monitor.rect.width, monitor.rect.height);
+            (
+                (width, height),
+                blur * theme::design_unit(width as f32, height as f32),
+            )
+        })
+        .collect();
+    cx.spawn(async move |cx| {
+        let made = cx
+            .background_executor()
+            .spawn(async move {
+                let picture = Picture::open(&path)?;
+                jobs.into_iter()
+                    .map(|(size, blur)| Backdrop::new(&picture, size, blur, BLURRED_BRIGHTNESS))
+                    .collect::<Result<Vec<_>>>()
+            })
+            .await;
+        match made {
+            Ok(backdrops) => {
+                for ((screen, _), backdrop) in screens.windows.iter().zip(backdrops) {
+                    screen.update(cx, |screen, cx| screen.set_backdrop(backdrop, request, cx));
+                }
+            }
+            Err(error) => log::error!("cannot show the wallpaper: {error:#}"),
+        }
+    })
+    .detach();
+}

@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# Runs the greeter where nothing is at stake: in an invisible X server
+# (Xvfb, drawn by lavapipe on the CPU) against the fake greetd, which
+# accepts the password "test" and only prints the session it would start.
+#
+#   scripts/try start THEME [--lang zh-CN] [--size 3840x2160] [--dpi 163]
+#                           [--monitors 2] [--wallpapers DIR] [--pick FILE]
+#                           [--background NAME] [--release]
+#   scripts/try shot NAME         screenshot of the whole X screen
+#   scripts/try type TEXT         type into the greeter
+#   scripts/try key KEY...        press keys, xdotool names (Return, F2, Escape)
+#   scripts/try click X Y         click at screen pixels
+#   scripts/try log               what the fake greetd saw
+#   scripts/try stop
+set -euo pipefail
+
+SCRATCH=${GREETER_SCRATCH:-${XDG_CACHE_HOME:-$HOME/.cache}/gpui-greeter-try}
+TARGET=${CARGO_TARGET_DIR:-$(cd "$(dirname "$0")/.." && pwd)/target}
+RUN=$SCRATCH/run
+CAP=(systemd-run --user --scope -q -p MemoryMax=4G -p MemorySwapMax=0 nice -n 19 taskset -c 1-15)
+
+die() { echo "try: $*" >&2; exit 1; }
+display() { cat "$RUN/display" 2>/dev/null || die "nothing started"; }
+x() { DISPLAY=$(display) "$@"; }
+
+start() {
+    local theme=${1:?theme}; shift
+    local lang=en size=3840x2160 dpi=163 monitors=1 wallpapers=$SCRATCH/wallpapers pick=random
+    local profile=debug background=
+    while (($#)); do
+        case $1 in
+            --lang) lang=$2; shift 2 ;;
+            --size) size=$2; shift 2 ;;
+            --dpi) dpi=$2; shift 2 ;;
+            --monitors) monitors=$2; shift 2 ;;
+            --wallpapers) wallpapers=$2; shift 2 ;;
+            --pick) pick=$2; shift 2 ;;
+            --background) background=$2; shift 2 ;;
+            --release) profile=release; shift ;;
+            *) die "unknown option $1" ;;
+        esac
+    done
+    [[ -e $RUN/display ]] && stop
+    mkdir -p "$RUN/runtime" "$RUN/state" "$RUN/cache" "$SCRATCH/shots"
+    chmod 700 "$RUN/runtime"
+    local n=60
+    while [[ -e /tmp/.X11-unix/X$n || -e /tmp/.X$n-lock ]]; do n=$((n + 1)); done
+    local width=${size%x*} height=${size#*x}
+    ((monitors == 2)) && width=$((width + 1920))
+    Xvfb ":$n" -screen 0 "${width}x${height}x24" -dpi "$dpi" -nolisten tcp -noreset >"$RUN/xvfb.log" 2>&1 &
+    echo $! >"$RUN/xvfb.pid"
+    for _ in $(seq 50); do [[ -e /tmp/.X11-unix/X$n ]] && break; sleep 0.1; done
+    echo ":$n" >"$RUN/display"
+    # Xvfb's own monitor claims 96 dpi; a real one reports its size. The
+    # second monitor, if asked for, is a 24-inch 1080p one at the right.
+    local mm_w=$((${size%x*} * 254 / dpi / 10)) mm_h=$((${size#*x} * 254 / dpi / 10))
+    x xrandr --setmonitor main "${size%x*}/${mm_w}x${size#*x}/${mm_h}+0+0" screen >/dev/null
+    ((monitors == 2)) && x xrandr --setmonitor side "1920/527x1080/296+${size%x*}+0" none >/dev/null
+    printf 'theme = "%s"\nlanguage = "%s"\n[wallpaper]\ndir = "%s"\npick = "%s"\n' \
+        "$theme" "$lang" "$wallpapers" "$pick" >"$RUN/config.toml"
+    [[ -n $background ]] && printf '[%s]\nbackground = "%s"\n' "${theme%-night}" "$background" >>"$RUN/config.toml"
+    "$TARGET/debug/examples/fake_greetd" "$RUN/greetd.sock" >"$RUN/greetd.log" 2>&1 &
+    echo $! >"$RUN/greetd.pid"
+    for _ in $(seq 50); do [[ -S $RUN/greetd.sock ]] && break; sleep 0.1; done
+    # As the greeter user has it: no session bus, a runtime directory of
+    # its own. Drawing stays on the CPU (lavapipe): the GPU may be busy.
+    "${CAP[@]}" env -u DBUS_SESSION_BUS_ADDRESS -u GPUI_X11_SCALE_FACTOR \
+        DISPLAY=":$n" GREETD_SOCK="$RUN/greetd.sock" \
+        XDG_RUNTIME_DIR="$RUN/runtime" XDG_STATE_HOME="$RUN/state" XDG_CACHE_HOME="$RUN/cache" \
+        VK_DRIVER_FILES=/usr/share/vulkan/icd.d/lvp_icd.json LP_NUM_THREADS=4 \
+        __EGL_VENDOR_LIBRARY_FILENAMES=/usr/share/glvnd/egl_vendor.d/50_mesa.json \
+        "$TARGET/$profile/gpui-greeter" --config "$RUN/config.toml" --dry-run \
+        >"$RUN/greeter.log" 2>&1 &
+    echo $! >"$RUN/greeter.pid"
+    echo ":$n"
+}
+
+stop() {
+    for name in greeter greetd xvfb; do
+        [[ -e $RUN/$name.pid ]] && kill "$(cat "$RUN/$name.pid")" 2>/dev/null || true
+        rm -f "$RUN/$name.pid"
+    done
+    rm -f "$RUN/display" "$RUN/greetd.sock"
+}
+
+shot() {
+    import -display "$(display)" -window root "$SCRATCH/shots/$1.png"
+    echo "$SCRATCH/shots/$1.png"
+}
+
+case ${1:-} in
+    start) shift; start "$@" ;;
+    stop) stop ;;
+    shot) shot "${2:?name}" ;;
+    type) x xdotool type --delay 40 "${2:?text}" ;;
+    key) shift; x xdotool key --delay 80 "$@" ;;
+    click) x xdotool mousemove "${2:?x}" "${3:?y}" click 1 ;;
+    move) x xdotool mousemove "${2:?x}" "${3:?y}" ;;
+    log) cat "$RUN/greetd.log" ;;
+    *) sed -n '2,15p' "$0"; exit 2 ;;
+esac

@@ -1,0 +1,355 @@
+//! What GPUI does not do on X11 for a greeter: list the monitors with their
+//! pixel density, place a window exactly over one, give it the keyboard,
+//! and read and switch the keyboard layout.
+
+use anyhow::{Context as _, Result};
+use x11rb::connection::Connection;
+use x11rb::protocol::dpms::ConnectionExt as _;
+use x11rb::protocol::randr::{self, ConnectionExt as _};
+use x11rb::protocol::xkb::{self, ConnectionExt as _};
+use x11rb::protocol::xproto::{self, ConnectionExt as _};
+use x11rb::rust_connection::RustConnection;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Rect {
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+}
+
+impl Rect {
+    fn contains(&self, other: &Rect) -> bool {
+        other.x >= self.x
+            && other.y >= self.y
+            && other.x + other.width as i32 <= self.x + self.width as i32
+            && other.y + other.height as i32 <= self.y + self.height as i32
+    }
+
+    pub fn contains_point(&self, (x, y): (i32, i32)) -> bool {
+        x >= self.x
+            && y >= self.y
+            && x < self.x + self.width as i32
+            && y < self.y + self.height as i32
+    }
+
+    fn area(&self) -> u64 {
+        u64::from(self.width) * u64::from(self.height)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct Monitor {
+    pub rect: Rect,
+    /// Its physical size as it reports it; zero when it does not.
+    pub size_mm: (u32, u32),
+    pub primary: bool,
+    /// The refresh rate of the mode it runs, in Hz.
+    pub refresh: Option<f32>,
+}
+
+impl Monitor {
+    /// The scale its pixel density asks for, 1 at 96 dpi, in twelfths as
+    /// GPUI rounds it. A monitor that reports no believable size gets one
+    /// from its height in pixels instead.
+    pub fn scale(&self) -> f32 {
+        let (width_mm, height_mm) = self.size_mm;
+        let (width, height) = (f64::from(self.rect.width), f64::from(self.rect.height));
+        let dpi = 25.4 * (width * height / (f64::from(width_mm) * f64::from(height_mm))).sqrt();
+        let believable = width_mm >= 100 && height_mm >= 60 && (72.0..=400.0).contains(&dpi);
+        if !believable {
+            return (height / 1080.0).round().max(1.0) as f32;
+        }
+        ((dpi / 96.0 * 12.0).round() / 12.0).max(1.0) as f32
+    }
+}
+
+/// Of overlapping monitors, as mirrored ones are, the larger stands for
+/// both: a window on each would cover the other's.
+fn distinct(mut monitors: Vec<Monitor>) -> Vec<Monitor> {
+    monitors.sort_by_key(|monitor| std::cmp::Reverse(monitor.rect.area()));
+    let mut kept: Vec<Monitor> = Vec::new();
+    for monitor in monitors {
+        if !kept.iter().any(|big| big.rect.contains(&monitor.rect)) {
+            kept.push(monitor);
+        }
+    }
+    kept.sort_by_key(|monitor| (monitor.rect.x, monitor.rect.y));
+    kept
+}
+
+pub struct X11 {
+    conn: RustConnection,
+    root: xproto::Window,
+}
+
+impl X11 {
+    pub fn connect() -> Result<Self> {
+        let (conn, screen) = x11rb::connect(None).context("cannot connect to the X server")?;
+        let root = conn.setup().roots[screen].root;
+        Ok(Self { conn, root })
+    }
+
+    /// Every monitor that shows something, or the whole screen when RandR
+    /// cannot say.
+    pub fn monitors(&self) -> Vec<Monitor> {
+        match self.randr_monitors() {
+            Ok(monitors) if !monitors.is_empty() => distinct(monitors),
+            outcome => {
+                if let Err(error) = outcome {
+                    log::warn!("RandR cannot list the monitors: {error:#}");
+                }
+                let screen = &self.conn.setup().roots[0];
+                vec![Monitor {
+                    rect: Rect {
+                        x: 0,
+                        y: 0,
+                        width: screen.width_in_pixels.into(),
+                        height: screen.height_in_pixels.into(),
+                    },
+                    size_mm: (
+                        screen.width_in_millimeters.into(),
+                        screen.height_in_millimeters.into(),
+                    ),
+                    primary: true,
+                    refresh: None,
+                }]
+            }
+        }
+    }
+
+    fn randr_monitors(&self) -> Result<Vec<Monitor>> {
+        self.conn.randr_query_version(1, 5)?.reply()?;
+        let resources = self
+            .conn
+            .randr_get_screen_resources_current(self.root)?
+            .reply()?;
+        let monitors = self
+            .conn
+            .randr_get_monitors(self.root, true)?
+            .reply()?
+            .monitors;
+        Ok(monitors
+            .into_iter()
+            .map(|monitor| Monitor {
+                rect: Rect {
+                    x: monitor.x.into(),
+                    y: monitor.y.into(),
+                    width: monitor.width.into(),
+                    height: monitor.height.into(),
+                },
+                size_mm: (monitor.width_in_millimeters, monitor.height_in_millimeters),
+                primary: monitor.primary,
+                refresh: monitor
+                    .outputs
+                    .first()
+                    .and_then(|&output| self.refresh(output, &resources)),
+            })
+            .collect())
+    }
+
+    fn refresh(
+        &self,
+        output: randr::Output,
+        resources: &randr::GetScreenResourcesCurrentReply,
+    ) -> Option<f32> {
+        let crtc = self
+            .conn
+            .randr_get_output_info(output, x11rb::CURRENT_TIME)
+            .ok()?
+            .reply()
+            .ok()?
+            .crtc;
+        let mode = self
+            .conn
+            .randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)
+            .ok()?
+            .reply()
+            .ok()?
+            .mode;
+        let info = resources.modes.iter().find(|info| info.id == mode)?;
+        let mut lines = f64::from(info.vtotal);
+        if info.mode_flags.contains(randr::ModeFlag::DOUBLE_SCAN) {
+            lines *= 2.0;
+        }
+        if info.mode_flags.contains(randr::ModeFlag::INTERLACE) {
+            lines /= 2.0;
+        }
+        let rate = f64::from(info.dot_clock) / (f64::from(info.htotal) * lines);
+        rate.is_finite()
+            .then_some(rate as f32)
+            .filter(|rate| *rate > 0.0)
+    }
+
+    /// Lets the monitors blank when idle but never power down, as the
+    /// user's session keeps them: a DisplayPort monitor that sleeps can come
+    /// back black on NVIDIA's X server.
+    pub fn keep_monitors_awake(&self) {
+        let disabled = self
+            .conn
+            .dpms_capable()
+            .ok()
+            .and_then(|cookie| cookie.reply().ok())
+            .filter(|reply| reply.capable)
+            .map(|_| self.conn.dpms_disable().map(|cookie| cookie.check()));
+        if let Some(Ok(Err(error))) = disabled {
+            log::warn!("cannot turn DPMS off: {error}");
+        }
+    }
+
+    pub fn pointer(&self) -> Option<(i32, i32)> {
+        let reply = self.conn.query_pointer(self.root).ok()?.reply().ok()?;
+        Some((reply.root_x.into(), reply.root_y.into()))
+    }
+
+    /// Moves `window` exactly over `rect`, which GPUI misses by a couple of
+    /// pixels on X11.
+    pub fn place(&self, window: u32, rect: Rect) -> Result<()> {
+        let aux = xproto::ConfigureWindowAux::new()
+            .x(rect.x)
+            .y(rect.y)
+            .width(rect.width)
+            .height(rect.height)
+            .stack_mode(xproto::StackMode::ABOVE);
+        self.conn.configure_window(window, &aux)?;
+        self.conn.flush()?;
+        Ok(())
+    }
+
+    /// Gives `window` the keyboard, once it is on screen; false until then.
+    pub fn focus(&self, window: u32) -> bool {
+        let viewable = self
+            .conn
+            .get_window_attributes(window)
+            .ok()
+            .and_then(|cookie| cookie.reply().ok())
+            .is_some_and(|attributes| attributes.map_state == xproto::MapState::VIEWABLE);
+        viewable
+            && self
+                .conn
+                .set_input_focus(
+                    xproto::InputFocus::POINTER_ROOT,
+                    window,
+                    x11rb::CURRENT_TIME,
+                )
+                .ok()
+                .and_then(|cookie| cookie.check().ok())
+                .is_some()
+    }
+
+    /// The configured keyboard layouts, such as `["us", "cn"]`, and the one
+    /// in use.
+    pub fn layouts(&self) -> (Vec<String>, usize) {
+        let names = self.rules_names().unwrap_or_default();
+        let layouts: Vec<String> = names
+            .get(2)
+            .map(|layouts| {
+                layouts
+                    .split(',')
+                    .filter(|l| !l.is_empty())
+                    .map(str::to_string)
+                    .collect()
+            })
+            .unwrap_or_default();
+        let current = self
+            .group()
+            .unwrap_or(0)
+            .min(layouts.len().saturating_sub(1));
+        (layouts, current)
+    }
+
+    /// Switches to the layout at `index` in the configured list.
+    pub fn lock_layout(&self, index: usize) -> Result<()> {
+        self.conn.xkb_use_extension(1, 0)?.reply()?;
+        self.conn
+            .xkb_latch_lock_state(
+                xkb::ID::USE_CORE_KBD.into(),
+                xproto::ModMask::default(),
+                xproto::ModMask::default(),
+                true,
+                xkb::Group::from(index as u8),
+                xproto::ModMask::default(),
+                false,
+                0,
+            )?
+            .check()?;
+        Ok(())
+    }
+
+    fn group(&self) -> Option<usize> {
+        self.conn.xkb_use_extension(1, 0).ok()?.reply().ok()?;
+        let state = self
+            .conn
+            .xkb_get_state(xkb::ID::USE_CORE_KBD.into())
+            .ok()?
+            .reply()
+            .ok()?;
+        Some(u8::from(state.group).into())
+    }
+
+    /// `_XKB_RULES_NAMES`: rules, model, layouts, variants and options.
+    fn rules_names(&self) -> Option<Vec<String>> {
+        let atom = self
+            .conn
+            .intern_atom(true, b"_XKB_RULES_NAMES")
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+        let property = self
+            .conn
+            .get_property(false, self.root, atom, xproto::AtomEnum::STRING, 0, 1024)
+            .ok()?
+            .reply()
+            .ok()?;
+        Some(
+            property
+                .value
+                .split(|&byte| byte == 0)
+                .map(|field| String::from_utf8_lossy(field).into_owned())
+                .collect(),
+        )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn monitor(x: i32, width: u32, height: u32, size_mm: (u32, u32)) -> Monitor {
+        Monitor {
+            rect: Rect {
+                x,
+                y: 0,
+                width,
+                height,
+            },
+            size_mm,
+            primary: false,
+            refresh: None,
+        }
+    }
+
+    #[test]
+    fn scales_by_pixel_density() {
+        assert_eq!(monitor(0, 3840, 2160, (597, 336)).scale(), 20.0 / 12.0);
+        assert_eq!(monitor(0, 1920, 1080, (527, 296)).scale(), 1.0);
+        assert_eq!(monitor(0, 2560, 1440, (597, 336)).scale(), 14.0 / 12.0);
+    }
+
+    #[test]
+    fn guesses_when_the_size_is_missing_or_a_placeholder() {
+        assert_eq!(monitor(0, 3840, 2160, (0, 0)).scale(), 2.0);
+        assert_eq!(monitor(0, 3840, 2160, (160, 90)).scale(), 2.0);
+        assert_eq!(monitor(0, 1920, 1080, (16, 9)).scale(), 1.0);
+    }
+
+    #[test]
+    fn a_mirror_shares_its_monitor_window() {
+        let big = monitor(0, 3840, 2160, (597, 336));
+        let mirror = monitor(0, 1920, 1080, (527, 296));
+        let beside = monitor(3840, 1920, 1080, (527, 296));
+        let kept = distinct(vec![mirror, beside.clone(), big.clone()]);
+        assert_eq!(kept, [big, beside]);
+    }
+}

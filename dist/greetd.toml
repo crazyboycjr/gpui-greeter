@@ -1,0 +1,13 @@
+# greetd's settings for gpui-greeter, installed as /etc/greetd/config.toml.
+
+[terminal]
+vt = 1
+
+[default_session]
+# The greeter draws in an X server of its own that startx starts on this
+# VT and stops when the greeter exits; greetd then starts the session. Its
+# home holds the X cookie and Xorg's log, and its output goes to the
+# journal (journalctl -t gpui-greeter). Should X fail to start, agreety
+# offers a text login on the same VT, whose session is the user's startx.
+command = "sh -c 'systemd-cat -t gpui-greeter env HOME=/var/lib/gpui-greeter startx /usr/local/bin/gpui-greeter || exec agreety --cmd startx'"
+user = "greeter"
