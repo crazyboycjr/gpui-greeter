@@ -137,7 +137,10 @@ impl Folder {
     /// Reads and checks the theme in `dir`: the theme on success, with any
     /// warnings, or every problem found.
     pub fn load(dir: &Path) -> Result<(Folder, Vec<Problem>), Vec<Problem>> {
+        // `.` and `..` name no folder until resolved.
         let name = dir
+            .canonicalize()
+            .unwrap_or_else(|_| dir.to_path_buf())
             .file_name()
             .and_then(|name| name.to_str())
             .unwrap_or_default()
@@ -218,6 +221,8 @@ mod tests {
             folder.layers[sweep].repeat,
             Repeat::Copies { count: 60, .. }
         ));
+        let (again, _) = Folder::load(&dir.join("art/..")).map_err(|_| ()).unwrap();
+        assert_eq!(again.name, "dial");
     }
 
     #[test]
