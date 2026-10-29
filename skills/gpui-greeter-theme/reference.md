@@ -295,6 +295,13 @@ The login is always in one of six states:
 At rest, a key or a click leaves rest; a character typed also goes into the
 field. A theme without `rest` starts idle, and Escape clears the field.
 
+A theme is also a lock screen: `gpui-greeter lock` shows the installed
+themes over a running session, starting at rest, which is what the screen
+shows while its user is away; there the theme keys switch looks without
+leaving rest. A theme without `rest` shows its form at once there too.
+The user is the one who locked and `{session}` the session running, which
+cannot be changed; the condition `locked` tells the two screens apart.
+
 The session starts as soon as the password is accepted: `checking` lasts
 only as long as PAM takes, and the greeter never holds `welcome`, which is
 drawn for a frame at most. Design nothing for it, no animation and no
@@ -307,13 +314,19 @@ table can name several: `[layer.on."typing, checking"]`. They apply in this
 order, so a later one wins where two set the same key:
 
 1. a language: `en`, `zh-CN`
-2. `failed`: a password was refused since the last rest, and the login has not succeeded
-3. `current`: a `for_each` layer stands for the chosen session
-4. `focused`: the layer is in the focused tiles pane
-5. a state: `rest`, `idle`, `typing`, `checking`, `error`, `welcome`
-6. `armed`: a power action waits for its second press; for a layer with a power action, or in one, only that action
-7. `fired`: the layer's action ran, by key or click, in the last `fired_for` ms (700); `fired_by = ["tile.focus-previous", …]` adds other actions that count, to the layer's own action or, for a layer without one, to that of the layer it sits in
-8. `hover`: the pointer is over the layer
+2. `locked`: the theme is the lock screen, not the login screen
+3. `failed`: a password was refused since the last rest, and the login has not succeeded
+4. `current`: a `for_each` layer stands for the chosen session
+5. `focused`: the layer is in the focused tiles pane
+6. a state: `rest`, `idle`, `typing`, `checking`, `error`, `welcome`
+7. `armed`: a power action waits for its second press; for a layer with a power action, or in one, only that action
+8. `fired`: the layer's action ran, by key or click, in the last `fired_for` ms (700); `fired_by = ["tile.focus-previous", …]` adds other actions that count, to the layer's own action or, for a layer without one, to that of the layer it sits in
+9. `hover`: the pointer is over the layer
+
+Hide the session row on the lock screen with `[layer.on.locked]` and
+`visible = false` on a layer whose visibility no state changes, such as the
+row itself inside a form that rest hides; change words there the same way,
+and the states' own words still win, as dial's status line shows.
 
 `hover`, `armed` and `fired` belong to the nearest layer with an `action`,
 the layer itself or one it sits in, so a button's label can change colour
@@ -416,7 +429,8 @@ Chinese (`language = "zh-CN"`), falling back to `[strings.en]`; strings may
 hold bindings. check-theme warns about a string with no translation. The
 greeter's own words are also there: `password`, `press_enter`, `checking`,
 `wrong_password`, `welcome_back`, `starting`, `session`, `current`,
-`sleep`, `restart`, `shut_down`, `click_to_log_in`.
+`sleep`, `restart`, `shut_down`, `click_to_log_in`; on the lock screen
+`press_enter` and `click_to_log_in` say to unlock instead.
 
 Time formats: `%Y` year, `%y` its last two digits, `%m` month, `%d` day,
 `%e` day padded with a space, `%H` hour, `%I` hour of twelve, `%M`
@@ -488,6 +502,7 @@ gpui-greeter check-theme DIR
 gpui-greeter preview DIR [--state STATE] [--lang en|zh-CN] [--size WxH]
                          [--shot FILE] [--at MS] [--user NAME] [--host NAME]
                          [--wallpaper FILE] [--press KEY]... [--hover X,Y]
+                         [--lock]
 sudo gpui-greeter install-theme DIR [--name NAME] [--select] [--to DIR]
 ```
 
@@ -502,7 +517,8 @@ vulkan-swrast), then writes FILE once the screen has settled, or `--at` ms
 after the state shows, and exits. `--state` shows that state the way a
 login reaches it, with its transitions; `--size` is 3840x2160 for a
 screenshot. `--user` and `--host` stand in for the real names, and
-`--wallpaper` picks the wallpaper.
+`--wallpaper` picks the wallpaper. `--lock` shows the theme as the lock
+screen: `locked` holds, and the greeter's words are the lock screen's.
 
 Once the state shows, each `--press` presses a key, written as in `[keys]`
 (`f10`, `mod-j`, `shift-tab`), and `--hover X,Y` puts the pointer at that

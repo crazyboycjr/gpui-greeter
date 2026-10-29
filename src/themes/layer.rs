@@ -56,6 +56,8 @@ impl State {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Condition {
     Language(LanguageCondition),
+    /// The greeter is the lock screen of a running session.
+    Locked,
     /// A password was refused since the last rest, and the login has not
     /// succeeded.
     Failed,
@@ -115,6 +117,7 @@ impl Condition {
         Some(match name {
             "en" => Self::language(Language::English),
             "zh-CN" => Self::language(Language::Chinese),
+            "locked" => Condition::Locked,
             "failed" => Condition::Failed,
             "current" => Condition::Current,
             "focused" => Condition::Focused,

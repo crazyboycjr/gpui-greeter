@@ -26,6 +26,7 @@ tracking = 5.6
 [strings.en]
 date = "{date:%A, %-d %B}"
 hint = "Press Enter"
+unlock = "Press Enter"
 wake = "Press any key"
 wrong = "Wrong password"
 confirm = "Press {armed.key} again"
@@ -37,6 +38,7 @@ shut_down = "Shut down"
 [strings.zh-CN]
 date = "{date:%-m月%-d日 %A}"
 hint = "按回车登录"
+unlock = "按回车解锁"
 wake = "按任意键"
 wrong = "密码不对"
 confirm = "再按一次 {armed.key}"
@@ -207,6 +209,11 @@ text = "{t.hint}"
 case = "upper"
 color = "#7d6c5d"
 
+# The lock screen unlocks rather than logs in; the states below still
+# say their own words there.
+[layer.on.locked]
+text = "{t.unlock}"
+
 [layer.on.checking]
 text = "{t.checking}"
 motion = { property = "opacity", keyframes = [[0, 1], [0.5, 0.35], [1, 1]], duration = 1000, easing = "ease-in-out", repeat = "infinite" }
@@ -244,6 +251,10 @@ x = 104
 y = -96
 action = "next-session"
 color = "#a8917c"
+
+# On the lock screen the session is the one running, not a choice.
+[layer.on.locked]
+visible = false
 
 [layer.on.hover]
 color = "#ece4d8"

@@ -67,6 +67,7 @@ impl Pace {
 /// What a layer is under besides the state.
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Flags {
+    pub locked: bool,
     pub current: bool,
     pub focused: bool,
     pub armed: bool,
@@ -112,6 +113,7 @@ fn apply_overrides(
     for change in &layer.overrides {
         let applies = match change.condition {
             Condition::Language(_) => change.condition.as_language() == Some(language),
+            Condition::Locked => flags.locked,
             Condition::Failed => failures > 0 && state != State::Welcome,
             Condition::Current => flags.current,
             Condition::Focused => flags.focused,
@@ -410,6 +412,43 @@ mod tests {
             .iter()
             .map(|(state, _)| props_at(layer, *state, Flags::default(), Language::English, 0))
             .collect()
+    }
+
+    #[test]
+    fn the_lock_screen_s_look_gives_way_to_a_state_s() {
+        let mut layer = layer(0);
+        let change = |condition, props| Override {
+            condition,
+            props,
+            transition: None,
+            motions: Vec::new(),
+        };
+        layer.overrides = vec![
+            change(
+                Condition::Locked,
+                Props {
+                    visible: Some(false),
+                    opacity: Some(0.5),
+                    ..Props::default()
+                },
+            ),
+            change(
+                Condition::state(State::Error),
+                Props {
+                    opacity: Some(1.0),
+                    ..Props::default()
+                },
+            ),
+        ];
+        let locked = Flags {
+            locked: true,
+            ..Flags::default()
+        };
+        let at = |state, flags| props_at(&layer, state, flags, Language::English, 0);
+        assert_eq!(at(State::Idle, Flags::default()).visible, None);
+        assert_eq!(at(State::Idle, locked).visible, Some(false));
+        assert_eq!(at(State::Idle, locked).opacity, Some(0.5));
+        assert_eq!(at(State::Error, locked).opacity, Some(1.0));
     }
 
     #[test]

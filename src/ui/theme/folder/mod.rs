@@ -242,6 +242,7 @@ impl Builder<'_> {
             (None, _) => false,
         };
         Flags {
+            locked: greeter.lock_screen,
             current: item == Some(greeter.session),
             focused,
             armed,
@@ -975,10 +976,14 @@ impl Builder<'_> {
             .timeline
             .current()
             .map_or(State::Idle, |(state, _)| state);
+        let flags = Flags {
+            locked: self.view.greeter.lock_screen,
+            ..Flags::default()
+        };
         let props = look::overridden(
             layer,
             current,
-            Flags::default(),
+            flags,
             self.language,
             self.view.greeter.failures,
         );

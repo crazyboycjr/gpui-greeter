@@ -1482,7 +1482,7 @@ fn read_overrides(
             .filter_map(|name| {
                 let condition = Condition::parse(name);
                 if condition.is_none() {
-                    r.error(span.clone(), format!("{what}: on.{name}: unknown condition; use a state (rest, idle, typing, checking, error, welcome), a language (en, zh-CN), failed, current, focused, armed, fired or hover"));
+                    r.error(span.clone(), format!("{what}: on.{name}: unknown condition; use a state (rest, idle, typing, checking, error, welcome), a language (en, zh-CN), locked, failed, current, focused, armed, fired or hover"));
                 }
                 condition
             })
@@ -2090,6 +2090,31 @@ color = "#b7410e"
                 .strings
                 .get(crate::config::Language::Chinese, "hint")
                 .is_some()
+        );
+    }
+
+    #[test]
+    fn the_lock_screen_s_condition_comes_before_the_states() {
+        let (folder, problems) = theme(
+            r##"format = 1
+[[layer]]
+kind = "text"
+text = "{session}"
+[layer.on.error]
+opacity = 1
+[layer.on.locked]
+visible = false
+"##,
+        );
+        assert!(errors(&problems).is_empty(), "{problems:?}");
+        let conditions: Vec<Condition> = folder.unwrap().layers[0]
+            .overrides
+            .iter()
+            .map(|o| o.condition)
+            .collect();
+        assert_eq!(
+            conditions,
+            [Condition::Locked, Condition::state(State::Error)]
         );
     }
 
