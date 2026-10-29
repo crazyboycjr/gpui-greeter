@@ -16,7 +16,7 @@ use crate::greetd::Greetd;
 use crate::i18n::{self, Strings};
 use crate::login::{self, Attempt, Outcome};
 use crate::power::{Action, Power};
-use crate::remembered::Remembered;
+use crate::remembered::{self, Remembered};
 use crate::sessions::Session;
 use crate::system::{self, Machine};
 use crate::themes::facts::{self, Facts, Uses};
@@ -76,6 +76,9 @@ pub struct Setup {
     pub preview: bool,
     /// A name to show for the machine instead of its own, in a preview.
     pub hostname: Option<String>,
+    /// The lock screen's rules: every look rests until a key, the session
+    /// shows but is not chosen, and the theme picked is kept apart.
+    pub lock_screen: bool,
 }
 
 /// Where a tiles layer's panes stand: their order, the master first, which
@@ -204,6 +207,7 @@ pub struct Greeter {
     /// Whether the greeter's VT is the one on screen; while it is not, the
     /// windows are off the screen and nothing is drawn.
     pub on_screen: bool,
+    pub lock_screen: bool,
     typed: Typed,
     sent_len: usize,
     armed: Option<Armed>,
@@ -232,21 +236,28 @@ impl Greeter {
             power,
             preview,
             hostname,
+            lock_screen,
         } = setup;
-        let remembered = Remembered::load();
-        let user = remembered
-            .user
-            .and_then(|name| users.iter().position(|user| user.name == name))
-            .unwrap_or(0);
-        let session = remembered
-            .session
-            .or_else(|| {
-                users
-                    .get(user)
-                    .and_then(|user| users::accounts_session(&user.name))
-            })
-            .and_then(|id| sessions.iter().position(|session| session.id == id))
-            .unwrap_or(0);
+        // The lock screen has one user and shows one session, its own.
+        let (user, session) = if lock_screen {
+            (0, 0)
+        } else {
+            let remembered = Remembered::load(remembered::LOGIN);
+            let user = remembered
+                .user
+                .and_then(|name| users.iter().position(|user| user.name == name))
+                .unwrap_or(0);
+            let session = remembered
+                .session
+                .or_else(|| {
+                    users
+                        .get(user)
+                        .and_then(|user| users::accounts_session(&user.name))
+                })
+                .and_then(|id| sessions.iter().position(|session| session.id == id))
+                .unwrap_or(0);
+            (user, session)
+        };
         let (layouts, layout) = x11.layouts();
         let mut machine = Machine::read();
         if let Some(hostname) = hostname {
@@ -266,8 +277,12 @@ impl Greeter {
             String::new()
         };
         Self {
-            strings: i18n::strings(config.language),
-            resting: config.theme == Theme::Frost || folder.as_ref().is_some_and(|f| f.rest),
+            strings: if lock_screen {
+                i18n::lock_strings(config.language)
+            } else {
+                i18n::strings(config.language)
+            },
+            resting: has_rest(&config.theme, folder.as_deref(), lock_screen),
             tiles: folder.as_deref().and_then(TilesState::new),
             folder,
             looks,
@@ -305,6 +320,7 @@ impl Greeter {
             focused: None,
             last_input: Instant::now(),
             on_screen: true,
+            lock_screen,
             greetd: Arc::new(Mutex::new(None)),
             power,
             x11,
@@ -336,10 +352,8 @@ impl Greeter {
         }
     }
 
-    /// Whether the look has a rest state, which it starts at and Escape
-    /// and time return to.
     fn has_rest(&self) -> bool {
-        *self.theme() == Theme::Frost || self.folder.as_ref().is_some_and(|folder| folder.rest)
+        has_rest(self.theme(), self.folder.as_deref(), self.lock_screen)
     }
 
     /// How many characters were sent with the last attempt.
@@ -495,6 +509,14 @@ impl Greeter {
             cx.notify();
             return;
         }
+        // On the lock screen every key brings the form, but for the theme
+        // key and Escape, which leave the rest as it is, and for Enter and
+        // Space, which only wake below.
+        if self.lock_screen
+            && !matches!(keystroke.key.as_str(), "f9" | "escape" | "enter" | "space")
+        {
+            self.wake();
+        }
         let power_key = self
             .power_keys()
             .iter()
@@ -566,7 +588,10 @@ impl Greeter {
             return;
         }
         self.last_input = Instant::now();
-        if !matches!(action, Run::Rest | Run::Nothing) {
+        // The lock screen switches looks without leaving the rest.
+        let keeps_rest = matches!(action, Run::Rest | Run::Nothing)
+            || self.lock_screen && matches!(action, Run::NextTheme | Run::PreviousTheme);
+        if !keeps_rest {
             self.wake();
         }
         self.fired = Some((action, Instant::now()));
@@ -654,6 +679,9 @@ impl Greeter {
     }
 
     pub fn toggle_menu(&mut self, cx: &mut Context<Self>) {
+        if self.lock_screen {
+            return;
+        }
         self.menu = match self.menu {
             Some(_) => None,
             None => Some(self.session),
@@ -854,21 +882,27 @@ impl Greeter {
     }
 
     fn remember(&self) {
-        let mut remembered = Remembered::load();
+        let mut remembered = Remembered::load(remembered::LOGIN);
         remembered.user = self.user().map(|user| user.name.clone());
         remembered.session = self.session().map(|session| session.id.clone());
-        remembered.save();
+        remembered.save(remembered::LOGIN);
     }
 
-    /// The look the theme key picked, kept for the next start.
+    /// The look the theme key picked, kept for the next start: the login
+    /// screen's and the lock screen's apart.
     fn remember_theme(&self) {
         if self.preview {
             return;
         }
-        let mut remembered = Remembered::load();
+        let file = if self.lock_screen {
+            remembered::LOCK
+        } else {
+            remembered::LOGIN
+        };
+        let mut remembered = Remembered::load(file);
         remembered.theme = Some(self.theme().name().to_string());
         remembered.theme_setting = Some(self.setting.name().to_string());
-        remembered.save();
+        remembered.save(file);
     }
 
     /// The look's name, as its control shows it.
@@ -1064,6 +1098,16 @@ impl Greeter {
         if self.focused != Some(xid) && self.x11.focus(xid) {
             self.focused = Some(xid);
         }
+    }
+}
+
+/// Whether a look has a rest state, which it starts at and Escape and time
+/// return to: Frost's clock screen, a theme's with `rest`, and on the lock
+/// screen every built-in look's.
+fn has_rest(theme: &Theme, folder: Option<&Folder>, lock_screen: bool) -> bool {
+    match folder {
+        Some(folder) => folder.rest,
+        None => lock_screen || *theme == Theme::Frost,
     }
 }
 

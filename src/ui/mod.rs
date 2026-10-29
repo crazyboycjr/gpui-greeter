@@ -68,6 +68,7 @@ pub fn run(options: Options) -> Result<()> {
         folder,
         preview,
     } = options;
+    let lock_screen = preview.as_ref().is_some_and(|preview| preview.lock);
     let folder = folder.map(Arc::new);
     let x11 = Rc::new(X11::connect()?);
     let monitors = match &preview {
@@ -101,9 +102,13 @@ pub fn run(options: Options) -> Result<()> {
             avatar: None,
             shell: "/bin/sh".into(),
         }],
+        None if lock_screen => users::current().into_iter().collect(),
         None => users::load(),
     };
     let mut sessions = sessions::load(&config.sessions.dir);
+    if lock_screen {
+        sessions = sessions::current(sessions).into_iter().collect();
+    }
     if preview.is_some() && sessions.is_empty() {
         sessions.push(Session {
             id: "desktop".into(),
@@ -151,6 +156,7 @@ pub fn run(options: Options) -> Result<()> {
                 preview: preview.is_some(),
                 hostname: preview.as_ref().and_then(|preview| preview.host.clone()),
                 config: config.clone(),
+                lock_screen,
             };
             let greeter = cx.new(|cx| Greeter::new(setup, cx));
             for (output, thread) in later {

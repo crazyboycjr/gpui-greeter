@@ -33,9 +33,63 @@ pub fn load() -> Vec<User> {
     let defs = std::fs::read_to_string("/etc/login.defs").unwrap_or_default();
     let mut users = parse(&passwd, &login_shells(&shells), uid_range(&defs));
     for user in &mut users {
-        user.avatar = Some(Path::new(AVATARS).join(&user.name)).filter(|path| path.is_file());
+        user.avatar = avatar(&user.name);
     }
     users
+}
+
+/// The account this runs as, from every account database the system
+/// reads, not `/etc/passwd` alone.
+pub fn current() -> Option<User> {
+    // SAFETY: a passwd of null pointers, filled in by getpwuid_r.
+    let mut entry: libc::passwd = unsafe { std::mem::zeroed() };
+    let mut buffer = vec![0 as libc::c_char; 16 * 1024];
+    let mut found = std::ptr::null_mut();
+    // SAFETY: the entry and the buffer outlive the call, which fills the
+    // entry with pointers into the buffer.
+    let status = unsafe {
+        libc::getpwuid_r(
+            rustix::process::getuid().as_raw(),
+            &mut entry,
+            buffer.as_mut_ptr(),
+            buffer.len(),
+            &mut found,
+        )
+    };
+    if status != 0 || found.is_null() {
+        return None;
+    }
+    let field = |text: *const libc::c_char| {
+        if text.is_null() {
+            return String::new();
+        }
+        // SAFETY: a NUL-terminated string in the buffer, as above.
+        unsafe { std::ffi::CStr::from_ptr(text) }
+            .to_string_lossy()
+            .into_owned()
+    };
+    let name = field(entry.pw_name);
+    Some(User {
+        display_name: display_name(&name, &field(entry.pw_gecos)),
+        avatar: avatar(&name),
+        shell: field(entry.pw_shell),
+        name,
+    })
+}
+
+fn avatar(name: &str) -> Option<PathBuf> {
+    Some(Path::new(AVATARS).join(name)).filter(|path| path.is_file())
+}
+
+/// The full name in the comment field, or else the login name.
+fn display_name(name: &str, gecos: &str) -> String {
+    let full_name = gecos.split(',').next().unwrap_or("").trim();
+    if full_name.is_empty() {
+        name
+    } else {
+        full_name
+    }
+    .to_string()
 }
 
 /// The session AccountsService keeps for `user`, as LightDM and GDM leave
@@ -76,15 +130,9 @@ fn parse(passwd: &str, shells: &[&str], uids: (u32, u32)) -> Vec<User> {
             if !(uids.0..=uids.1).contains(&uid) || !shells.contains(&shell) {
                 return None;
             }
-            let full_name = gecos.split(',').next().unwrap_or("").trim();
             Some(User {
                 name: name.to_string(),
-                display_name: if full_name.is_empty() {
-                    name
-                } else {
-                    full_name
-                }
-                .to_string(),
+                display_name: display_name(name, gecos),
                 avatar: None,
                 shell: shell.to_string(),
             })

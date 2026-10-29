@@ -37,6 +37,29 @@ pub fn load(dir: &Path) -> Vec<Session> {
     sessions
 }
 
+/// The session this runs in, among `sessions`, by the name its display
+/// manager left in the environment.
+pub fn current(sessions: Vec<Session>) -> Option<Session> {
+    let names: Vec<String> = ["XDG_SESSION_DESKTOP", "DESKTOP_SESSION"]
+        .into_iter()
+        .filter_map(|variable| std::env::var(variable).ok())
+        .collect();
+    named(sessions, &names)
+}
+
+/// The first of `sessions` one of `names` names, as an id or as the path of
+/// its desktop entry, as some display managers write it.
+fn named(sessions: Vec<Session>, names: &[String]) -> Option<Session> {
+    let ids: Vec<&str> = names
+        .iter()
+        .map(|name| name.rsplit('/').next().unwrap_or_default())
+        .map(|name| name.strip_suffix(".desktop").unwrap_or(name))
+        .collect();
+    sessions
+        .into_iter()
+        .find(|session| ids.contains(&session.id.as_str()))
+}
+
 impl Session {
     /// The words of the command greetd runs, which it joins with spaces and
     /// hands to `sh -c`: the wrapper as written, then the session's own
@@ -219,6 +242,34 @@ mod tests {
                 "DESKTOP_SESSION=xmonad"
             ]
         );
+    }
+
+    #[test]
+    fn finds_the_session_running_by_its_name() {
+        let entry = "[Desktop Entry]\nName=N\nExec=n\n";
+        let sessions = vec![
+            session("plasma", entry).unwrap(),
+            session("xmonad", entry).unwrap(),
+        ];
+        let names = |names: &[&str]| {
+            names
+                .iter()
+                .map(|name| name.to_string())
+                .collect::<Vec<_>>()
+        };
+        let id = |found: Option<Session>| found.map(|session| session.id);
+        assert_eq!(
+            id(named(sessions.clone(), &names(&["xmonad"]))),
+            Some("xmonad".into())
+        );
+        assert_eq!(
+            id(named(
+                sessions.clone(),
+                &names(&["", "/usr/share/xsessions/plasma.desktop"])
+            )),
+            Some("plasma".into())
+        );
+        assert_eq!(id(named(sessions, &names(&["i3"]))), None);
     }
 
     #[test]

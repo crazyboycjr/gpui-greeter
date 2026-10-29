@@ -526,7 +526,8 @@ fn session_chip(view: &View) -> impl IntoElement {
         .when_some(greeter.menu, |anchor, highlighted| {
             anchor.child(menu(view, highlighted))
         })
-        .child(chip)
+        // The lock screen's session is the one running.
+        .when(!greeter.lock_screen, |row| row.child(chip))
         .when(greeter.looks.cycle.len() > 1, |row| row.child(theme))
 }
 

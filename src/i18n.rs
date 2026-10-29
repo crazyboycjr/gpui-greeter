@@ -44,6 +44,8 @@ pub struct NeonStrings {
     pub reboot: &'static str,
     pub poweroff: &'static str,
     pub ready: &'static str,
+    /// At rest on the lock screen.
+    pub wake: &'static str,
     pub verifying: &'static str,
     pub denied: &'static str,
     pub starting: &'static str,
@@ -80,6 +82,7 @@ const ENGLISH: Strings = Strings {
         reboot: "reboot",
         poweroff: "poweroff",
         ready: "awaiting credentials",
+        wake: "press any key",
         verifying: "verifying",
         denied: "authentication failed",
         starting: "starting ",
@@ -117,6 +120,7 @@ const CHINESE: Strings = Strings {
         reboot: "重启",
         poweroff: "关机",
         ready: "等待凭据",
+        wake: "按任意键",
         verifying: "校验中",
         denied: "认证失败，再试一次",
         starting: "正在启动 ",
@@ -124,10 +128,31 @@ const CHINESE: Strings = Strings {
     },
 };
 
+/// The lock screen's words: the same, but for unlocking rather than
+/// logging in.
+const ENGLISH_LOCK: Strings = Strings {
+    press_enter: "Press Enter to unlock",
+    click_to_log_in: "Click anywhere to unlock",
+    ..ENGLISH
+};
+
+const CHINESE_LOCK: Strings = Strings {
+    press_enter: "按回车解锁",
+    click_to_log_in: "点击任意处解锁",
+    ..CHINESE
+};
+
 pub fn strings(language: Language) -> &'static Strings {
     match language {
         Language::English => &ENGLISH,
         Language::Chinese => &CHINESE,
+    }
+}
+
+pub fn lock_strings(language: Language) -> &'static Strings {
+    match language {
+        Language::English => &ENGLISH_LOCK,
+        Language::Chinese => &CHINESE_LOCK,
     }
 }
 

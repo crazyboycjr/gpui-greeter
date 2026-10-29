@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use gpui_greeter::config::{self, Config, Language, Pick, Theme};
-use gpui_greeter::remembered::Remembered;
+use gpui_greeter::remembered::{self, Remembered};
 use gpui_greeter::themes::{self, Chord, Folder, Severity, State};
 use gpui_greeter::ui::preview::{self, Preview};
 use gpui_greeter::{sync, ui};
@@ -26,7 +26,7 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
        gpui-greeter preview DIR [--state STATE] [--lang LANG] [--size WxH]
                                 [--shot FILE] [--at MS] [--user NAME]
                                 [--host NAME] [--wallpaper FILE]
-                                [--press KEY]... [--hover X,Y]
+                                [--press KEY]... [--hover X,Y] [--lock]
            show the theme folder DIR in a window on $DISPLAY, against a
            fake greetd that takes the password \"test\"; with --shot, draw
            it in an Xvfb of its own with lavapipe and write FILE once the
@@ -34,7 +34,8 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
            STATE is rest, idle, typing, checking, error or welcome; the
            size is 3840x2160 for a screenshot, 1920x1080 otherwise.
            Once the state shows, --press presses KEY, written as in a
-           theme's [keys], and --hover puts the pointer at X,Y
+           theme's [keys], and --hover puts the pointer at X,Y; --lock
+           shows the theme as the lock screen
 
   --config FILE    settings, /etc/gpui-greeter/config.toml by default
   --theme THEME    paper, paper-night, frost, neon or a theme folder's
@@ -110,7 +111,7 @@ fn greet(args: &[String]) -> anyhow::Result<()> {
     // The look picked at the login screen last time, unless the settings
     // have changed since or the command line names one.
     let picked = theme.is_none().then(|| {
-        Remembered::load()
+        Remembered::load(remembered::LOGIN)
             .theme_for(setting.name())
             .and_then(Theme::parse)
     });
@@ -142,7 +143,7 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
     let mut dir = None;
     let (mut state, mut language, mut size, mut shot, mut at) = (None, None, None, None, None);
     let (mut user, mut host, mut wallpaper) = (None, None, None);
-    let (mut presses, mut hover) = (Vec::new(), None);
+    let (mut presses, mut hover, mut lock) = (Vec::new(), None, false);
     let mut config_path = PathBuf::from(config::DEFAULT_PATH);
     while let Some(arg) = args.rest.next() {
         match arg.as_str() {
@@ -189,6 +190,7 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
             "--host" => host = Some(args.value(arg)?.to_string()),
             "--wallpaper" => wallpaper = Some(PathBuf::from(args.value(arg)?)),
             "--config" => config_path = args.value(arg)?.into(),
+            "--lock" => lock = true,
             path if dir.is_none() && !path.starts_with('-') => dir = Some(PathBuf::from(path)),
             other => anyhow::bail!("unknown argument {other:?}\n{USAGE}"),
         }
@@ -265,6 +267,7 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
             hover,
             user,
             host,
+            lock,
             outcome: outcome.clone(),
         }),
     });

@@ -40,6 +40,8 @@ pub struct Preview {
     pub hover: Option<(i32, i32)>,
     pub user: Option<String>,
     pub host: Option<String>,
+    /// Shows the theme as the lock screen.
+    pub lock: bool,
     /// How the screenshot went, for `main` to report.
     pub outcome: Arc<Mutex<Option<Result<()>>>>,
 }

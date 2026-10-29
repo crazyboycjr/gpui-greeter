@@ -9,9 +9,10 @@ use std::time::Duration;
 
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Animation, AnimationExt as _, AnyElement, App, Bounds, BoxShadow, FontWeight, Hsla, ObjectFit,
-    Pixels, RenderImage, Rgba, SharedString, TransformationMatrix, Window, canvas, div, fill, img,
-    linear_color_stop, linear_gradient, point, px, radians, relative, size, svg,
+    Animation, AnimationExt as _, AnyElement, App, Bounds, BoxShadow, FontWeight, Hsla,
+    MouseButton, ObjectFit, Pixels, RenderImage, Rgba, SharedString, TransformationMatrix, Window,
+    canvas, div, fill, img, linear_color_stop, linear_gradient, point, px, radians, relative, size,
+    svg,
 };
 use image::RgbaImage;
 
@@ -93,12 +94,24 @@ pub fn render(view: &View) -> AnyElement {
     if !view.has_form {
         return root.into_any_element();
     }
-    root.child(top_left(view, &palette))
-        .child(top_right(view, &palette))
-        .child(center(view, &palette))
-        .child(bottom_left(view, &palette))
-        .child(keys(view, &palette))
-        .into_any_element()
+    // At rest, which only the lock screen has, the terminal waits for a
+    // click or a key.
+    let resting = view.greeter.resting;
+    root.when(resting, |root| {
+        root.on_mouse_down(
+            MouseButton::Left,
+            view.on(|greeter, cx| {
+                greeter.wake();
+                cx.notify();
+            }),
+        )
+    })
+    .child(top_left(view, &palette))
+    .child(top_right(view, &palette))
+    .child(center(view, &palette))
+    .child(bottom_left(view, &palette))
+    .when(!resting, |root| root.child(keys(view, &palette)))
+    .into_any_element()
 }
 
 fn text(text: impl Into<gpui_kit::SharedString>, size: f32) -> crate::ui::text::Label {
@@ -438,10 +451,17 @@ fn top_left(view: &View, palette: &Palette) -> impl IntoElement {
                         .text_color(palette.accent),
                 )
                 .child(
-                    text("greetd", 13.)
-                        .font(MONO, FontWeight::BOLD)
-                        .color(palette.accent)
-                        .tracking_em(0.14),
+                    text(
+                        if view.greeter.lock_screen {
+                            "lock"
+                        } else {
+                            "greetd"
+                        },
+                        13.,
+                    )
+                    .font(MONO, FontWeight::BOLD)
+                    .color(palette.accent)
+                    .tracking_em(0.14),
                 ),
         )
         .child(div().opacity(0.55).child(text(place, 13.)))
@@ -527,7 +547,11 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
             linear_color_stop(palette.accent, 0.),
             linear_color_stop(color(greeter.config.neon.accent.0, 0.0), 1.),
         )))
-        .child(panel(view, palette));
+        .child(if greeter.resting {
+            resting_line(view, palette).into_any_element()
+        } else {
+            panel(view, palette).into_any_element()
+        });
     // A little above the middle, as the mockup's translate(-50%, -54%).
     div()
         .absolute()
@@ -537,6 +561,34 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
         .items_center()
         .justify_center()
         .child(column)
+}
+
+/// What stands in for the login panel at rest: a status line saying how to
+/// wake the terminal.
+fn resting_line(view: &View, palette: &Palette) -> impl IntoElement {
+    div()
+        .px(u(32.))
+        .flex()
+        .items_center()
+        .gap(u(16.))
+        .child(
+            text("[ LOCKED ]", 14.)
+                .font(MONO, FontWeight::BOLD)
+                .color(palette.accent)
+                .tracking_em(0.04),
+        )
+        .child(
+            div()
+                .opacity(0.8)
+                .child(text(view.greeter.strings.neon.wake, 14.).tracking_em(0.04)),
+        )
+        .child(
+            div()
+                .child(text("\u{258C}", 14.).color(palette.accent))
+                .with_animation("blink", blink(1100), |cursor, t| {
+                    cursor.opacity(blink_opacity(t))
+                }),
+        )
 }
 
 fn panel(view: &View, palette: &Palette) -> impl IntoElement {
@@ -611,9 +663,16 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
         .items_center()
         .mb(u(22.))
         .child(
-            text("\u{258D}AUTH // login", 12.)
-                .color(palette.accent)
-                .tracking_em(0.12),
+            text(
+                if greeter.lock_screen {
+                    "\u{258D}AUTH // unlock"
+                } else {
+                    "\u{258D}AUTH // login"
+                },
+                12.,
+            )
+            .color(palette.accent)
+            .tracking_em(0.12),
         )
         .child(
             div()
@@ -622,7 +681,8 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
                 .when(greeter.looks.cycle.len() > 1, |controls| {
                     controls.child(theme)
                 })
-                .child(session),
+                // The lock screen's session is the one running.
+                .when(!greeter.lock_screen, |controls| controls.child(session)),
         );
     let look = FieldLook {
         family: MONO,
@@ -838,12 +898,14 @@ fn keys(view: &View, palette: &Palette) -> impl IntoElement {
         .bottom(u(48.))
         .flex()
         .gap(u(12.))
-        .child(
-            key("f2", "F2", s.session.into()).on_click(view.on(|greeter, cx| {
-                greeter.next_session();
-                cx.notify();
-            })),
-        )
+        .when(!greeter.lock_screen, |keys| {
+            keys.child(
+                key("f2", "F2", s.session.into()).on_click(view.on(|greeter, cx| {
+                    greeter.next_session();
+                    cx.notify();
+                })),
+            )
+        })
         .child(
             key("f3", "F3", format!("{} {layout}", s.layout)).on_click(view.on(|greeter, cx| {
                 greeter.next_layout();

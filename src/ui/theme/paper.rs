@@ -80,9 +80,19 @@ pub fn render(view: &View, night: bool) -> AnyElement {
         return root.into_any_element();
     }
     let greeter = view.greeter;
+    // At rest, which only the lock screen has, the clock and the paper
+    // show alone, until a click or a key.
+    let resting = greeter.resting;
     root.on_mouse_down(
         MouseButton::Left,
-        view.on(|greeter, cx| greeter.close_menu(cx)),
+        view.on(move |greeter, cx| {
+            if resting {
+                greeter.wake();
+                cx.notify();
+            } else {
+                greeter.close_menu(cx);
+            }
+        }),
     )
     .child(
         div()
@@ -101,6 +111,8 @@ pub fn render(view: &View, night: bool) -> AnyElement {
     .child(main_column(view, palette))
     .child(if drafting {
         title_block(view, palette).into_any_element()
+    } else if resting {
+        div().into_any_element()
     } else {
         bottom_bar(view, palette, if desk { 660. } else { 160. }).into_any_element()
     })
@@ -180,10 +192,12 @@ fn main_column(view: &View, palette: &Palette) -> impl IntoElement {
         .justify_center()
         .child(clock)
         .child(date)
-        .child(form(view, palette))
+        // At rest the form keeps its room, so the clock stays put as it
+        // shows.
+        .child(form(view, palette).when(greeter.resting, |form| form.opacity(0.)))
 }
 
-fn form(view: &View, palette: &Palette) -> impl IntoElement {
+fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
     let greeter = view.greeter;
     let ink = color(palette.ink, 1.0);
     let accent: Hsla = gpui_kit::rgb(greeter.config.paper.accent.0).into();
@@ -374,18 +388,21 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
             div()
                 .flex()
                 .gap(u(36.))
-                .child(
-                    div()
-                        .relative()
-                        .when_some(greeter.menu, |anchor, highlighted| {
-                            anchor.child(deferred(
-                                menu(view, &MenuLook::bar(palette), highlighted, accent)
-                                    .left(u(-12.))
-                                    .bottom(u(52.)),
-                            ))
-                        })
-                        .child(session_button),
-                )
+                // The lock screen's session is the one running.
+                .when(!greeter.lock_screen, |left| {
+                    left.child(
+                        div()
+                            .relative()
+                            .when_some(greeter.menu, |anchor, highlighted| {
+                                anchor.child(deferred(
+                                    menu(view, &MenuLook::bar(palette), highlighted, accent)
+                                        .left(u(-12.))
+                                        .bottom(u(52.)),
+                                ))
+                            })
+                            .child(session_button),
+                    )
+                })
                 .when(greeter.looks.cycle.len() > 1, |left| {
                     left.child(theme_button(view, ink))
                 }),
@@ -555,13 +572,16 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(ink),
         )
     };
+    // The lock screen's session is the one running, shown but not chosen.
     let session = cell(1., s.session.to_string())
         .id("session")
         .border_r(u(1.))
-        .cursor_pointer()
-        .hover(|cell| cell.bg(hover))
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
+        .when(!greeter.lock_screen, |cell| {
+            cell.cursor_pointer()
+                .hover(|cell| cell.bg(hover))
+                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+                .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
+        })
         .child(
             label(greeter.session_name().to_string())
                 .size(15.)
