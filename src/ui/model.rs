@@ -170,10 +170,11 @@ pub struct Greeter {
     pub notice: Option<String>,
     /// The open session menu and the entry the keyboard is on.
     pub menu: Option<usize>,
-    /// Frost's clock screen, before a click or a key brings the form.
-    pub locked: bool,
-    /// Counts lockings and unlockings, so each one animates.
-    pub lock_changes: u32,
+    /// At rest: Frost's clock screen, or a theme's rest state, before a
+    /// click or a key brings the form.
+    pub resting: bool,
+    /// Counts the times it came to rest and woke, so each one animates.
+    pub rest_changes: u32,
     /// Counts refusals, so each one shakes the field.
     pub denials: u32,
     pub monitors: Vec<Monitor>,
@@ -266,7 +267,7 @@ impl Greeter {
         };
         Self {
             strings: i18n::strings(config.language),
-            locked: config.theme == Theme::Frost || folder.as_ref().is_some_and(|f| f.rest),
+            resting: config.theme == Theme::Frost || folder.as_ref().is_some_and(|f| f.rest),
             tiles: folder.as_deref().and_then(TilesState::new),
             folder,
             looks,
@@ -288,7 +289,7 @@ impl Greeter {
             question: None,
             notice: None,
             menu: None,
-            lock_changes: 0,
+            rest_changes: 0,
             denials: 0,
             windows: vec![None; monitors.len()],
             monitors,
@@ -323,7 +324,7 @@ impl Greeter {
 
     /// Where the login stands, in a theme's terms.
     pub fn state(&self) -> State {
-        if self.locked {
+        if self.resting {
             return State::Rest;
         }
         match self.phase {
@@ -363,7 +364,7 @@ impl Greeter {
         self.question = None;
         self.notice = None;
         self.typed = Typed::new();
-        self.locked = state == State::Rest;
+        self.resting = state == State::Rest;
         self.phase = Phase::Idle;
         match state {
             State::Rest | State::Idle => {}
@@ -505,7 +506,7 @@ impl Greeter {
         }
         match keystroke.key.as_str() {
             // Keys that only wake the clock screen, rather than type.
-            "enter" | "space" if self.locked => self.unlock(),
+            "enter" | "space" if self.resting => self.wake(),
             "enter" => self.submit(cx),
             "escape" => self.escape(cx),
             "backspace" if modifiers.control => self.clear_typed(),
@@ -522,7 +523,7 @@ impl Greeter {
                     let text = text.clone();
                     self.type_text(&text);
                 }
-                _ if self.locked => self.unlock(),
+                _ if self.resting => self.wake(),
                 _ => {}
             },
         }
@@ -551,7 +552,7 @@ impl Greeter {
                     let text = text.clone();
                     self.type_text(&text);
                 }
-                _ if self.locked => self.unlock(),
+                _ if self.resting => self.wake(),
                 _ => {}
             },
         }
@@ -566,7 +567,7 @@ impl Greeter {
         }
         self.last_input = Instant::now();
         if !matches!(action, Run::Rest | Run::Nothing) {
-            self.unlock();
+            self.wake();
         }
         self.fired = Some((action, Instant::now()));
         match action {
@@ -598,7 +599,7 @@ impl Greeter {
     }
 
     fn type_text(&mut self, text: &str) {
-        self.unlock();
+        self.wake();
         if self.phase == Phase::Checking {
             return;
         }
@@ -618,18 +619,20 @@ impl Greeter {
         self.typed = Typed::new();
     }
 
-    pub fn unlock(&mut self) {
-        if self.locked {
-            self.locked = false;
-            self.lock_changes += 1;
+    /// Leaves rest for the form.
+    pub fn wake(&mut self) {
+        if self.resting {
+            self.resting = false;
+            self.rest_changes += 1;
             self.last_input = Instant::now();
         }
     }
 
-    pub fn lock(&mut self, cx: &mut Context<Self>) {
-        if self.has_rest() && !self.locked && !self.is_busy() {
-            self.locked = true;
-            self.lock_changes += 1;
+    /// Goes back to rest, forgetting what was typed.
+    pub fn rest(&mut self, cx: &mut Context<Self>) {
+        if self.has_rest() && !self.resting && !self.is_busy() {
+            self.resting = true;
+            self.rest_changes += 1;
             self.failures = 0;
             self.menu = None;
             self.clear_typed();
@@ -642,8 +645,8 @@ impl Greeter {
     }
 
     fn escape(&mut self, cx: &mut Context<Self>) {
-        if self.has_rest() && !self.locked {
-            self.lock(cx);
+        if self.has_rest() && !self.resting {
+            self.rest(cx);
         } else {
             self.clear_typed();
             self.forget_question(cx);
@@ -932,7 +935,7 @@ impl Greeter {
         self.fired = None;
         self.menu = None;
         if !self.has_rest() {
-            self.locked = false;
+            self.resting = false;
         }
         self.remember_theme();
         self.prepare_neighbours(cx);
@@ -1005,8 +1008,8 @@ impl Greeter {
             Some(folder) => folder.rest_after,
             None => Some(Duration::from_secs(self.config.frost.idle_seconds)),
         };
-        if !self.locked && idle.is_some_and(|idle| self.last_input.elapsed() >= idle) {
-            self.lock(cx);
+        if !self.resting && idle.is_some_and(|idle| self.last_input.elapsed() >= idle) {
+            self.rest(cx);
         }
         if self.on_screen {
             self.keep_focus();

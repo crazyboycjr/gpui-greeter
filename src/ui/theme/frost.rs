@@ -26,11 +26,11 @@ pub fn render(view: &View) -> AnyElement {
         .relative()
         .overflow_hidden()
         .bg(color(GROUND, 1.0))
-        .child(backdrop(view, !greeter.locked, greeter.lock_changes));
+        .child(backdrop(view, !greeter.resting, greeter.rest_changes));
     if !view.has_form {
         return root.into_any_element();
     }
-    let content = if greeter.locked {
+    let content = if greeter.resting {
         clock_screen(view).into_any_element()
     } else {
         login(view).into_any_element()
@@ -71,7 +71,7 @@ fn backdrop(view: &View, blurred: bool, changes: u32) -> impl IntoElement {
 }
 
 /// Draws a layer of the backdrop at the veil's current state, animating it
-/// to its new state after each locking and unlocking.
+/// to its new state after each rest and waking.
 #[derive(Clone, Copy)]
 struct Veiled {
     blurred: bool,
@@ -140,7 +140,7 @@ fn top_right(view: &View) -> impl IntoElement {
                 .opacity(0.85)
                 .child(shadowed(label(layout).size(14.), 6., 0.45)),
         )
-        .when(!greeter.locked, |row| {
+        .when(!greeter.resting, |row| {
             row.child(shadowed(
                 label(i18n::clock(&greeter.now, false)).size(14.),
                 6.,
@@ -174,7 +174,7 @@ fn clock_screen(view: &View) -> impl IntoElement {
             0.4,
         ))
         .with_animation(
-            ("clock-rise", greeter.lock_changes as usize),
+            ("clock-rise", greeter.rest_changes as usize),
             rise(550),
             |clock, t| clock.opacity(t).top(u(10. * (1. - t))),
         );
@@ -208,7 +208,7 @@ fn clock_screen(view: &View) -> impl IntoElement {
         .on_mouse_down(
             MouseButton::Left,
             view.on(|greeter, cx| {
-                greeter.unlock();
+                greeter.wake();
                 cx.notify();
             }),
         )
@@ -308,7 +308,7 @@ fn form(view: &View) -> impl IntoElement {
             .hover(|button| button.opacity(1.0))
     };
     let back = round_button("back", "icons/chevron-left.svg")
-        .on_click(view.on(|greeter, cx| greeter.lock(cx)));
+        .on_click(view.on(|greeter, cx| greeter.rest(cx)));
     let look = FieldLook {
         family: "Inter",
         weight: FontWeight::LIGHT,
@@ -402,7 +402,7 @@ fn form(view: &View) -> impl IntoElement {
         .child(row)
         .child(div().mt(u(16.)).h(u(20.)).child(status(view)))
         .with_animation(
-            ("form-rise", greeter.lock_changes as usize),
+            ("form-rise", greeter.rest_changes as usize),
             rise(550),
             |form, t| form.opacity(t).top(u(10. * (1. - t))),
         )

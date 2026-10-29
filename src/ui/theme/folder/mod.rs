@@ -86,11 +86,11 @@ pub fn render(view: &View, frame: &Frame) -> AnyElement {
         .relative()
         .overflow_hidden()
         .bg(hsla(frame.folder.background));
-    if greeter.locked {
+    if greeter.resting {
         root = root.on_mouse_down(
             MouseButton::Left,
             view.on(|greeter, cx| {
-                greeter.unlock();
+                greeter.wake();
                 cx.notify();
             }),
         );
