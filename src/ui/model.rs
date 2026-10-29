@@ -255,8 +255,9 @@ impl Greeter {
             lock_screen,
             supervisor,
         } = setup;
-        // The lock screen has one user and shows one session, its own.
-        let (user, session) = if lock_screen {
+        // The lock screen has one user and shows one session, its own; with
+        // nothing to choose between, nothing is looked up.
+        let (user, session) = if lock_screen || (users.len() < 2 && sessions.len() < 2) {
             (0, 0)
         } else {
             let remembered = Remembered::load(remembered::LOGIN);

@@ -3,12 +3,15 @@
 
 mod assets;
 mod looks;
+pub mod miniature;
 mod model;
 mod motion;
 pub mod preview;
 mod screen;
 mod text;
 mod theme;
+
+pub use looks::SvgAssets;
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -36,7 +39,7 @@ use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, Rect, X11};
 use crate::{bing, cache, scenery, vt};
 use crate::{sessions, users};
-use looks::{Looks, ScreenAssets, SvgAssets};
+use looks::{Looks, ScreenAssets};
 use model::{Greeter, Setup};
 use screen::Screen;
 

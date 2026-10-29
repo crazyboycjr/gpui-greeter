@@ -1,5 +1,6 @@
 //! The window over one monitor: it draws the theme for that monitor and
-//! passes keys and pointer movement to the shared greeter.
+//! passes keys and pointer movement to the shared greeter. Inset in another
+//! window, it draws the same, shrunk to a box, for the settings' preview.
 
 use std::cell::RefCell;
 use std::collections::HashSet;
@@ -8,7 +9,9 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    Entity, FocusHandle, KeyDownEvent, MouseMoveEvent, RenderImage, Subscription, Window, div, px,
+    AnyElement, App, Bounds, ElementId, Entity, FocusHandle, GlobalElementId, InspectorElementId,
+    KeyDownEvent, LayoutId, MouseMoveEvent, Pixels, RenderImage, Size, Subscription, Window, div,
+    px,
 };
 
 use super::model::Greeter;
@@ -27,6 +30,9 @@ pub struct Screen {
     /// they are dropped.
     slides: Vec<Arc<RenderImage>>,
     focus: FocusHandle,
+    /// The box it is drawn in, inside another window, rather than over a
+    /// window of its own.
+    inset: Option<Size<Pixels>>,
     _observing: Subscription,
 }
 
@@ -85,7 +91,37 @@ impl Screen {
             folder: FolderScreen::new(),
             slides: Vec::new(),
             focus,
+            inset: None,
             _observing: observing,
+        }
+    }
+
+    /// `monitor`'s screen drawn in a box of `size` inside another window,
+    /// which keeps the keyboard.
+    pub fn inset(
+        greeter: Entity<Greeter>,
+        monitor: Monitor,
+        size: Size<Pixels>,
+        cx: &mut Context<Self>,
+    ) -> Self {
+        let observing = cx.observe(&greeter, |_, _, cx| cx.notify());
+        Self {
+            greeter,
+            output: 0,
+            monitor,
+            backdrops: Backdrops::default(),
+            folder: FolderScreen::new(),
+            slides: Vec::new(),
+            focus: cx.focus_handle(),
+            inset: Some(size),
+            _observing: observing,
+        }
+    }
+
+    pub fn set_inset(&mut self, size: Size<Pixels>, cx: &mut Context<Self>) {
+        if self.inset != Some(size) {
+            self.inset = Some(size);
+            cx.notify();
         }
     }
 
@@ -168,10 +204,21 @@ impl Screen {
 
 impl Render for Screen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let viewport = window.viewport_size();
         let scale = self.greeter.read(cx).scale();
-        let unit = self.monitor.pixels_per_point() * scale / window.scale_factor();
-        window.set_rem_size(px(DESIGN_REM * unit));
+        let (viewport, unit) = match self.inset {
+            // The monitor's points, shrunk to the box.
+            Some(size) => (
+                size,
+                size.width.as_f32() / self.monitor.rect.width.max(1) as f32
+                    * self.monitor.pixels_per_point()
+                    * scale,
+            ),
+            None => {
+                let unit = self.monitor.pixels_per_point() * scale / window.scale_factor();
+                window.set_rem_size(px(DESIGN_REM * unit));
+                (window.viewport_size(), unit)
+            }
+        };
         let now = Instant::now();
         let screen = cx.entity();
         let pace = Pace::default();
@@ -253,6 +300,19 @@ impl Render for Screen {
         } else if let Some(at) = pace.wake.get().filter(|_| on_screen) {
             self.wake_at(at, cx);
         }
+        if let Some(size) = self.inset {
+            let inset = div()
+                .w(size.width)
+                .h(size.height)
+                .relative()
+                .overflow_hidden()
+                .child(content);
+            return WithRem {
+                rem: px(DESIGN_REM * unit),
+                child: inset.into_any_element(),
+            }
+            .into_any_element();
+        }
         div()
             .id("screen")
             .size_full()
@@ -260,5 +320,74 @@ impl Render for Screen {
             .on_key_down(cx.listener(Self::key))
             .on_mouse_move(cx.listener(Self::pointer))
             .child(content)
+            .into_any_element()
+    }
+}
+
+/// Lays out and paints its child with a rem size of its own, as though in
+/// a window of its own: an inset screen's points are smaller than its
+/// window's.
+struct WithRem {
+    rem: Pixels,
+    child: AnyElement,
+}
+
+impl IntoElement for WithRem {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl Element for WithRem {
+    type RequestLayoutState = ();
+    type PrepaintState = ();
+
+    fn id(&self) -> Option<ElementId> {
+        None
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        let child = &mut self.child;
+        let id = window.with_rem_size(Some(self.rem), |window| child.request_layout(window, cx));
+        (id, ())
+    }
+
+    fn prepaint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let child = &mut self.child;
+        window.with_rem_size(Some(self.rem), |window| child.prepaint(window, cx));
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        let child = &mut self.child;
+        window.with_rem_size(Some(self.rem), |window| child.paint(window, cx));
     }
 }

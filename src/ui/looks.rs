@@ -265,20 +265,38 @@ pub struct Preparing {
 /// Starts drawing a look: a built-in look's backgrounds, or a theme
 /// folder's pictures.
 pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[Monitor]) -> Preparing {
+    let screens: Vec<((u32, u32), f32)> = monitors
+        .iter()
+        .map(|monitor| {
+            (
+                (monitor.rect.width, monitor.rect.height),
+                monitor.pixels_per_point(),
+            )
+        })
+        .collect();
+    start_sized(config, folder, &screens)
+}
+
+/// Starts drawing a look for screens of these sizes in pixels, each with
+/// so many pixels to a point, before the settings' scale.
+pub fn start_sized(
+    config: &Config,
+    folder: Option<&Arc<Folder>>,
+    screens: &[((u32, u32), f32)],
+) -> Preparing {
     let look = Look::of(config);
-    let largest = monitors.iter().fold((1, 1), |(w, h), monitor| {
-        (w.max(monitor.rect.width), h.max(monitor.rect.height))
+    let largest = screens.iter().fold((1, 1), |(w, h), ((width, height), _)| {
+        (w.max(*width), h.max(*height))
     });
     let pictures = folder
         .cloned()
         .map(|folder| std::thread::spawn(move || pictures::decode(&folder, largest)));
     let scale = config.scale;
-    let screens = monitors
+    let screens = screens
         .iter()
-        .map(|monitor| {
+        .map(|&(pixels, per_point)| {
             let folder = folder.cloned();
-            let pixels = (monitor.rect.width, monitor.rect.height);
-            let per_point = monitor.pixels_per_point() * scale;
+            let per_point = per_point * scale;
             std::thread::spawn(move || {
                 let started = Instant::now();
                 let scenery = look.and_then(|look| {
