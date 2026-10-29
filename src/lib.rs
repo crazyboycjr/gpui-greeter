@@ -11,6 +11,7 @@ pub mod power;
 pub mod remembered;
 pub mod scenery;
 pub mod sessions;
+pub mod settings;
 pub mod sync;
 pub mod system;
 pub mod themes;

@@ -164,6 +164,20 @@ pub enum PaperBackground {
     Plain,
 }
 
+impl PaperBackground {
+    pub const ALL: [Self; 4] = [Self::Desk, Self::Ledger, Self::Drafting, Self::Plain];
+
+    /// The name the settings call it by.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Desk => "desk",
+            Self::Ledger => "ledger",
+            Self::Drafting => "drafting",
+            Self::Plain => "plain",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Frost {
@@ -219,6 +233,20 @@ pub enum NeonBackground {
     Grid,
 }
 
+impl NeonBackground {
+    pub const ALL: [Self; 4] = [Self::Skyline, Self::Circuit, Self::Horizon, Self::Grid];
+
+    /// The name the settings call it by.
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Skyline => "skyline",
+            Self::Circuit => "circuit",
+            Self::Horizon => "horizon",
+            Self::Grid => "grid",
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(default, deny_unknown_fields)]
 pub struct Wallpaper {
@@ -261,6 +289,18 @@ impl From<String> for Pick {
             "daily" => Pick::Daily,
             "bing" => Pick::Bing,
             _ => Pick::File(text),
+        }
+    }
+}
+
+impl Pick {
+    /// The name the settings call it by.
+    pub fn name(&self) -> &str {
+        match self {
+            Pick::Random => "random",
+            Pick::Daily => "daily",
+            Pick::Bing => "bing",
+            Pick::File(name) => name,
         }
     }
 }

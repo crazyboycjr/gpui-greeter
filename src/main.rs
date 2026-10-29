@@ -9,7 +9,7 @@ use gpui_greeter::lock::{self, link::ViewEnd};
 use gpui_greeter::remembered::{self, Remembered};
 use gpui_greeter::themes::{self, Chord, Folder, Severity, State};
 use gpui_greeter::ui::preview::{self, Preview};
-use gpui_greeter::{sync, ui};
+use gpui_greeter::{settings, sync, ui};
 
 const USAGE: &str = "\
 usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run]
@@ -69,6 +69,7 @@ fn main() -> ExitCode {
         Some("install-theme") => install_theme(&args[1..]),
         Some("preview") => run_preview(&args[1..]),
         Some("lock") => lock(&args[1..]),
+        Some("apply-settings") => apply_settings(&args[1..]),
         _ => greet(&args),
     };
     match outcome {
@@ -479,6 +480,31 @@ fn install_theme(args: &[String]) -> anyhow::Result<()> {
             installed.name,
             config_path.display()
         );
+    }
+    Ok(())
+}
+
+/// The root side of the settings app, which pkexec runs: one request on
+/// standard input, checked whole, then applied.
+fn apply_settings(args: &[String]) -> anyhow::Result<()> {
+    let mut args = Args { rest: args.iter() };
+    #[cfg_attr(not(debug_assertions), allow(unused_mut))]
+    let mut root: Option<PathBuf> = None;
+    while let Some(arg) = args.rest.next() {
+        match arg.as_str() {
+            // Tests apply to a folder standing in for `/`; a release build
+            // only ever edits the system's settings.
+            #[cfg(debug_assertions)]
+            "--root" => root = Some(PathBuf::from(args.value(arg)?)),
+            other => {
+                anyhow::bail!("apply-settings takes its request on standard input, not {other:?}")
+            }
+        }
+    }
+    let request = settings::request::Request::read(&mut std::io::stdin().lock())?;
+    let config = settings::helper::config_path(root.as_deref());
+    for line in settings::helper::apply(&request, &config)? {
+        println!("{line}");
     }
     Ok(())
 }
