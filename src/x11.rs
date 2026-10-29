@@ -90,6 +90,14 @@ impl X11 {
         Ok(Self { conn, root })
     }
 
+    pub fn conn(&self) -> &RustConnection {
+        &self.conn
+    }
+
+    pub fn root(&self) -> xproto::Window {
+        self.root
+    }
+
     /// Every monitor that shows something, or the whole screen when RandR
     /// cannot say.
     pub fn monitors(&self) -> Vec<Monitor> {

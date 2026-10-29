@@ -14,5 +14,8 @@ post_install() {
     from a text console. Stopping or restarting greetd ends it.
 ==> Design themes of your own with an agent: see "Theme folders" in
     /usr/share/doc/gpui-greeter/README.md
+==> Lock a running X session with the same looks: gpui-greeter lock, on
+    a key of the window manager's or with xss-lock; see "Lock screen" in
+    the README.
 TEXT
 }

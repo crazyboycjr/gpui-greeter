@@ -8,13 +8,13 @@ use std::time::{Duration, Instant};
 
 use gpui_kit::{Context, KeyDownEvent, Task};
 use jiff::Zoned;
-use zeroize::Zeroizing;
 
 use super::looks::Looks;
 use crate::config::{Config, PaperBackground, Theme};
 use crate::greetd::Greetd;
 use crate::i18n::{self, Strings};
-use crate::login::{self, Attempt, Outcome};
+use crate::lock::link::{self, ToLock, ToView};
+use crate::login::{self, Attempt, Outcome, Typed};
 use crate::power::{Action, Power};
 use crate::remembered::{self, Remembered};
 use crate::sessions::Session;
@@ -79,6 +79,16 @@ pub struct Setup {
     /// The lock screen's rules: every look rests until a key, the session
     /// shows but is not chosen, and the theme picked is kept apart.
     pub lock_screen: bool,
+    /// The lock's supervisor, which checks the password on the lock
+    /// screen; greetd does otherwise.
+    pub supervisor: Option<link::Sender>,
+}
+
+/// Who checks the password.
+#[derive(Clone)]
+enum Checker {
+    Greetd(Arc<Mutex<Option<Greetd>>>),
+    Lock(link::Sender),
 }
 
 /// Where a tiles layer's panes stand: their order, the master first, which
@@ -213,7 +223,7 @@ pub struct Greeter {
     armed: Option<Armed>,
     windows: Vec<Option<u32>>,
     focused: Option<u32>,
-    greetd: Arc<Mutex<Option<Greetd>>>,
+    checker: Checker,
     power: Power,
     preview: bool,
     setting: Theme,
@@ -237,6 +247,7 @@ impl Greeter {
             preview,
             hostname,
             lock_screen,
+            supervisor,
         } = setup;
         // The lock screen has one user and shows one session, its own.
         let (user, session) = if lock_screen {
@@ -321,7 +332,10 @@ impl Greeter {
             last_input: Instant::now(),
             on_screen: true,
             lock_screen,
-            greetd: Arc::new(Mutex::new(None)),
+            checker: match supervisor {
+                Some(link) => Checker::Lock(link),
+                None => Checker::Greetd(Arc::new(Mutex::new(None))),
+            },
             power,
             x11,
             _clock: Self::clock(cx),
@@ -795,38 +809,74 @@ impl Greeter {
             self.phase,
             Phase::Idle | Phase::Denied { .. } | Phase::Failed(_)
         );
-        let (Some(user), Some(session)) = (self.user(), self.session()) else {
-            return;
-        };
         if !ready || self.typed.is_empty() {
             return;
         }
-        let (user, cmd, env) = (
-            user.name.clone(),
-            session.command(&self.config.sessions.wrapper),
-            session.environment(),
-        );
-        self.sent_len = self.typed.len();
-        let attempt = Attempt {
-            user,
-            typed: self.typed.take(),
-            resumes: self.question.is_some(),
-            cmd,
-            env,
-        };
+        let sent = self.typed.len();
+        match self.checker.clone() {
+            // The supervisor's word comes back over the link, to `checked`.
+            Checker::Lock(link) => {
+                let typed = self.typed.take();
+                cx.background_executor()
+                    .spawn(async move {
+                        if let Err(error) = link.answer(typed) {
+                            log::error!("cannot reach the lock's supervisor: {error}");
+                        }
+                    })
+                    .detach();
+            }
+            Checker::Greetd(greetd) => {
+                let (Some(user), Some(session)) = (self.user(), self.session()) else {
+                    return;
+                };
+                let (user, cmd, env) = (
+                    user.name.clone(),
+                    session.command(&self.config.sessions.wrapper),
+                    session.environment(),
+                );
+                let attempt = Attempt {
+                    user,
+                    typed: self.typed.take(),
+                    resumes: self.question.is_some(),
+                    cmd,
+                    env,
+                };
+                cx.spawn(async move |this, cx| {
+                    let outcome = cx
+                        .background_executor()
+                        .spawn(async move { converse(&greetd, attempt) })
+                        .await;
+                    let _ = this.update(cx, |this, cx| this.finish(outcome, cx));
+                })
+                .detach();
+            }
+        }
+        self.sent_len = sent;
         self.phase = Phase::Checking;
         self.notice = None;
         self.armed = None;
-        let greetd = self.greetd.clone();
-        cx.spawn(async move |this, cx| {
-            let outcome = cx
-                .background_executor()
-                .spawn(async move { converse(&greetd, attempt) })
-                .await;
-            let _ = this.update(cx, |this, cx| this.finish(outcome, cx));
-        })
-        .detach();
         cx.notify();
+    }
+
+    /// The lock's supervisor's word on what was sent to it.
+    pub fn checked(&mut self, said: ToView, cx: &mut Context<Self>) {
+        let outcome = match said {
+            ToView::Asked {
+                prompt,
+                secret,
+                notice,
+            } => Ok(Outcome::Asked {
+                prompt,
+                secret,
+                notice,
+            }),
+            ToView::Denied { notice } => Ok(Outcome::Denied { notice }),
+            ToView::Failed { message } => Err(Failure::Broken(anyhow::anyhow!(message))),
+            ToView::Moved { .. } | ToView::Pressed { .. } | ToView::Released { .. } => return,
+        };
+        if self.phase == Phase::Checking {
+            self.finish(outcome, cx);
+        }
     }
 
     fn finish(&mut self, outcome: Result<Outcome, Failure>, cx: &mut Context<Self>) {
@@ -992,16 +1042,23 @@ impl Greeter {
         if self.question.take().is_none() {
             return;
         }
-        let greetd = self.greetd.clone();
-        cx.background_executor()
-            .spawn(async move {
-                let mut slot = greetd.lock().unwrap_or_else(PoisonError::into_inner);
-                if let Some(Err(error)) = slot.as_mut().map(Greetd::cancel) {
-                    log::warn!("cannot cancel the login: {error:#}");
-                    *slot = None;
+        match self.checker.clone() {
+            Checker::Lock(link) => {
+                if let Err(error) = link.send(&ToLock::Cancel) {
+                    log::error!("cannot reach the lock's supervisor: {error}");
                 }
-            })
-            .detach();
+            }
+            Checker::Greetd(greetd) => cx
+                .background_executor()
+                .spawn(async move {
+                    let mut slot = greetd.lock().unwrap_or_else(PoisonError::into_inner);
+                    if let Some(Err(error)) = slot.as_mut().map(Greetd::cancel) {
+                        log::warn!("cannot cancel the login: {error:#}");
+                        *slot = None;
+                    }
+                })
+                .detach(),
+        }
     }
 
     fn clock(cx: &mut Context<Self>) -> Task<()> {
@@ -1019,6 +1076,14 @@ impl Greeter {
 
     fn tick(&mut self, cx: &mut Context<Self>) {
         self.now = Zoned::now();
+        // The supervisor starts again a view it has not heard from in a
+        // while.
+        if let Checker::Lock(link) = &self.checker
+            && self.now.second() % 5 == 0
+            && let Err(error) = link.send(&ToLock::Alive)
+        {
+            log::error!("cannot reach the lock's supervisor: {error}");
+        }
         if self
             .armed
             .as_ref()
@@ -1090,8 +1155,13 @@ impl Greeter {
         }
     }
 
-    /// The form's window takes the keyboard, once it is on screen.
+    /// The form's window takes the keyboard, once it is on screen. On the
+    /// lock screen the supervisor holds the keyboard and hands the keys
+    /// on, and the session's focus stays where it was.
     fn keep_focus(&mut self) {
+        if matches!(self.checker, Checker::Lock(_)) {
+            return;
+        }
         let Some(xid) = self.windows.get(self.form).copied().flatten() else {
             return;
         };
@@ -1139,69 +1209,4 @@ fn converse(greetd: &Mutex<Option<Greetd>>, attempt: Attempt) -> Result<Outcome,
         *slot = None;
     }
     outcome.map_err(Failure::Broken)
-}
-
-/// What has been typed into the field, which leaves no copy behind: its
-/// buffer is made large enough never to grow, and one that text leaves is
-/// wiped as it is dropped.
-struct Typed(Zeroizing<String>);
-
-impl Typed {
-    /// Room for any password; typing beyond it is ignored.
-    const CAPACITY: usize = 1024;
-
-    fn new() -> Self {
-        Self(Zeroizing::new(String::with_capacity(Self::CAPACITY)))
-    }
-
-    fn push(&mut self, text: &str) {
-        if self.0.len() + text.len() <= Self::CAPACITY {
-            self.0.push_str(text);
-        }
-    }
-
-    fn pop(&mut self) {
-        let mut kept = Self::new();
-        if let Some((last, _)) = self.0.char_indices().next_back() {
-            kept.0.push_str(&self.0[..last]);
-        }
-        *self = kept;
-    }
-
-    /// The text, for sending; the field is left empty.
-    fn take(&mut self) -> Zeroizing<String> {
-        std::mem::replace(self, Self::new()).0
-    }
-
-    fn len(&self) -> usize {
-        self.0.chars().count()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    fn as_str(&self) -> &str {
-        &self.0
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::Typed;
-
-    #[test]
-    fn typed_text_stays_in_its_first_buffer() {
-        let mut typed = Typed::new();
-        let buffer = typed.as_str().as_ptr();
-        typed.push("pässwörd");
-        assert_eq!(typed.as_str().as_ptr(), buffer);
-        typed.pop();
-        assert_eq!(typed.as_str(), "pässwör");
-        assert_eq!(typed.len(), 7);
-        assert_eq!(&*typed.take(), "pässwör");
-        assert!(typed.is_empty());
-        typed.push(&"x".repeat(Typed::CAPACITY + 1));
-        assert!(typed.is_empty());
-    }
 }

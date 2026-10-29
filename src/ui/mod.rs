@@ -20,12 +20,14 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use anyhow::Result;
 use gpui_kit::{
-    AnyWindowHandle, App, AppContext as _, Bounds, Entity, KeyBinding, NoAction, Window,
+    AnyWindowHandle, App, AppContext as _, Bounds, Entity, KeyBinding, Modifiers, MouseButton,
+    MouseDownEvent, MouseExitEvent, MouseMoveEvent, MouseUpEvent, NoAction, PlatformInput, Window,
     WindowBackgroundAppearance, WindowBounds, WindowKind, WindowOptions, point, px, size,
 };
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 use crate::config::{Config, Pick, Theme};
+use crate::lock::link::{self, ToLock, ToView};
 use crate::power::Power;
 use crate::sessions::Session;
 use crate::themes::{FRAME, Folder};
@@ -58,6 +60,9 @@ pub struct Options {
     pub folder: Option<Folder>,
     /// Runs as `gpui-greeter preview`: one window, the size asked for.
     pub preview: Option<preview::Preview>,
+    /// Runs as the lock screen's view, for the supervisor at the link's
+    /// other end.
+    pub lock: Option<link::ViewEnd>,
 }
 
 pub fn run(options: Options) -> Result<()> {
@@ -67,8 +72,9 @@ pub fn run(options: Options) -> Result<()> {
         dry_run,
         folder,
         preview,
+        lock,
     } = options;
-    let lock_screen = preview.as_ref().is_some_and(|preview| preview.lock);
+    let lock_screen = lock.is_some() || preview.as_ref().is_some_and(|preview| preview.lock);
     let folder = folder.map(Arc::new);
     let x11 = Rc::new(X11::connect()?);
     let monitors = match &preview {
@@ -84,7 +90,10 @@ pub fn run(options: Options) -> Result<()> {
             refresh: None,
         }],
         None => {
-            x11.keep_monitors_awake();
+            // The session's monitors keep the settings it gave them.
+            if lock.is_none() {
+                x11.keep_monitors_awake();
+            }
             x11.monitors()
         }
     };
@@ -95,6 +104,7 @@ pub fn run(options: Options) -> Result<()> {
     let form = form_monitor(&monitors, x11.pointer());
     let scale = set_scale(&monitors[form]);
     let preparing = looks::start(&config, folder.as_ref(), &sizes);
+    let link = lock.map(link::ViewEnd::listen).transpose()?;
     let users = match preview.as_ref().and_then(|preview| preview.user.clone()) {
         Some(name) => vec![User {
             display_name: name.clone(),
@@ -157,15 +167,16 @@ pub fn run(options: Options) -> Result<()> {
                 hostname: preview.as_ref().and_then(|preview| preview.host.clone()),
                 config: config.clone(),
                 lock_screen,
+                supervisor: link.as_ref().map(|(sender, _)| sender.clone()),
             };
             let greeter = cx.new(|cx| Greeter::new(setup, cx));
             for (output, thread) in later {
                 deliver(cx, greeter.clone(), first.clone(), output, thread);
             }
             let mut screens = Vec::new();
-            let mut first_window = None;
+            let mut windows = Vec::new();
             for (output, monitor) in monitors.iter().enumerate() {
-                match open_screen(cx, &greeter, output, monitor, scale) {
+                match open_screen(cx, &greeter, output, monitor, scale, link.is_some()) {
                     Ok((screen, window, xid)) => {
                         if let Some(xid) = xid
                             && let Err(error) = x11.place(xid, monitor.rect)
@@ -174,12 +185,30 @@ pub fn run(options: Options) -> Result<()> {
                         }
                         greeter.update(cx, |greeter, _| greeter.set_window(output, xid));
                         screens.push((screen, monitor.clone()));
-                        first_window.get_or_insert(window);
+                        windows.push((window, monitor.rect, xid));
                     }
                     Err(error) => {
                         log::error!("cannot open a window on {:?}: {error:#}", monitor.rect)
                     }
                 }
+            }
+            let first_window = windows.first().map(|(window, _, _)| *window);
+            if let Some((sender, said)) = link {
+                let xids: Vec<u32> = windows.iter().filter_map(|(_, _, xid)| *xid).collect();
+                if let Some(&keys) = xids.first() {
+                    let shown = ToLock::Shown {
+                        windows: xids.clone(),
+                        keys,
+                    };
+                    if let Err(error) = sender.send(&shown) {
+                        log::error!("cannot reach the lock's supervisor: {error}");
+                    }
+                }
+                let windows = windows
+                    .iter()
+                    .map(|(window, rect, _)| (*window, *rect))
+                    .collect();
+                follow_supervisor(cx, greeter.clone(), windows, said);
             }
             if let (Some(preview), Some((screen, monitor)), Some(window)) =
                 (&preview, screens.first(), first_window)
@@ -396,6 +425,92 @@ fn follow_vt(cx: &mut App, greeter: Entity<Greeter>) {
     .detach();
 }
 
+/// Follows what the lock's supervisor says: the pointer it holds moves and
+/// clicks over the windows here, and PAM's word goes to the greeter.
+fn follow_supervisor(
+    cx: &mut App,
+    greeter: Entity<Greeter>,
+    windows: Vec<(AnyWindowHandle, Rect)>,
+    said: async_channel::Receiver<ToView>,
+) {
+    cx.spawn(async move |cx| {
+        let mut under: Option<AnyWindowHandle> = None;
+        let mut held: Option<MouseButton> = None;
+        while let Ok(message) = said.recv().await {
+            let (x, y) = match message {
+                ToView::Moved { x, y }
+                | ToView::Pressed { x, y, .. }
+                | ToView::Released { x, y, .. } => (x, y),
+                said => {
+                    greeter.update(cx, |greeter, cx| greeter.checked(said, cx));
+                    continue;
+                }
+            };
+            let Some(&(window, rect)) =
+                windows.iter().find(|(_, rect)| rect.contains_point((x, y)))
+            else {
+                continue;
+            };
+            if let Some(left) = under.filter(|left| *left != window) {
+                let _ = cx.update_window(left, |_, window, cx| {
+                    let exit = MouseExitEvent {
+                        position: window.mouse_position(),
+                        pressed_button: held,
+                        modifiers: Modifiers::default(),
+                    };
+                    window.dispatch_event(PlatformInput::MouseExited(exit), cx);
+                });
+            }
+            under = Some(window);
+            let button = |number: u8| match number {
+                1 => Some(MouseButton::Left),
+                2 => Some(MouseButton::Middle),
+                3 => Some(MouseButton::Right),
+                _ => None,
+            };
+            let _ = cx.update_window(window, |_, window, cx| {
+                let scale = window.scale_factor();
+                let position = point(
+                    px((x - rect.x) as f32 / scale),
+                    px((y - rect.y) as f32 / scale),
+                );
+                let modifiers = Modifiers::default();
+                let input = match message {
+                    ToView::Pressed { button: number, .. } => {
+                        let button = button(number)?;
+                        held = Some(button);
+                        PlatformInput::MouseDown(MouseDownEvent {
+                            button,
+                            position,
+                            modifiers,
+                            click_count: 1,
+                            first_mouse: false,
+                        })
+                    }
+                    ToView::Released { button: number, .. } => {
+                        let button = button(number)?;
+                        held = None;
+                        PlatformInput::MouseUp(MouseUpEvent {
+                            button,
+                            position,
+                            modifiers,
+                            click_count: 1,
+                        })
+                    }
+                    _ => PlatformInput::MouseMove(MouseMoveEvent {
+                        position,
+                        pressed_button: held,
+                        modifiers,
+                    }),
+                };
+                window.dispatch_event(input, cx);
+                Some(())
+            });
+        }
+    })
+    .detach();
+}
+
 /// Fetches today's picture, trying again for a while in case the network
 /// comes up after the greeter.
 fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: Blur) {
@@ -453,6 +568,7 @@ fn open_screen(
     output: usize,
     monitor: &Monitor,
     scale: f32,
+    over_session: bool,
 ) -> Result<(Entity<Screen>, AnyWindowHandle, Option<u32>)> {
     let rect = monitor.rect;
     let logical = |pixels: f32| px(pixels / scale);
@@ -465,7 +581,13 @@ fn open_screen(
         titlebar: None,
         focus: false,
         show: true,
-        kind: WindowKind::Normal,
+        // The lock's windows lie over the session's, out of its window
+        // manager's hands.
+        kind: if over_session {
+            WindowKind::PopUp
+        } else {
+            WindowKind::Normal
+        },
         is_movable: false,
         is_resizable: false,
         is_minimizable: false,

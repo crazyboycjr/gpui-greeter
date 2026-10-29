@@ -20,6 +20,7 @@ depends=(
     libxcb
     libxkbcommon
     libxkbcommon-x11
+    pam
     systemd
     vulkan-driver
     vulkan-icd-loader
@@ -32,10 +33,11 @@ optdepends=(
     'noto-fonts-cjk: Chinese text'
     'xorg-server-xvfb: gpui-greeter preview --shot, without a display'
     'vulkan-swrast: drawing previews on the CPU (lavapipe)'
+    'xss-lock: gpui-greeter lock on suspend and when idle'
 )
 provides=("$_name" greetd-greeter)
 conflicts=("$_name")
-backup=("etc/$_name/config.toml" "etc/greetd/$_name.toml")
+backup=("etc/$_name/config.toml" "etc/greetd/$_name.toml" "etc/pam.d/$_name-lock")
 install=$_name.install
 source=("$_name::git+file://${startdir%/pkg/arch}#branch=main")
 # Once the repository is published:
@@ -70,6 +72,7 @@ package() {
     install -Dm755 "dist/$_name-switch" "$pkgdir/usr/bin/$_name-switch"
     install -Dm644 dist/config.toml "$pkgdir/etc/$_name/config.toml"
     install -Dm644 dist/greetd.toml "$pkgdir/etc/greetd/$_name.toml"
+    install -Dm644 dist/lock.pam "$pkgdir/etc/pam.d/$_name-lock"
     install -Dm644 dist/greetd-service.conf \
         "$pkgdir/usr/lib/systemd/system/greetd.service.d/$_name.conf"
     install -Dm644 dist/tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$_name.conf"

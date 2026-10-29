@@ -1,9 +1,11 @@
+use std::os::fd::RawFd;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::Duration;
 
 use gpui_greeter::config::{self, Config, Language, Pick, Theme};
+use gpui_greeter::lock::{self, link::ViewEnd};
 use gpui_greeter::remembered::{self, Remembered};
 use gpui_greeter::themes::{self, Chord, Folder, Severity, State};
 use gpui_greeter::ui::preview::{self, Preview};
@@ -36,6 +38,13 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
            Once the state shows, --press presses KEY, written as in a
            theme's [keys], and --hover puts the pointer at X,Y; --lock
            shows the theme as the lock screen
+       gpui-greeter lock [--config FILE] [--theme THEME] [--language LANG]
+                         [--dry-run]
+           lock the X session on $DISPLAY: the looks over every monitor,
+           at rest until a key, the keyboard and the pointer held until
+           the user's password is typed, which PAM checks as the service
+           gpui-greeter-lock. F9 switches looks there too; the theme is
+           the config's until one is picked there
 
   --config FILE    settings, /etc/gpui-greeter/config.toml by default
   --theme THEME    paper, paper-night, frost, neon or a theme folder's
@@ -59,6 +68,7 @@ fn main() -> ExitCode {
         Some("check-theme") => check_theme(&args[1..]),
         Some("install-theme") => install_theme(&args[1..]),
         Some("preview") => run_preview(&args[1..]),
+        Some("lock") => lock(&args[1..]),
         _ => greet(&args),
     };
     match outcome {
@@ -83,59 +93,124 @@ impl<'a> Args<'a> {
     }
 }
 
-fn greet(args: &[String]) -> anyhow::Result<()> {
-    let mut args = Args { rest: args.iter() };
-    let (mut config_path, mut theme, mut language, mut dry_run) =
-        (PathBuf::from(config::DEFAULT_PATH), None, None, false);
-    while let Some(arg) = args.rest.next() {
-        match arg.as_str() {
-            "--config" => config_path = args.value(arg)?.into(),
+/// What the login screen and the lock screen start with.
+struct Start {
+    config: PathBuf,
+    theme: Option<Theme>,
+    language: Option<Language>,
+    dry_run: bool,
+}
+
+impl Default for Start {
+    fn default() -> Self {
+        Self {
+            config: PathBuf::from(config::DEFAULT_PATH),
+            theme: None,
+            language: None,
+            dry_run: false,
+        }
+    }
+}
+
+impl Start {
+    /// Takes `arg` if it is one of their options.
+    fn option(&mut self, arg: &str, args: &mut Args) -> anyhow::Result<bool> {
+        match arg {
+            "--config" => self.config = args.value(arg)?.into(),
             "--theme" => {
                 let name = args.value(arg)?;
-                theme =
+                self.theme =
                     Some(Theme::parse(name).ok_or_else(|| anyhow::anyhow!("no theme {name:?}"))?);
             }
             "--language" => {
                 let name = args.value(arg)?;
-                language = Some(
+                self.language = Some(
                     Language::parse(name).ok_or_else(|| anyhow::anyhow!("no language {name:?}"))?,
                 );
             }
-            "--dry-run" => dry_run = true,
+            "--dry-run" => self.dry_run = true,
+            _ => return Ok(false),
+        }
+        Ok(true)
+    }
+
+    /// Shows the screen, with the look last picked there, which `kept`
+    /// remembers; `lock` makes it the lock screen's view.
+    fn run(self, kept: &str, lock: Option<ViewEnd>) -> anyhow::Result<()> {
+        let mut config = Config::load(&self.config);
+        config.language = self.language.unwrap_or(config.language);
+        let setting = self.theme.clone().unwrap_or(config.theme.clone());
+        // The look picked last time, unless the settings have changed
+        // since or the command line names one.
+        let picked = self.theme.is_none().then(|| {
+            Remembered::load(kept)
+                .theme_for(setting.name())
+                .and_then(Theme::parse)
+        });
+        let mut folder = None;
+        config.theme = Theme::Paper;
+        for candidate in picked.flatten().into_iter().chain([setting.clone()]) {
+            let loaded = match &candidate {
+                Theme::Folder(name) => match themes::load_configured(&config.themes.dir, name) {
+                    Some(loaded) => Some(loaded),
+                    None => continue,
+                },
+                _ => None,
+            };
+            folder = loaded;
+            config.theme = candidate;
+            break;
+        }
+        ui::run(ui::Options {
+            config,
+            setting,
+            dry_run: self.dry_run,
+            folder,
+            preview: None,
+            lock,
+        })
+    }
+}
+
+fn greet(args: &[String]) -> anyhow::Result<()> {
+    let mut args = Args { rest: args.iter() };
+    let mut start = Start::default();
+    while let Some(arg) = args.rest.next() {
+        if !start.option(arg, &mut args)? {
+            anyhow::bail!("unknown argument {arg:?}\n{USAGE}");
+        }
+    }
+    start.run(remembered::LOGIN, None)
+}
+
+/// The lock's supervisor, or, with `--view`, the view it starts.
+fn lock(args: &[String]) -> anyhow::Result<()> {
+    let mut args = Args { rest: args.iter() };
+    let mut start = Start::default();
+    let mut view = None;
+    #[cfg(feature = "fake-pam")]
+    let mut service = lock::pam::Service::default();
+    #[cfg(not(feature = "fake-pam"))]
+    let service = lock::pam::Service::default();
+    while let Some(arg) = args.rest.next() {
+        match arg.as_str() {
+            "--view" => view = Some(args.value(arg)?.parse::<RawFd>()?),
+            #[cfg(feature = "fake-pam")]
+            "--pam-dir" => service = lock::pam::Service::fake(Path::new(args.value(arg)?)),
+            _ if start.option(arg, &mut args)? => {}
             other => anyhow::bail!("unknown argument {other:?}\n{USAGE}"),
         }
     }
-    let mut config = Config::load(&config_path);
-    config.language = language.unwrap_or(config.language);
-    let setting = theme.clone().unwrap_or(config.theme.clone());
-    // The look picked at the login screen last time, unless the settings
-    // have changed since or the command line names one.
-    let picked = theme.is_none().then(|| {
-        Remembered::load(remembered::LOGIN)
-            .theme_for(setting.name())
-            .and_then(Theme::parse)
-    });
-    let mut folder = None;
-    config.theme = Theme::Paper;
-    for candidate in picked.flatten().into_iter().chain([setting.clone()]) {
-        let loaded = match &candidate {
-            Theme::Folder(name) => match themes::load_configured(&config.themes.dir, name) {
-                Some(loaded) => Some(loaded),
-                None => continue,
-            },
-            _ => None,
-        };
-        folder = loaded;
-        config.theme = candidate;
-        break;
+    match view {
+        Some(fd) => start.run(remembered::LOCK, Some(ViewEnd::adopt(fd)?)),
+        None => lock::run(lock::Options {
+            config: start.config,
+            theme: start.theme,
+            language: start.language,
+            dry_run: start.dry_run,
+            service,
+        }),
     }
-    ui::run(ui::Options {
-        config,
-        setting,
-        dry_run,
-        folder,
-        preview: None,
-    })
 }
 
 fn run_preview(args: &[String]) -> anyhow::Result<()> {
@@ -270,6 +345,7 @@ fn run_preview(args: &[String]) -> anyhow::Result<()> {
             lock,
             outcome: outcome.clone(),
         }),
+        lock: None,
     });
     let _ = std::fs::remove_dir_all(socket_dir);
     drop(xvfb);

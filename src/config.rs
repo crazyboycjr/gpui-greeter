@@ -106,6 +106,14 @@ impl Language {
         Self::deserialize(serde::de::value::StrDeserializer::<serde::de::value::Error>::new(name))
             .ok()
     }
+
+    /// The name the settings call it by.
+    pub fn name(self) -> &'static str {
+        match self {
+            Language::English => "en",
+            Language::Chinese => "zh-CN",
+        }
+    }
 }
 
 /// A colour written as `#rrggbb`.
@@ -395,6 +403,9 @@ mod tests {
         assert_eq!(Theme::parse("Night Sky"), None);
         assert_eq!(Theme::parse("../etc"), None);
         assert_eq!(Language::parse("zh-CN"), Some(Language::Chinese));
+        for language in [Language::English, Language::Chinese] {
+            assert_eq!(Language::parse(language.name()), Some(language));
+        }
     }
 
     #[test]

@@ -1,0 +1,5 @@
+#%PAM-1.0
+# gpui-greeter lock: the password of the user who locked the screen,
+# checked as at a login, faillock and all. The lock runs as that user, so
+# pam_unix checks it through its setuid helper.
+auth       include      system-auth

@@ -1,5 +1,5 @@
-//! One press of Enter: answer PAM with what was typed and, once greetd
-//! accepts, have it start the chosen session.
+//! What was typed, and one press of Enter: answer PAM with it and, once
+//! greetd accepts, have greetd start the chosen session.
 
 use anyhow::Result;
 use zeroize::Zeroizing;
@@ -28,6 +28,57 @@ pub enum Outcome {
     },
     /// Wrong password, or PAM refused for the reason in the notice.
     Denied { notice: Option<String> },
+}
+
+/// What has been typed into the field, which leaves no copy behind: its
+/// buffer is made large enough never to grow, and one that text leaves is
+/// wiped as it is dropped.
+pub struct Typed(Zeroizing<String>);
+
+impl Default for Typed {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Typed {
+    /// Room for any password; typing beyond it is ignored.
+    const CAPACITY: usize = 1024;
+
+    pub fn new() -> Self {
+        Self(Zeroizing::new(String::with_capacity(Self::CAPACITY)))
+    }
+
+    pub fn push(&mut self, text: &str) {
+        if self.0.len() + text.len() <= Self::CAPACITY {
+            self.0.push_str(text);
+        }
+    }
+
+    pub fn pop(&mut self) {
+        let mut kept = Self::new();
+        if let Some((last, _)) = self.0.char_indices().next_back() {
+            kept.0.push_str(&self.0[..last]);
+        }
+        *self = kept;
+    }
+
+    /// The text, for sending; the field is left empty.
+    pub fn take(&mut self) -> Zeroizing<String> {
+        std::mem::take(self).0
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.chars().count()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
 }
 
 pub fn attempt(greetd: &mut Greetd, attempt: Attempt) -> Result<Outcome> {
@@ -182,5 +233,20 @@ mod tests {
         };
         assert_eq!(attempt(&mut greetd, code).unwrap(), Outcome::Started);
         daemon.join().unwrap();
+    }
+
+    #[test]
+    fn typed_text_stays_in_its_first_buffer() {
+        let mut typed = Typed::new();
+        let buffer = typed.as_str().as_ptr();
+        typed.push("pässwörd");
+        assert_eq!(typed.as_str().as_ptr(), buffer);
+        typed.pop();
+        assert_eq!(typed.as_str(), "pässwör");
+        assert_eq!(typed.len(), 7);
+        assert_eq!(&*typed.take(), "pässwör");
+        assert!(typed.is_empty());
+        typed.push(&"x".repeat(Typed::CAPACITY + 1));
+        assert!(typed.is_empty());
     }
 }
