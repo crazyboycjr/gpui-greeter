@@ -5,13 +5,13 @@ drawn with [GPUI](https://www.gpui.rs) and longbridge's
 [gpui-kit](https://github.com/longbridge/gpui-kit). It comes in three looks,
 chosen in its settings:
 
-- **Paper**: a large Fraunces clock on paper, the name and an underlined
-  password field beneath it, the session at the bottom left and Sleep,
-  Restart and Shut down at the bottom right. The paper is a sheet on a
-  wooden desk, among a pencil, a fountain pen, a cup of coffee and a
-  succulent; ledger paper; a drafting sheet, whose title block holds the
-  session and the power actions on F10, F11 and F12; or plain. Paper Night
-  is the same on a walnut desk or a dark ground.
+- **Paper**: a large Fraunces clock on paper and beneath it the avatar,
+  beside the name and an underlined password field, the session at the
+  bottom left and Sleep, Restart and Shut down at the bottom right. The
+  paper is a sheet on a wooden desk, among a pencil, a fountain pen, a cup
+  of coffee and a succulent; ledger paper; a drafting sheet, whose title
+  block holds the session and the power actions on F10, F11 and F12; or
+  plain. Paper Night is the same on a walnut desk or a dark ground.
 - **Frost**: a wallpaper, sharp, with a big clock. A click or a key blurs
   and dims it behind a round avatar, a frosted password pill, frosted power
   buttons and a session chip.
@@ -38,9 +38,14 @@ monitor's pixels per inch over 109, from the size it reports, and never
 less than a pixel. On a 27-inch 3840×2160 monitor a point is 1.5 pixels
 and the screen 2560×1440 points; on a 27-inch 2560×1440 or a 24-inch
 1920×1080 monitor, a point is a pixel. A monitor that reports no size
-counts as 2560×1440 points fitted to its pixels. Each look keeps its
-parts against the window's edges and its middle, so it holds on any size
-and shape, and `scale` in the settings makes every look larger or denser.
+counts as 2560×1440 points fitted to its pixels. The looks are as large
+as macOS's lock screen, point for point, as it is on a 27-inch display:
+13-point text, a 160 by 28 point password field, a 72-point avatar and a
+clock whose figures stand 122 points tall (the theme skill's
+[reference](skills/gpui-greeter-theme/reference.md#macos-metrics) has
+the measurements). Each look keeps its parts against the window's edges
+and its middle, so it holds on any size and shape, and `scale` in the
+settings makes every look larger or denser.
 The login form is on the primary monitor (or the one under the pointer)
 and follows the pointer to another one. Nothing in it names a monitor, a
 port or a mode.

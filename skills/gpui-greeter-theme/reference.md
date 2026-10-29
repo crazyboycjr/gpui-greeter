@@ -30,12 +30,28 @@ Place layers against the screen's edges or its centre (see `anchor`)
 rather than at fixed distances from the top left, and they keep their
 places on any size, and on 16:10, 21:9 and 4:3 too.
 
-On a 4K monitor a frame pixel is a pixel, so a theme should be as dense as
-a native interface there: body text about 24 to 28 pixels, labels 20 to
-24, a clock 200 to 320. A mockup drawn in CSS pixels converts at 1.5 frame
-pixels to a CSS pixel, which a browser on a Mac draws as a point, each
-part anchored to the edge, the corner or the centre the mockup keeps it
-to.
+Size a theme as macOS sizes its login and lock screen, at 1.5 frame
+pixels to a point (the metrics below):
+
+| what | points | frame pixels |
+| --- | --- | --- |
+| body text, labels, a session or a power action's name | 13 | 19.5 |
+| a hint or a status line under the field | 12 | 18 |
+| the user's name | 15 | 22.5 |
+| the password field, and its text | 160 by 28, 13 | 240 by 42, 19.5 |
+| an avatar | 72 | 108 |
+| the clock's figures; SF Pro's size for them | 122; 173 | 183; 260 |
+| the date over the clock, SF Pro's size | 40 | 60 |
+| a power button's icon | 26 | 39 |
+
+A clock in another font takes the size whose figures stand as tall:
+divide 183 frame pixels by the font's figure height as a share of its
+size, about 0.7 for most. A theme keeps its character at these sizes: a
+terminal's text is body text, and a clock set in a dial may stay smaller.
+Larger looks clumsy, as if the screen were small. A mockup drawn in CSS
+pixels converts at 1.5 frame pixels to a CSS pixel, which a browser on a
+Mac draws as a point, each part anchored to the edge, the corner or the
+centre the mockup keeps it to.
 
 `scale` multiplies every length of the theme around its anchor: sizes,
 offsets, gaps, paddings, borders, radii, text and its tracking. A layer
@@ -43,6 +59,74 @@ anchored to an edge keeps to it, one in the centre stays there, and shares
 like `"100%"` stay shares; a wallpaper's `blur` keeps its share of the
 picture. The settings' own `scale` (0.5 to 1.5 in
 `/etc/gpui-greeter/config.toml`) multiplies it again.
+
+## macOS metrics
+
+The sizes above are those of macOS Sonoma's and Sequoia's lock screen and
+login window, measured from Apple's own pictures of them, each read
+against its own menu bar to know its points:
+
+1. **Sonoma's screen saver giving way to the desktop**, the animation on
+   apple.com/macos/sonoma (2023), `…/anim/screen-saver/large_2x.mp4`:
+   1752 by 984 pixels, a 24-inch iMac's screen of 2240 by 1260 points,
+   so 0.782 pixels to a point. Its last frames show the desktop, whose
+   menu bar's words (Finder, File, View, Window, Help) come out as
+   13-point SF Pro at that scale, 12.9 to 13.3. The lock screen fades in
+   over the screen saver, so a frame without it (88) and one with it
+   (140) give each part's coverage alone.
+2. **Sequoia's login window** in Apple Support's "If you forgot your Mac
+   login password" (102633),
+   `macos-sequoia-login-window-password-entry.png`, 1632 by 996: a 13-inch
+   MacBook Air, whose screen, 1336 by 868 pixels, is as tall for its
+   width as 2560 by 1664. It shows 1024 by 666 points, the Air's largest
+   text, where its menu bar's "U.S." comes out at about 13 points and the
+   name at 15: 1.305 pixels to a point.
+3. **Sonoma's login window**, the same article in 2024,
+   `macos-sonoma-macbook-pro-16in-login-window-password-entry.png`, 1560 by
+   954: a 16-inch MacBook Pro whose screen, 1277 by 825 pixels, shows 1496
+   by 967 points, where its "U.S." comes out at 13: 0.854 pixels to a
+   point.
+4. **Sequoia's startup options** in Apple Support,
+   `macos-sequoia-macbook-air-startup-options-recovery-continue.png`, whose
+   "ABC" input menu and button labels come out at 13 points at 1.13 pixels
+   to a point.
+
+An edge is where a part's coverage crosses one half, between pixel
+centres. A text's size is the one at which Apple's SF Pro, with the
+tracking the Human Interface Guidelines give that size, inks as wide; its
+weight is the one that then lays as much ink. 2 and 3 agree where both
+show a part: the hint's first line, "Your password is required to", is
+166.5 points wide in each, and the field 160.
+
+| part | macOS | measured |
+| --- | --- | --- |
+| clock | SF Pro Display Semibold, its figures 8.48% of the screen's height, its size 12% | figures 106.6 points of 1260 in 1 (8.46%), 8.47% in 2, 8.49% in 3; the glyphs' widths are Semibold's within 2%, the ink within 1%; set about 3% of its size tighter than the font's own spacing |
+| the clock's place | the figures' tops 14.4% of the height down, the baseline 22.8% | 1, 2, 3 |
+| date | SF Pro Display Semibold, its capitals 2.0% of the height: 34.5 points on 1260 | 1, by width and ink; the capitals 2.0% in 1 and 3, 1.8% in 2 |
+| the date's place | the capitals' tops 9.65% of the height down | 1, 2, 3 |
+| avatar | 5.0% of the height across | 32.8 points of 666 in 2, 48.7 of 967 in 3 |
+| name | SF Pro Semibold, 15 points | 14.98 in 1, its ink between Semibold's and Bold's; 15.0 in 2; 16 in 3 |
+| password field | 160 by 28 points, its ends round | 159.9 by 28.2 in 2, 159.4 by 26.9 in 3 |
+| its placeholder | SF Pro Medium, 13 points, 13 to 15 in from the left | 13.05 for two strings in 2 and 3, where Regular would be 13.5 |
+| help button | a 22-point ring 1.5 thick, 9 points right of the field | 2 |
+| the hint under it | SF Pro Semibold, 12 points, centred, lines 15 apart | 11.99 in 1, its ink within 0.2%; 11.97 in 2 and 3 |
+| gaps | from the avatar to the name's capitals 18.5 points, from the name's baseline to the field 18.4, from the field to the hint's capitals 11 | 2 and 3 |
+| power actions | none on the lock screen: Sleep, Restart and Shut Down are a menu under ⏻ at the menu bar's right end | 2, 3 |
+| power buttons | line icons 26 points across, 13-point Regular labels 13 under them, 103 apart, centre to centre | 4 |
+| menu bar | 24 points tall, its items 13 points | its words 12.9 to 13.3 in 1; its height is AppKit's own, `NSStatusBar.system.thickness` |
+
+macOS scales the clock, the date and the avatar with the screen's height
+and keeps the rest in points: the clock's share is the same on a 666, a
+967 and a 1260-point screen, and the field 160 points on two of them.
+The greeter takes no shares. Its sizes are what macOS draws on a 27-inch
+display, 1440 points tall, as The frame's table gives them: a clock of
+173 points, a 40-point date, a 72-point avatar.
+
+What these pictures cannot say: the login window's own Sleep, Restart and
+Shut Down buttons, which show only when the settings ask, are in none of
+Apple's pictures found, so the startup options' buttons stand in for
+them; that macOS goes on scaling the clock on screens taller than 1260
+points is assumed; and the dots of a typed password show nowhere.
 
 ## theme.toml
 
@@ -58,7 +142,7 @@ scale = 1                  # every length multiplied by this, 0.25 to 4
 
 [text]                     # the text style every layer inherits
 font = "Inter"
-size = 25
+size = 19.5                # 13 points, macOS's body text, and the default
 color = "#a8917c"
 
 [strings.en]               # the theme's words: {t.hint}
@@ -185,7 +269,7 @@ Text style, which layers inherit from the one they sit in and from `[text]`:
 
 | key | what |
 | --- | --- |
-| `font`, `size`, `weight`, `italic` | the family, frame pixels, the weight, `true` for italic |
+| `font`, `size`, `weight`, `italic` | the family (Inter by default), frame pixels (19.5, 13 points, by default), the weight, `true` for italic |
 | `fallback` | a family, or a list of them, for what `font` lacks, tried before the greeter's own (see Fonts); a family the system lacks is passed over |
 | `color` | text, an svg's `tint`, a field's caret by default, and a border by default |
 | `tracking` | letter spacing in frame pixels (CSS letter-spacing) |

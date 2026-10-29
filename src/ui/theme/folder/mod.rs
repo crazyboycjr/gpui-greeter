@@ -44,8 +44,9 @@ use slides::Made;
 
 /// The points that make one frame pixel.
 const POINT: f32 = 1.0 / FRAME_PIXELS_PER_POINT;
-/// Text is this size, in frame pixels, unless a theme says otherwise.
-const TEXT_SIZE: f32 = 38.4;
+/// Text is this size, in frame pixels, unless a theme says otherwise:
+/// macOS's body text, 13 points.
+const TEXT_SIZE: f32 = 19.5;
 
 /// What a window needs to draw a theme folder.
 pub struct Frame<'a> {

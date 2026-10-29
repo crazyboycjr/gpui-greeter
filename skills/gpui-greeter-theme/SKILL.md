@@ -124,9 +124,14 @@ language lines up, and set a row of text on one line with `align =
 "baseline"`. Give each state its look with `[layer.on.<state>]` tables, and
 keep transitions short (150 to 500 ms).
 
-Size everything as a native interface on a 4K monitor would be, where one
-frame pixel is one pixel: body text about 24 to 28 pixels, labels 20 to
-24, a clock 200 to 320. Larger looks clumsy, as if the screen were small.
+Size everything as macOS sizes its login and lock screen, point for
+point, at 1.5 frame pixels to a point: body text 13 points, 19.5 frame
+pixels; a hint 12 (18); the user's name 15 (22.5); the password field 160
+by 28 points (240 by 42) with 13-point text; an avatar 72 (108); a clock
+whose figures stand 122 points tall (183 frame pixels), as 173 points of
+SF Pro do. The reference's "macOS metrics" says where each comes from. A
+theme keeps its character at these sizes, a console's text as body text;
+larger looks clumsy, as if the screen were small.
 
 A mockup drawn in CSS pixels carries over at 1.5 times its lengths, each
 part anchored where the mockup anchors it:

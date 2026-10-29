@@ -2,8 +2,10 @@
 # the seconds. A small example of the theme folder format; reference.md,
 # beside this folder, documents every key.
 #
-# Lengths are pixels of a 3840 by 2160 frame, which each monitor scales to
-# fit. Colours are #rrggbb or #rrggbbaa.
+# Lengths are pixels of a 3840 by 2160 frame, 1.5 to a point, sized as
+# macOS sizes its lock screen: text at 12 points (18), the field's at 13
+# (19.5), the clock's figures 122 points tall (183). Colours are #rrggbb or
+# #rrggbbaa.
 
 format = 1
 name = "Dial"
@@ -18,10 +20,10 @@ fonts = ["fonts/NotoSerifDisplay-Light.ttf"]
 # What every text inherits unless a layer sets its own.
 [text]
 font = "Inter"
-size = 25
+size = 18
 weight = 500
 color = "#a8917c"
-tracking = 5.6
+tracking = 4
 
 [strings.en]
 date = "{date:%A, %-d %B}"
@@ -111,8 +113,8 @@ kind = "text"
 text = "{time}"
 font = "Noto Serif Display"
 weight = 300
-size = 264
-tracking = -3.2
+size = 255
+tracking = -3.1
 color = "#ece4d8"
 features = ["lnum", "tnum"]
 
@@ -129,13 +131,13 @@ tracking = 3.2
 [[layer]]
 id = "facts"
 layout = "column"
-gap = 9.6
+gap = 7.2
 anchor = "top-left"
 x = 104
 y = 96
-size = 23
+size = 18
 weight = 400
-tracking = 2.4
+tracking = 1.8
 color = "#7d6c5d"
 
 [[layer]]
@@ -158,23 +160,26 @@ text = "{t.up} {uptime}"
 id = "form"
 layout = "column"
 align = "center"
-gap = 27
+gap = 18
 anchor = "center"
-y = 512
+y = 500
 transition = { duration = 300, easing = "ease" }
 
 [layer.on.rest]
 visible = false
 
+# The name and the field on one line, as wide as macOS's field and the
+# name, and as tall as macOS's field: 28 points, 42 frame pixels.
 [[layer]]
 id = "line"
 parent = "form"
 layout = "row"
 align = "center"
-gap = 24
-width = 672
-padding = [0, 3.2, 14, 3.2]
-border = [0, 0, 2.9, 0]
+gap = 18
+width = 336
+height = 42
+padding = [0, 2.4, 0, 2.4]
+border = [0, 0, 1.5, 0]
 border_color = "#e8d5c047"
 transition = 200
 
@@ -195,11 +200,12 @@ case = "upper"
 parent = "line"
 kind = "field"
 grow = 1
-size = 38
+size = 19.5
 weight = 400
-tracking = 8
+tracking = 4
 color = "#ece4d8"
 caret_color = "#e8a33d"
+caret_width = 2.4
 
 # One line of status under the field, its words by state.
 [[layer]]
@@ -245,7 +251,7 @@ visible = true
 id = "session"
 layout = "row"
 align = "center"
-gap = 18
+gap = 12
 anchor = "bottom-left"
 x = 104
 y = -96
@@ -270,14 +276,14 @@ parent = "session"
 kind = "svg"
 file = "art/chevron.svg"
 tint = true
-width = 19
+width = 14
 
 # Sleep, restart and shut down, bottom right. The first press arms an
 # action; a second within four seconds runs it.
 [[layer]]
 id = "power"
 layout = "row"
-gap = 51
+gap = 36
 anchor = "bottom-right"
 x = -104
 y = -96
@@ -287,7 +293,7 @@ color = "#a8917c"
 id = "sleep"
 parent = "power"
 layout = "row"
-gap = 13
+gap = 9
 action = "suspend"
 
 [layer.on.hover]
@@ -312,7 +318,7 @@ case = "upper"
 id = "restart"
 parent = "power"
 layout = "row"
-gap = 13
+gap = 9
 action = "reboot"
 
 [layer.on.hover]
@@ -337,7 +343,7 @@ case = "upper"
 id = "shut-down"
 parent = "power"
 layout = "row"
-gap = 13
+gap = 9
 action = "poweroff"
 
 [layer.on.hover]
