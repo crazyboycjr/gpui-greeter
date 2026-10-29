@@ -111,6 +111,7 @@ show a part: the hint's first line, "Your password is required to", is
 | help button | a 22-point ring 1.5 thick, 9 points right of the field | 2 |
 | the hint under it | SF Pro Semibold, 12 points, centred, lines 15 apart | 11.99 in 1, its ink within 0.2%; 11.97 in 2 and 3 |
 | gaps | from the avatar to the name's capitals 18.5 points, from the name's baseline to the field 18.4, from the field to the hint's capitals 11 | 2 and 3 |
+| the user's place | low, the name's baseline about 105 points above the screen's bottom, whatever its height | 105.5 of 1260 in 1, 106.3 of 666 in 2; 124.7 of 967 in 3 |
 | power actions | none on the lock screen: Sleep, Restart and Shut Down are a menu under ⏻ at the menu bar's right end | 2, 3 |
 | power buttons | line icons 26 points across, 13-point Regular labels 13 under them, 103 apart, centre to centre | 4 |
 | menu bar | 24 points tall, its items 13 points | its words 12.9 to 13.3 in 1; its height is AppKit's own, `NSStatusBar.system.thickness` |
@@ -120,7 +121,9 @@ and keeps the rest in points: the clock's share is the same on a 666, a
 967 and a 1260-point screen, and the field 160 points on two of them.
 The greeter takes no shares. Its sizes are what macOS draws on a 27-inch
 display, 1440 points tall, as The frame's table gives them: a clock of
-173 points, a 40-point date, a 72-point avatar.
+173 points, a 40-point date, a 72-point avatar. Frost, whose Sleep,
+Restart and Shut Down stand where macOS sets the name, keeps the name
+that 105.5 points above them instead.
 
 What these pictures cannot say: the login window's own Sleep, Restart and
 Shut Down buttons, which show only when the settings ask, are in none of

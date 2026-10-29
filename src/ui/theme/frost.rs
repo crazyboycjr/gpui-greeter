@@ -196,11 +196,16 @@ fn login(view: &View) -> impl IntoElement {
     div()
         .absolute()
         .inset_0()
-        .flex()
-        .flex_col()
-        .items_center()
-        .justify_center()
-        .child(form(view))
+        .child(
+            div()
+                .absolute()
+                .left_0()
+                .right_0()
+                .bottom(u(FORM_BOTTOM))
+                .flex()
+                .justify_center()
+                .child(form(view)),
+        )
         .child(power_buttons(view))
         // The lock screen's session is the one running.
         .when(!greeter.lock_screen, |login| login.child(session(view)))
@@ -300,7 +305,6 @@ fn form(view: &View) -> impl IntoElement {
         });
     div()
         .relative()
-        .mt(u(-24.))
         .flex()
         .flex_col()
         .items_center()
@@ -375,8 +379,21 @@ fn power_buttons(view: &View) -> impl IntoElement {
         .child(button(Action::PowerOff, "shutdown", "icons/power.svg"))
 }
 
-/// Inter's descent, in ems, which a label's box holds under its baseline.
+/// Inter's ascent and descent, in ems, which a label's box holds above and
+/// under its baseline.
+const ASCENT: f32 = 0.96875;
 const DESCENT: f32 = 0.2421875;
+
+/// The top of the power buttons, in points from the bottom: the labels'
+/// baselines at 64, their boxes, then 9.9 to the 26-point icons.
+const POWER_TOP: f32 = 64. + 13. * ASCENT + 9.9 + 26.;
+
+/// macOS sets the user's name with its baseline 105.5 points above the
+/// bottom of the screen, where Frost has its power buttons, so the name
+/// keeps that distance above them instead. The form ends under the name's
+/// box, the 15-point gap, the 28-point field and the line for what PAM
+/// says.
+const FORM_BOTTOM: f32 = POWER_TOP + 105.5 - (15. * DESCENT + 15. + 28. + 8. + 15.);
 
 /// The session that starts, quiet in the bottom left corner; Tab and F2
 /// choose another.
