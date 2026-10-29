@@ -139,35 +139,42 @@ impl X11 {
             .monitors;
         Ok(monitors
             .into_iter()
-            .map(|monitor| Monitor {
-                rect: Rect {
-                    x: monitor.x.into(),
-                    y: monitor.y.into(),
-                    width: monitor.width.into(),
-                    height: monitor.height.into(),
-                },
-                size_mm: (monitor.width_in_millimeters, monitor.height_in_millimeters),
-                primary: monitor.primary,
-                refresh: monitor
-                    .outputs
-                    .first()
-                    .and_then(|&output| self.refresh(output, &resources)),
+            .map(|monitor| {
+                let output = monitor.outputs.first().and_then(|&output| {
+                    self.conn
+                        .randr_get_output_info(output, x11rb::CURRENT_TIME)
+                        .ok()?
+                        .reply()
+                        .ok()
+                });
+                // A monitor that reports no size, as one that has dropped
+                // off DisplayPort does, gets one X makes up from the
+                // screen's resolution; its output tells. A monitor defined
+                // by hand keeps the size it was given.
+                let size_mm = match &output {
+                    Some(info) if monitor.automatic => (info.mm_width, info.mm_height),
+                    _ => (monitor.width_in_millimeters, monitor.height_in_millimeters),
+                };
+                Monitor {
+                    rect: Rect {
+                        x: monitor.x.into(),
+                        y: monitor.y.into(),
+                        width: monitor.width.into(),
+                        height: monitor.height.into(),
+                    },
+                    size_mm,
+                    primary: monitor.primary,
+                    refresh: output.and_then(|info| self.refresh(info.crtc, &resources)),
+                }
             })
             .collect())
     }
 
     fn refresh(
         &self,
-        output: randr::Output,
+        crtc: randr::Crtc,
         resources: &randr::GetScreenResourcesCurrentReply,
     ) -> Option<f32> {
-        let crtc = self
-            .conn
-            .randr_get_output_info(output, x11rb::CURRENT_TIME)
-            .ok()?
-            .reply()
-            .ok()?
-            .crtc;
         let mode = self
             .conn
             .randr_get_crtc_info(crtc, x11rb::CURRENT_TIME)
