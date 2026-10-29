@@ -11,6 +11,8 @@ use gpui_kit::{
     IntoElement, LayoutId, Pixels, Window,
 };
 
+use crate::themes;
+
 fn keyframes(frames: &[(f32, f32)], easing: Easing) -> Keyframes<f32> {
     Keyframes::try_new(
         frames
@@ -24,32 +26,21 @@ fn css_ease() -> Easing {
     Easing::Ease
 }
 
-/// A wrong password: the field shakes sideways, in points.
+/// A wrong password: the field shakes sideways, in points, as every look
+/// and theme folder shakes it.
 pub struct Shake;
 
 impl Shake {
     pub fn animation() -> Animation {
-        Animation::new(Duration::from_millis(450))
+        Animation::new(themes::SHAKE_DURATION)
     }
 
     pub fn frames() -> Keyframes<f32> {
-        let easing = Easing::cubic_bezier(0.36, 0.07, 0.19, 0.97).unwrap_or_default();
-        keyframes(
-            &[
-                (0.0, 0.0),
-                (0.1, -2.0),
-                (0.2, 4.0),
-                (0.3, -8.0),
-                (0.4, 8.0),
-                (0.5, -8.0),
-                (0.6, 8.0),
-                (0.7, -8.0),
-                (0.8, 4.0),
-                (0.9, -2.0),
-                (1.0, 0.0),
-            ],
-            easing,
-        )
+        let themes::Easing::Bezier([x1, y1, x2, y2]) = themes::SHAKE_EASING else {
+            unreachable!("the shake eases by a curve")
+        };
+        let easing = Easing::cubic_bezier(x1, y1, x2, y2).unwrap_or_default();
+        keyframes(&themes::SHAKE, easing)
     }
 }
 
@@ -254,5 +245,21 @@ impl Glitch {
         }
         // steps(2) over four keyframes, twice: a pose every eighth of the run.
         POSES[((t * 8.0) as usize) % POSES.len()]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_field_shakes_by_the_shake_every_look_shares() {
+        let frames = Shake::frames();
+        for &(at, points) in &themes::SHAKE {
+            assert!((frames.sample(at) - points).abs() < 1e-3, "at {at}");
+        }
+        assert_eq!(Shake::animation().duration, themes::SHAKE_DURATION);
+        let widest = themes::SHAKE.iter().map(|&(_, points)| points.abs());
+        assert!(widest.fold(0.0, f32::max) <= 6.0);
     }
 }

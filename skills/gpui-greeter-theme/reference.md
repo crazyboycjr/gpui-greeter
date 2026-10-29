@@ -511,8 +511,15 @@ Easings are `linear`, `ease` (the default), `ease-in`, `ease-out`,
 
 A motion moves a layer by keyframes, as a CSS animation does. `motion` on
 the layer runs from when the greeter starts; in a state's `on` table it
-runs while in that state, from when the state began. Either is one table or
-an array of them.
+runs while in that state, from when the state began. Either is one table,
+`"shake"`, or an array of them.
+
+`motion = "shake"` in `[layer.on.error]` shakes a layer as every built-in
+look shakes its password field on a refusal, and as macOS does: three
+swings sideways that die away, 6, 4 and 2 points, left, right, left, over
+360 ms, each easing in and out. It is as large whatever the theme's
+`scale`. Shake the field, or the row it sits in, this way rather than by
+keyframes of the theme's own: a larger shake reads as alarm.
 
 | key | what |
 | --- | --- |
@@ -528,9 +535,9 @@ an array of them.
 # A lit tick that goes round once a minute, a tick at a time.
 motion = { property = "rotate", from = 0, to = 360, duration = 60000, easing = "steps(60)", repeat = "infinite", sync = "clock" }
 
-# A shake on a wrong password.
+# A layer that dips and comes back on a wrong password.
 [layer.on.error]
-motion = { property = "x", keyframes = [[0, 0], [0.2, -10], [0.4, 17], [0.6, -17], [0.8, 10], [1, 0]], duration = 450 }
+motion = { property = "y", keyframes = [[0, 0], [0.3, 6], [1, 0]], duration = 400, easing = "ease-out" }
 
 # A blink: on for half of each second.
 motion = { property = "opacity", keyframes = [[0, 1], [0.5, 1], [0.5, 0], [1, 0]], duration = 1000, repeat = "infinite" }

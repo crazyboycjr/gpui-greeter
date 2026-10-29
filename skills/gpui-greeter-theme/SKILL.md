@@ -31,7 +31,9 @@ choices the user can react to:
   choice, the power actions, anything else (a fetch block, a logo, a
   status bar). Show a rough sketch in words or ASCII before the details.
 - Which states should look different: a rest screen before the first key
-  (`rest = true`), typing, checking, a refused password.
+  (`rest = true`), typing, checking, a refused password. A refused
+  password shakes the field by `motion = "shake"`, the small shake every
+  built-in look shares, as on a Mac; offer no larger one.
 - No hints. As on macOS, the screen says nothing until there is something
   to say: no "Press Enter to log in" under the field, no "Press any key"
   or "Click anywhere" at rest. The line under the field speaks only when

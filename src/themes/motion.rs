@@ -213,6 +213,20 @@ pub struct Keyframe {
     pub easing: Option<Easing>,
 }
 
+/// A refused password's shake, as macOS shakes its password field: three
+/// swings sideways that die away, 6, 4 and 2 points, each easing in and
+/// out. Frost and Paper shake their field by it, and a theme folder's
+/// layer by `motion = "shake"`. Keyframes as (at, points).
+pub const SHAKE: [(f32, f32); 5] = [
+    (0.0, 0.0),
+    (1.0 / 6.0, -6.0),
+    (0.5, 4.0),
+    (5.0 / 6.0, -2.0),
+    (1.0, 0.0),
+];
+pub const SHAKE_DURATION: Duration = Duration::from_millis(360);
+pub const SHAKE_EASING: Easing = Easing::Bezier([0.42, 0.0, 0.58, 1.0]);
+
 /// A layer moved by keyframes, as a CSS animation moves an element.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Motion {
@@ -234,6 +248,28 @@ pub struct Motion {
 }
 
 impl Motion {
+    /// The shake, in the frame pixels of a theme drawn at `scale`, of which
+    /// a point is 1.5 at scale 1, so that it is as large in every theme.
+    pub fn shake(scale: f32) -> Self {
+        Motion {
+            property: Animated::X,
+            frames: SHAKE
+                .iter()
+                .map(|&(at, points)| Keyframe {
+                    at,
+                    value: points * 1.5 / scale,
+                    easing: None,
+                })
+                .collect(),
+            duration: SHAKE_DURATION,
+            easing: SHAKE_EASING,
+            repeat: Some(1),
+            alternate: false,
+            delay: Duration::ZERO,
+            clock: false,
+        }
+    }
+
     /// The value `elapsed` after the motion started, or `None` while it
     /// waits for its delay and once it is over.
     pub fn value_at(&self, elapsed: Duration) -> Option<f32> {

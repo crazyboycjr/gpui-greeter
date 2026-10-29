@@ -42,6 +42,8 @@ const LONGEST: Duration = Duration::from_secs(60);
 struct Reader<'a> {
     text: &'a str,
     problems: &'a mut Vec<Problem>,
+    /// The theme's `scale`, once read.
+    scale: f32,
 }
 
 impl Reader<'_> {
@@ -453,6 +455,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
     let mut r = Reader {
         text: &text,
         problems,
+        scale: 1.0,
     };
     let mut assets = Assets {
         dir,
@@ -487,6 +490,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
         .number_in(&mut r, "rest_after", 0.0..86_400.0)
         .unwrap_or(60.0);
     let scale = top.number_in(&mut r, "scale", 0.25..4.0).unwrap_or(1.0);
+    r.scale = scale;
     if top.item("welcome").is_some() {
         r.warn(
             top.span("welcome"),
@@ -1171,33 +1175,53 @@ fn read_easing(f: &mut Fields, r: &mut Reader, key: &str) -> Option<Easing> {
     }
 }
 
+/// A motion as theme.toml gives it: a table, or the name of one the
+/// greeter knows.
+enum GivenMotion<'a> {
+    Table(&'a dyn TableLike),
+    Named(&'a str),
+}
+
 fn read_motions(f: &mut Fields, r: &mut Reader, what: &str) -> Vec<Motion> {
+    const WANTED: &str = "a table, \"shake\", or an array of them";
     let Some(item) = f.item("motion") else {
         return Vec::new();
     };
-    let mut tables: Vec<(&dyn TableLike, Option<Range<usize>>)> = Vec::new();
+    let mut given: Vec<(GivenMotion, Option<Range<usize>>)> = Vec::new();
     match item {
         Item::ArrayOfTables(array) => {
             for table in array.iter() {
-                tables.push((table, table.span()));
+                given.push((GivenMotion::Table(table), table.span()));
             }
         }
         Item::Value(toml_edit::Value::Array(array)) => {
             for value in array.iter() {
-                match value.as_inline_table() {
-                    Some(table) => tables.push((table, value.span())),
-                    None => f.wrong(r, "motion", "a table, or an array of them"),
+                match (value.as_inline_table(), value.as_str()) {
+                    (Some(table), _) => given.push((GivenMotion::Table(table), value.span())),
+                    (_, Some(name)) => given.push((GivenMotion::Named(name), value.span())),
+                    _ => f.wrong(r, "motion", WANTED),
                 }
             }
         }
-        item => match item.as_table_like() {
-            Some(table) => tables.push((table, item_span(item))),
-            None => f.wrong(r, "motion", "a table, or an array of them"),
+        item => match (item.as_table_like(), item.as_str()) {
+            (Some(table), _) => given.push((GivenMotion::Table(table), item_span(item))),
+            (_, Some(name)) => given.push((GivenMotion::Named(name), item_span(item))),
+            _ => f.wrong(r, "motion", WANTED),
         },
     }
-    tables
+    given
         .into_iter()
-        .filter_map(|(table, span)| read_motion(table, span, r, what))
+        .filter_map(|(motion, span)| match motion {
+            GivenMotion::Table(table) => read_motion(table, span, r, what),
+            GivenMotion::Named("shake") => Some(Motion::shake(r.scale)),
+            GivenMotion::Named(name) => {
+                r.error(
+                    span,
+                    format!("{what}: no motion is called {name:?}; there is \"shake\""),
+                );
+                None
+            }
+        })
         .collect()
 }
 
@@ -2598,6 +2622,51 @@ weight = 500
             "{warnings:#?}"
         );
         assert_eq!(warnings.len(), 3, "{warnings:#?}");
+    }
+
+    #[test]
+    fn a_layer_shakes_by_the_shake_every_look_shares() {
+        let (folder, problems) = theme(
+            r##"format = 1
+scale = 0.75
+[[layer]]
+id = "line"
+kind = "text"
+text = "{typed}"
+[layer.on.error]
+motion = "shake"
+[[layer]]
+kind = "text"
+text = "{time}"
+motion = ["shake", { property = "y", from = 0, to = 3, duration = 100 }]
+"##,
+        );
+        assert!(errors(&problems).is_empty(), "{problems:#?}");
+        let folder = folder.unwrap();
+        let shake = &folder.layers[0].overrides[0].motions[0];
+        assert_eq!(shake, &Motion::shake(0.75));
+        assert_eq!(shake.property, Animated::X);
+        assert_eq!(shake.duration, Duration::from_millis(360));
+        // Six points to the left first, in frame pixels at scale 0.75.
+        assert_eq!(shake.frames[1].value, -12.0);
+        let both = &folder.layers[1].motions;
+        assert_eq!(both.len(), 2);
+        assert_eq!(both[1].property, Animated::Y);
+
+        let (_, problems) = theme(
+            r##"format = 1
+[[layer]]
+kind = "text"
+text = "{time}"
+motion = "wobble"
+"##,
+        );
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.to_string().contains("no motion is called \"wobble\"")),
+            "{problems:#?}"
+        );
     }
 
     #[test]

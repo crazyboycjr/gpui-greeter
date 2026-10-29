@@ -30,7 +30,7 @@ pub use files::{
 };
 pub use keys::{Action, Chord, Held, Keymap, TileAction};
 pub use layer::*;
-pub use motion::{Animated, Easing, Motion, Transition};
+pub use motion::{Animated, Easing, Motion, SHAKE, SHAKE_DURATION, SHAKE_EASING, Transition};
 pub use parse::{BUILT_IN_STRINGS, sized, static_size};
 pub use template::{Binding, Fill, Piece, Template, format_time, uptime};
 
