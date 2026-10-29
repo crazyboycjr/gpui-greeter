@@ -1,6 +1,6 @@
-//! Paper: a large serif clock on warm paper, the name and an underlined
-//! password field beneath it, the session at the bottom left and the power
-//! actions at the bottom right. Night is the same on a dark ground. The
+//! Paper: a large serif clock on warm paper and beneath it the avatar,
+//! beside the name, an underlined password field and the status; the
+//! session at the bottom left and the power actions at the bottom right. Night is the same on a dark ground. The
 //! paper is a sheet on a desk, ledger paper, a drafting sheet, whose title
 //! block takes the session and the power actions, or plain.
 
@@ -103,7 +103,7 @@ pub fn render(view: &View, night: bool) -> AnyElement {
             .child(
                 label(greeter.machine.hostname.clone())
                     .font("Inter", FontWeight::LIGHT)
-                    .size(13.)
+                    .size(12.)
                     .color(ink)
                     .tracking_em(0.1),
             ),
@@ -166,13 +166,14 @@ fn zones(view: &View, palette: &Palette) -> impl IntoElement {
 fn main_column(view: &View, palette: &Palette) -> impl IntoElement {
     let greeter = view.greeter;
     let ink = color(palette.ink, 1.0);
+    // Figures as tall as macOS's lock screen clock's on a 27-inch display.
     let clock = label(i18n::clock(&greeter.now, false))
         .font(SERIF_CLOCK, FontWeight::LIGHT)
-        .size(184.)
+        .size(168.)
         .line_height(0.9)
-        .tracking(-5.)
+        .tracking(-4.6)
         .color(ink);
-    let date = div().mt(u(26.)).opacity(0.68).child(
+    let date = div().mt(u(22.)).opacity(0.68).child(
         label(i18n::long_date(greeter.config.language, &greeter.now))
             .font("Inter", FontWeight::LIGHT)
             .size(20.)
@@ -211,8 +212,12 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
     let name = user
         .map(|user| user.display_name.clone())
         .unwrap_or_default();
+    let switches = greeter.users.len() > 1;
+    // As large as macOS's on a 27-inch display, beside the name, the field
+    // and the status, which stand as tall.
     let avatar = div()
-        .size(u(34.))
+        .id("avatar")
+        .size(u(72.))
         .flex_shrink_0()
         .rounded_full()
         .border(u(1.))
@@ -221,27 +226,28 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
         .flex()
         .items_center()
         .justify_center()
+        .when(switches, |avatar| {
+            avatar
+                .cursor_pointer()
+                .on_click(view.on(|greeter, cx| greeter.next_user(1, cx)))
+        })
         .child(match user.and_then(|user| user.avatar.clone()) {
             Some(path) => img(path).size_full().rounded_full().into_any_element(),
             None => label(user.map(|user| user.initial()).unwrap_or_default())
                 .font("Inter", FontWeight::LIGHT)
-                .size(16.)
+                .size(30.)
                 .color(ink)
                 .into_any_element(),
         });
     let who = div()
         .id("user")
-        .flex()
-        .items_center()
-        .gap(u(12.))
-        .when(greeter.users.len() > 1, |row| {
-            row.cursor_pointer()
+        .when(switches, |name| {
+            name.cursor_pointer()
                 .on_click(view.on(|greeter, cx| greeter.next_user(1, cx)))
         })
-        .child(avatar)
         .child(
             label(name)
-                .size(18.)
+                .size(15.)
                 .font("Inter", FontWeight::MEDIUM)
                 .tracking_em(0.02)
                 .color(ink),
@@ -249,7 +255,7 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
     let look = FieldLook {
         family: "Inter",
         weight: FontWeight::LIGHT,
-        size: 20.,
+        size: 13.,
         color: ink,
         tracking: 0.32,
         placeholder: color(palette.ink, 0.55),
@@ -257,12 +263,13 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
         caret: accent,
         centered: false,
     };
+    // macOS's password field: 160 by 28 points.
     let field = div()
         .relative()
-        .w(u(440.))
-        .pt(u(10.))
-        .pb(u(12.))
-        .border_b(u(1.5))
+        .w(u(160.))
+        .pt(u(6.))
+        .pb(u(6.))
+        .border_b(u(1.))
         .border_color(underline)
         .child(field_text(view, &look, greeter.strings.password))
         .with_animation(("shake", greeter.denials as usize), Shake::animation(), {
@@ -270,13 +277,20 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
             move |field, t| field.left(u(frames.sample(t)))
         });
     div()
-        .mt(u(92.))
+        .mt(u(56.))
         .flex()
-        .flex_col()
-        .gap(u(18.))
-        .child(who)
-        .child(field)
-        .child(status_line(view, palette, accent))
+        .items_center()
+        .gap(u(16.))
+        .child(avatar)
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(u(6.))
+                .child(who)
+                .child(field)
+                .child(status_line(view, palette, accent)),
+        )
 }
 
 fn status_line(view: &View, palette: &Palette, accent: Hsla) -> impl IntoElement {
@@ -284,11 +298,11 @@ fn status_line(view: &View, palette: &Palette, accent: Hsla) -> impl IntoElement
     let s = greeter.strings;
     let ink = |alpha| color(palette.ink, alpha);
     let error = color(palette.error, 1.0);
-    let line = div().h(u(20.)).flex().items_center().gap(u(8.));
+    let line = div().h(u(15.)).flex().items_center().gap(u(6.));
     let text = |text: &str, color: Hsla| {
         label(text.to_string())
             .font("Inter", FontWeight::LIGHT)
-            .size(13.)
+            .size(12.)
             .tracking_em(0.04)
             .color(color)
     };
@@ -314,7 +328,7 @@ fn dots(color: Hsla) -> impl IntoElement {
             .child(
                 label("\u{00B7}")
                     .font("Inter", FontWeight::LIGHT)
-                    .size(13.)
+                    .size(12.)
                     .color(color),
             )
             .with_animation(("dot", index), Pulse::animation(), move |dot, t| {
@@ -332,8 +346,8 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .id("session")
         .flex()
         .items_center()
-        .gap(u(8.))
-        .py(u(12.))
+        .gap(u(6.))
+        .py(u(8.))
         .cursor_pointer()
         .opacity(if greeter.menu.is_some() { 1.0 } else { 0.7 })
         .hover(|button| button.opacity(1.0))
@@ -342,13 +356,13 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .child(
             label(s.session)
                 .font("Inter", FontWeight::LIGHT)
-                .size(14.)
+                .size(13.)
                 .tracking_em(0.04)
                 .color(ink),
         )
         .child(
             label(greeter.session_name().to_string())
-                .size(14.)
+                .size(13.)
                 .font("Inter", FontWeight::MEDIUM)
                 .tracking_em(0.04)
                 .color(ink),
@@ -356,14 +370,14 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .child(
             svg()
                 .path("icons/caret-up.svg")
-                .size(u(12.))
+                .size(u(10.))
                 .text_color(ink),
         );
     let power = |action: Action, id: &'static str| {
         let armed = greeter.status() == Status::Confirm(action);
         div()
             .id(id)
-            .py(u(12.))
+            .py(u(8.))
             .cursor_pointer()
             .opacity(if armed { 1.0 } else { 0.7 })
             .hover(|button| button.opacity(1.0))
@@ -371,7 +385,7 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
             .child(
                 label(greeter.action_name(action))
                     .font("Inter", FontWeight::LIGHT)
-                    .size(14.)
+                    .size(13.)
                     .tracking_em(0.04)
                     .color(if armed { accent } else { ink }),
             )
@@ -380,14 +394,14 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .absolute()
         .left(u(160.))
         .right(u(right))
-        .bottom(u(56.))
+        .bottom(u(48.))
         .flex()
         .justify_between()
         .items_end()
         .child(
             div()
                 .flex()
-                .gap(u(36.))
+                .gap(u(28.))
                 // The lock screen's session is the one running.
                 .when(!greeter.lock_screen, |left| {
                     left.child(
@@ -396,8 +410,8 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
                             .when_some(greeter.menu, |anchor, highlighted| {
                                 anchor.child(deferred(
                                     menu(view, &MenuLook::bar(palette), highlighted, accent)
-                                        .left(u(-12.))
-                                        .bottom(u(52.)),
+                                        .left(u(-10.))
+                                        .bottom(u(36.)),
                                 ))
                             })
                             .child(session_button),
@@ -410,7 +424,7 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         .child(
             div()
                 .flex()
-                .gap(u(36.))
+                .gap(u(28.))
                 .child(power(Action::Suspend, "sleep"))
                 .child(power(Action::Reboot, "restart"))
                 .child(power(Action::PowerOff, "shutdown")),
@@ -424,8 +438,8 @@ fn theme_button(view: &View, ink: Hsla) -> impl IntoElement {
         .id("theme")
         .flex()
         .items_center()
-        .gap(u(8.))
-        .py(u(12.))
+        .gap(u(6.))
+        .py(u(8.))
         .cursor_pointer()
         .opacity(0.7)
         .hover(|button| button.opacity(1.0))
@@ -434,13 +448,13 @@ fn theme_button(view: &View, ink: Hsla) -> impl IntoElement {
         .child(
             label(greeter.strings.theme)
                 .font("Inter", FontWeight::LIGHT)
-                .size(14.)
+                .size(13.)
                 .tracking_em(0.04)
                 .color(ink),
         )
         .child(
             label(greeter.theme_title())
-                .size(14.)
+                .size(13.)
                 .font("Inter", FontWeight::MEDIUM)
                 .tracking_em(0.04)
                 .color(ink),
@@ -468,13 +482,13 @@ impl MenuLook {
         Self {
             background: color(palette.menu, 1.0),
             border: color(palette.ink, palette.line_alpha),
-            radius: 10.,
-            min_width: 200.,
-            option_padding: (12., 10.),
-            option_radius: 6.,
-            gap: 24.,
-            name_size: 15.,
-            mark_size: 13.,
+            radius: 8.,
+            min_width: 160.,
+            option_padding: (10., 6.),
+            option_radius: 5.,
+            gap: 20.,
+            name_size: 13.,
+            mark_size: 11.,
             ink: color(palette.ink, 1.0),
         }
     }
@@ -483,11 +497,9 @@ impl MenuLook {
         Self {
             border: color(palette.frame.0, palette.frame.1),
             radius: 0.,
-            option_padding: (10., 9.),
+            option_padding: (9., 6.),
             option_radius: 0.,
-            gap: 20.,
-            name_size: 14.,
-            mark_size: 12.,
+            gap: 16.,
             ..Self::bar(palette)
         }
     }
@@ -500,7 +512,7 @@ fn menu(view: &View, look: &MenuLook, highlighted: usize, accent: Hsla) -> gpui_
     div()
         .absolute()
         .min_w(u(look.min_width))
-        .p(u(6.))
+        .p(u(5.))
         .rounded(u(look.radius))
         .bg(look.background)
         .border(u(1.))
@@ -542,7 +554,7 @@ fn menu(view: &View, look: &MenuLook, highlighted: usize, accent: Hsla) -> gpui_
 /// project and the host above, the session and the power actions below,
 /// each under its caption.
 fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
-    const COLUMN: f32 = 140.;
+    const COLUMN: f32 = 112.;
     let greeter = view.greeter;
     let s = greeter.strings;
     let ink = color(palette.ink, 1.0);
@@ -552,23 +564,23 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
     let cell = |columns: f32, caption: String| {
         div()
             .w(u(COLUMN * columns))
-            .px(u(14.))
-            .py(u(10.))
+            .px(u(10.))
+            .py(u(7.))
             .flex()
             .flex_col()
-            .gap(u(4.))
+            .gap(u(3.))
             .border_color(thin)
             .child(
                 div()
                     .opacity(0.68)
-                    .child(label(caption).size(10.5).tracking_em(0.12).color(ink)),
+                    .child(label(caption).size(10.).tracking_em(0.12).color(ink)),
             )
     };
     let entry = |caption: &str, value: String| {
         cell(2., caption.to_string()).child(
             label(value)
                 .font(SERIF_TEXT, FontWeight::NORMAL)
-                .size(20.)
+                .size(15.)
                 .color(ink),
         )
     };
@@ -584,7 +596,7 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
         })
         .child(
             label(greeter.session_name().to_string())
-                .size(15.)
+                .size(13.)
                 .font("Inter", FontWeight::MEDIUM)
                 .color(ink),
         );
@@ -600,7 +612,7 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
             .child(
                 label(greeter.action_name(action))
                     .font("Inter", FontWeight::LIGHT)
-                    .size(15.)
+                    .size(13.)
                     .color(if armed { accent } else { ink }),
             )
     });
