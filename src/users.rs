@@ -15,12 +15,13 @@ pub struct User {
 }
 
 impl User {
-    /// What the avatar shows when the account has no picture.
+    /// What the avatar shows when the account has no picture: the name's
+    /// first letter, as a capital.
     pub fn initial(&self) -> String {
         self.display_name
             .chars()
             .next()
-            .map(String::from)
+            .map(|first| first.to_uppercase().collect())
             .unwrap_or_default()
     }
 }
@@ -186,6 +187,7 @@ svc:x:1002:100::/srv:/usr/bin/nologin
             .map(|u| (u.name.as_str(), u.display_name.as_str()))
             .collect();
         assert_eq!(names, [("alice", "alice"), ("ada", "Ada Lovelace")]);
+        assert_eq!(users[0].initial(), "A");
         assert_eq!(users[1].initial(), "A");
         assert_eq!(users[0].shell, "/bin/zsh");
     }

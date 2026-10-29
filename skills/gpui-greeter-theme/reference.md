@@ -531,7 +531,7 @@ brace. An unknown name is an error.
 | `{time}`, `{time:FORMAT}` | the time, `%H:%M` by default |
 | `{date}`, `{date:FORMAT}` | the date, "Wednesday, October 28" or "10月28日　星期三" by default |
 | `{time.en:…}`, `{date.en:…}`, `{date.zh-CN:…}` | the same, with English or Chinese names whatever the greeter speaks |
-| `{user}`, `{user.name}`, `{user.initial}` | the login name, the full name (or the login name), its first letter |
+| `{user}`, `{user.name}`, `{user.initial}` | the login name, the full name (or the login name), its first letter as a capital |
 | `{host}` | the machine's name |
 | `{session}` | the chosen session's name |
 | `{theme}` | the theme's `name`, for a control that switches looks |
