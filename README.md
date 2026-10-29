@@ -236,8 +236,10 @@ other display manager.
     gpui-greeter lock
 
 It starts at rest, the look's clock and art without the form, for a screen
-to leave behind while away. Any key brings the form and Escape takes it
-away again; F9 and Shift+F9 switch looks there too, and the lock keeps the
+to leave behind while away. A key, a click or moving the mouse more than a
+nudge brings the form, and that first key types nothing, as on a Mac:
+Space, Enter or Escape is as good as any. Escape takes the form away again;
+F9 and Shift+F9 switch looks there too, and the lock keeps the
 look picked for next time in `~/.local/state/gpui-greeter/lock.toml`,
 until the settings' `theme` changes. F10 to F12 and the power buttons act
 as at the login screen, a second press confirming. The user is the one who

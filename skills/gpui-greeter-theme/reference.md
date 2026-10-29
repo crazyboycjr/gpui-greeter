@@ -423,8 +423,12 @@ The login is always in one of six states:
 | `error` | a password was refused or the login failed, until the next key |
 | `welcome` | the password was accepted: the greeter leaves at once |
 
-At rest, a key or a click leaves rest; a character typed also goes into the
-field. A theme without `rest` starts idle, and Escape clears the field.
+At rest, the first key, click or drag only leaves rest, as on a Mac:
+nothing it types goes into the field and no action it is bound to runs,
+but for `next-theme` and `previous-theme`, which switch looks and keep the
+rest. Moving the pointer more than 8 points leaves rest too; a nudge of
+the desk does not. A theme without `rest` starts idle, and Escape clears
+the field.
 
 A theme is also a lock screen: `gpui-greeter lock` shows the installed
 themes over a running session, starting at rest, which is what the screen

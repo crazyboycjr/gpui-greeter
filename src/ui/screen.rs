@@ -10,8 +10,8 @@ use std::time::{Duration, Instant};
 use gpui_kit::prelude::*;
 use gpui_kit::{
     AnyElement, App, Bounds, ElementId, Entity, FocusHandle, GlobalElementId, InspectorElementId,
-    KeyDownEvent, LayoutId, MouseMoveEvent, Pixels, RenderImage, Size, Subscription, Window, div,
-    px,
+    KeyDownEvent, LayoutId, MouseDownEvent, MouseMoveEvent, Pixels, RenderImage, Size,
+    Subscription, Window, div, px,
 };
 
 use super::model::Greeter;
@@ -175,10 +175,19 @@ impl Screen {
         cx.stop_propagation();
     }
 
-    fn pointer(&mut self, _: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
+    fn pointer(&mut self, event: &MouseMoveEvent, _: &mut Window, cx: &mut Context<Self>) {
         let output = self.output;
-        self.greeter
-            .update(cx, |greeter, cx| greeter.pointer_on(output, cx));
+        self.greeter.update(cx, |greeter, cx| {
+            greeter.pointer_on(output, event.position, cx)
+        });
+    }
+
+    /// A press at rest only wakes the screen; nothing under the pointer
+    /// gets it.
+    fn press(&mut self, _: &MouseDownEvent, _: &mut Window, cx: &mut Context<Self>) {
+        if self.greeter.update(cx, |greeter, cx| greeter.press(cx)) {
+            cx.stop_propagation();
+        }
     }
 
     /// Draws the window again at `at`, unless an earlier redraw is due.
@@ -319,6 +328,7 @@ impl Render for Screen {
             .track_focus(&self.focus)
             .on_key_down(cx.listener(Self::key))
             .on_mouse_move(cx.listener(Self::pointer))
+            .capture_any_mouse_down(cx.listener(Self::press))
             .child(content)
             .into_any_element()
     }

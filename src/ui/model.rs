@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex, PoisonError};
 use std::time::{Duration, Instant};
 
-use gpui_kit::{Context, KeyDownEvent, Task};
+use gpui_kit::{Context, KeyDownEvent, Modifiers, Pixels, Point, Task};
 use jiff::Zoned;
 
 use super::looks::Looks;
@@ -187,6 +187,8 @@ pub struct Greeter {
     /// At rest: Frost's clock screen, or a theme's rest state, before a
     /// click or a key brings the form.
     pub resting: bool,
+    /// Where the pointer was first seen at rest, and on which monitor.
+    rest_pointer: Option<(usize, Point<Pixels>)>,
     /// Counts the times it came to rest and woke, so each one animates.
     pub rest_changes: u32,
     /// Counts refusals, so each one shakes the field.
@@ -312,6 +314,7 @@ impl Greeter {
                 i18n::strings(config.language)
             },
             resting: has_rest(&config.theme, folder.as_deref(), lock_screen),
+            rest_pointer: None,
             tiles: folder.as_deref().and_then(TilesState::new),
             folder,
             looks,
@@ -411,6 +414,7 @@ impl Greeter {
         self.notice = None;
         self.typed = Typed::new();
         self.resting = state == State::Rest;
+        self.rest_pointer = None;
         self.phase = Phase::Idle;
         match state {
             State::Rest | State::Idle => {}
@@ -521,6 +525,16 @@ impl Greeter {
             return;
         }
         self.last_input = Instant::now();
+        // At rest, the first key only wakes the screen, as on macOS: nothing
+        // it types reaches the field and nothing it is bound to runs, but
+        // for the theme keys, which switch looks and keep the rest.
+        if self.resting {
+            if !self.theme_key(event, cx) {
+                self.wake();
+            }
+            cx.notify();
+            return;
+        }
         if let Some(folder) = self.folder.clone() {
             self.folder_key(&folder, event, cx);
             cx.notify();
@@ -541,14 +555,6 @@ impl Greeter {
             cx.notify();
             return;
         }
-        // On the lock screen every key brings the form, but for the theme
-        // key and Escape, which leave the rest as it is, and for Enter and
-        // Space, which only wake below.
-        if self.lock_screen
-            && !matches!(keystroke.key.as_str(), "f9" | "escape" | "enter" | "space")
-        {
-            self.wake();
-        }
         let power_key = self
             .power_keys()
             .iter()
@@ -559,9 +565,6 @@ impl Greeter {
             return;
         }
         match keystroke.key.as_str() {
-            // Keys that only wake the clock screen, rather than type or
-            // choose a session out of sight.
-            "enter" | "space" | "tab" | "f2" if self.resting => self.wake(),
             "enter" => self.submit(cx),
             "escape" => self.escape(cx),
             "backspace" if modifiers.control => self.clear_typed(),
@@ -579,24 +582,41 @@ impl Greeter {
                     let text = text.clone();
                     self.type_text(&text);
                 }
-                _ if self.resting => self.wake(),
                 _ => {}
             },
         }
         cx.notify();
     }
 
+    /// Switches the look if `event` is a theme key: F9 or Shift+F9 in the
+    /// built-in looks, or what a theme folder binds to `next-theme` and
+    /// `previous-theme`.
+    fn theme_key(&mut self, event: &KeyDownEvent, cx: &mut Context<Self>) -> bool {
+        let keystroke = &event.keystroke;
+        let action = match &self.folder {
+            Some(folder) => folder
+                .keys
+                .lookup(&keystroke.key, held(keystroke.modifiers)),
+            None if keystroke.key == "f9" && keystroke.modifiers.shift => {
+                Some(themes::Action::PreviousTheme)
+            }
+            None if keystroke.key == "f9" => Some(themes::Action::NextTheme),
+            None => None,
+        };
+        match action {
+            Some(action @ (themes::Action::NextTheme | themes::Action::PreviousTheme)) => {
+                self.run(action, None, cx);
+                true
+            }
+            _ => false,
+        }
+    }
+
     /// A key in a theme folder: its `[keys]` first, then typing.
     fn folder_key(&mut self, folder: &Folder, event: &KeyDownEvent, cx: &mut Context<Self>) {
         let keystroke = &event.keystroke;
         let modifiers = keystroke.modifiers;
-        let held = themes::Held {
-            ctrl: modifiers.control,
-            alt: modifiers.alt,
-            shift: modifiers.shift,
-            super_key: modifiers.platform,
-        };
-        if let Some(action) = folder.keys.lookup(&keystroke.key, held) {
+        if let Some(action) = folder.keys.lookup(&keystroke.key, held(modifiers)) {
             self.run(action, None, cx);
             return;
         }
@@ -608,10 +628,21 @@ impl Greeter {
                     let text = text.clone();
                     self.type_text(&text);
                 }
-                _ if self.resting => self.wake(),
                 _ => {}
             },
         }
+    }
+
+    /// A click, or the start of a drag: at rest, it only wakes the screen,
+    /// and reaches nothing under the pointer.
+    pub fn press(&mut self, cx: &mut Context<Self>) -> bool {
+        if !self.resting || self.phase == Phase::Welcome {
+            return false;
+        }
+        self.last_input = Instant::now();
+        self.wake();
+        cx.notify();
+        true
     }
 
     /// Runs what a theme's key or click asks for; `item` is the session a
@@ -622,9 +653,11 @@ impl Greeter {
             return;
         }
         self.last_input = Instant::now();
-        // The lock screen switches looks without leaving the rest.
-        let keeps_rest = matches!(action, Run::Rest | Run::Nothing)
-            || self.lock_screen && matches!(action, Run::NextTheme | Run::PreviousTheme);
+        // The theme keys switch looks without leaving the rest.
+        let keeps_rest = matches!(
+            action,
+            Run::Rest | Run::Nothing | Run::NextTheme | Run::PreviousTheme
+        );
         if !keeps_rest {
             self.wake();
         }
@@ -701,6 +734,7 @@ impl Greeter {
     pub fn rest(&mut self, cx: &mut Context<Self>) {
         if self.has_rest() && !self.resting && !self.is_busy() {
             self.resting = true;
+            self.rest_pointer = None;
             self.rest_changes += 1;
             self.failures = 0;
             self.menu = None;
@@ -783,7 +817,19 @@ impl Greeter {
     }
 
     /// A pointer moving over another monitor brings the form along.
-    pub fn pointer_on(&mut self, output: usize, cx: &mut Context<Self>) {
+    /// At rest, only a move farther than a nudge of the desk would make
+    /// wakes the screen.
+    pub fn pointer_on(&mut self, output: usize, at: Point<Pixels>, cx: &mut Context<Self>) {
+        const NUDGE: f32 = 8.0;
+        if self.resting {
+            let (first_output, first) = *self.rest_pointer.get_or_insert((output, at));
+            let (dx, dy) = ((at.x - first.x).as_f32(), (at.y - first.y).as_f32());
+            if first_output == output && dx.hypot(dy) <= NUDGE {
+                return;
+            }
+            self.wake();
+            cx.notify();
+        }
         self.last_input = Instant::now();
         if output != self.form && output < self.monitors.len() && self.phase != Phase::Welcome {
             self.form = output;
@@ -1254,6 +1300,16 @@ fn largest(monitors: &[Monitor]) -> (u32, u32) {
             height.max(monitor.rect.height),
         )
     })
+}
+
+/// A key's modifiers as a theme's `[keys]` name them.
+fn held(modifiers: Modifiers) -> themes::Held {
+    themes::Held {
+        ctrl: modifiers.control,
+        alt: modifiers.alt,
+        shift: modifiers.shift,
+        super_key: modifiers.platform,
+    }
 }
 
 /// The tiles pane the password field is in, if it is in one.

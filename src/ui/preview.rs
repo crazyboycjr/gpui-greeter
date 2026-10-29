@@ -191,6 +191,21 @@ pub fn start_fake_greetd() -> Result<PathBuf> {
     Ok(dir)
 }
 
+/// What a key types, as a keyboard's would: a character key its character,
+/// Space a space, and nothing with Ctrl, Alt or Super held.
+fn typed(chord: &Chord) -> Option<String> {
+    if chord.ctrl || chord.alt || chord.any_mod || chord.super_key {
+        return None;
+    }
+    let mut chars = chord.key.chars();
+    match (chars.next(), chars.next()) {
+        _ if chord.key == "space" => Some(" ".into()),
+        (Some(c), None) if chord.shift => Some(c.to_uppercase().collect()),
+        (Some(c), None) => Some(c.into()),
+        _ => None,
+    }
+}
+
 /// The state shown first, so that the one asked for is reached the way a
 /// login reaches it, with its transitions.
 fn lead_in(state: State, has_rest: bool) -> Option<State> {
@@ -248,8 +263,8 @@ pub fn drive(
                     platform: chord.super_key,
                     function: false,
                 },
+                key_char: typed(&chord),
                 key: chord.key,
-                key_char: None,
             };
             let _ = cx.update_window(window, |_, window, cx| {
                 window.dispatch_keystroke(keystroke, cx);
