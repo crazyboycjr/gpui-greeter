@@ -71,8 +71,9 @@ anchor = "center"
 ```
 
 Colours are `#rgb`, `#rrggbb`, `#rrggbbaa` or `transparent`. Durations are
-milliseconds, at most 60000. Unknown keys are errors, so a typo is caught;
-check-theme suggests the nearest name.
+milliseconds, at most 60000, but for a slideshow's interval, which may be
+a day. Unknown keys are errors, so a typo is caught; check-theme suggests
+the nearest name.
 
 ### Fonts
 
@@ -238,6 +239,38 @@ was typed.
 `cover` or `fill` (stretched); `position = [x, y]` is the point a cover
 crop keeps, as shares from 0 to 1. `radius` rounds its corners.
 
+An image can show pictures in turn instead, as `feh --slideshow` does,
+with a `slideshow` table in place of `file`:
+
+```toml
+[[layer]]
+kind = "image"
+anchor = "fill"
+fit = "cover"
+
+[layer.slideshow]
+folder = "slides"          # every PNG, JPEG and WebP in it, by name
+interval = 9000            # ms each slide shows (10000), up to a day
+crossfade = 600            # ms the next takes to fade in (600)
+order = "shuffle"          # "sequence" (the default) or "shuffle"
+```
+
+`files = ["slides/a.jpg", …]` names the slides in their order instead of
+`folder`, which leaves out hidden files as install-theme does. In
+sequence the slides go round in order; shuffled, the first one opens the
+show, then all of them come in a new order each round, never the same one
+twice running. The show starts with the greeter and keeps time while its
+layer is hidden. A slideshow needs a width and a height, or `anchor =
+"fill"`, as its pictures differ in shape.
+
+The greeter decodes a slide just before it is due, scaled to the box the
+layer is drawn in, and keeps only the slide on screen, the one it
+replaces while that fades, and the next: a show of any length holds two
+or three pictures. So make slides no larger than the layer shows them on
+a 4K screen. A slide that cannot be read is logged and its turn goes to
+the one before. `{slide}`, `{slide.number}` and `{slide.count}` say which
+slide shows (see Bindings).
+
 **svg**: `file`, an SVG. With `tint = true` its shape is drawn in the
 layer's `color`, so states can change the colour smoothly, and it can turn
 and scale; this suits marks of one colour. Without it the SVG is drawn in
@@ -252,7 +285,10 @@ go in as `data:` URLs, and text should be converted to paths.
 **wallpaper**: the picture the settings pick from the wallpaper folder
 (`[wallpaper]` in config.toml; `gpui-greeter sync-wallpapers` fills it).
 `fit` and `position` as for an image. `blur` (frame pixels) makes a blurred
-form too, and `blurred` (0 to 1, changeable with states) shows it.
+form too, and `blurred` (0 to 1, changeable with states) shows it. With a
+`slideshow` of `interval`, `crossfade` and `order` alone, it shows every
+picture in the wallpaper folder in turn, from the one the settings pick,
+each blurred as the layer says.
 
 **tiles**: panes laid out as xmonad lays out windows. Its children are the
 panes. Give it `anchor = "fill"` on the screen, or a width and a height in
@@ -423,6 +459,7 @@ brace. An unknown name is an error.
 | `{sent}`, `{sent:*}` | what was last sent, so: the attempt that failed |
 | `{tiles.title}`, `{tiles.layout}` | the focused pane's title, the layout's name ("Tall", "Mirror Tall", "Full") |
 | `{item}`, `{item.number}` | in a `for_each` layer |
+| `{slide}`, `{slide.number}`, `{slide.count}` | the slide a slideshow shows, the one more in view while they fade: its file's name ("lake.jpg"), its place in the round from 1, how many there are; the theme's first slideshow, or with `:ID`, as in `{slide:pics}`, layer ID's |
 | `{armed.key}`, `{armed.action}` | the key that runs the armed power action ("F12"), and its name ("poweroff") |
 | `{t.KEY}` | one of the theme's strings |
 

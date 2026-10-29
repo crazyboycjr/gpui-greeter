@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
 use std::thread::JoinHandle;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use anyhow::Result;
 use gpui_kit::{
@@ -299,15 +299,7 @@ impl Wallpaper {
         let today = jiff::Zoned::now().date();
         let local = || {
             let pictures = wallpaper::candidates(&config.wallpaper.dir);
-            let seed = SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .map_or(0, |time| {
-                    time.as_nanos() as u64 ^ u64::from(std::process::id())
-                });
-            let day = today
-                .since(jiff::civil::date(2000, 1, 1))
-                .map_or(0, |span| span.get_days().into());
-            let picked = wallpaper::choose(&pictures, &config.wallpaper.pick, seed, day);
+            let picked = wallpaper::picked(&pictures, &config.wallpaper.pick);
             if picked.is_none() {
                 log::warn!("no wallpaper in {}", config.wallpaper.dir.display());
             }

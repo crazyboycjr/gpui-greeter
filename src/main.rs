@@ -392,13 +392,24 @@ fn check_theme(args: &[String]) -> anyhow::Result<()> {
             families.push(family);
         }
     }
+    let slides: usize = folder
+        .layers
+        .iter()
+        .filter_map(|layer| layer.kind.slideshow())
+        .map(|show| show.files.len())
+        .sum();
     println!(
-        "{}: {} \"{}\" reads well: {} layers, {} pictures, fonts {}{}",
+        "{}: {} \"{}\" reads well: {} layers, {} pictures{}, fonts {}{}",
         dir.display(),
         folder.name,
         folder.title,
         folder.layers.len(),
         folder.assets.len(),
+        if slides > 0 {
+            format!(", {slides} slides")
+        } else {
+            String::new()
+        },
         if families.is_empty() {
             "built in".to_string()
         } else {

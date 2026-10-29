@@ -5,7 +5,9 @@
 mod look;
 mod paint;
 pub mod pictures;
+pub mod slides;
 
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::ops::Range;
 use std::rc::Rc;
@@ -15,11 +17,13 @@ use std::time::{Duration, Instant};
 use gpui_kit::prelude::*;
 use gpui_kit::{
     AnimationExt as _, AnyElement, BoxShadow, Corners, Div, Entity, FontFeatures, FontWeight, Hsla,
-    MouseButton, Rems, Rgba, Transformation, div, point, radians, relative, size, svg,
+    MouseButton, Pixels, Rems, RenderImage, Rgba, Transformation, div, point, radians, relative,
+    size, svg,
 };
 
 pub use look::{Pace, Timeline};
 pub use pictures::{MonitorPictures, Pictures};
+pub use slides::Slides;
 
 use super::{DESIGN_FRAME, View, u};
 use crate::config::Language;
@@ -36,6 +40,7 @@ use crate::ui::screen::Screen;
 use crate::ui::text::{Label, label};
 use crate::wallpaper::Backdrop;
 use look::{Flags, Look};
+use slides::Made;
 
 /// The CSS pixels of the built-in looks' frame that make one frame pixel.
 const CSS: f32 = DESIGN_FRAME.0 / FRAME.0;
@@ -51,6 +56,9 @@ pub struct Frame<'a> {
     pub hovered: &'a HashSet<u64>,
     pub screen: Entity<Screen>,
     pub pace: &'a Pace,
+    /// The slides this frame draws, for the window to drop from its GPU
+    /// textures once their slideshows let go of them.
+    pub slides: &'a RefCell<Vec<Arc<RenderImage>>>,
 }
 
 /// The key under which GPUI's asset source holds a theme's SVG.
@@ -117,6 +125,32 @@ fn hsla(color: Color) -> Hsla {
         a: color.a,
     }
     .into()
+}
+
+/// A wallpaper over its whole box, its blurred forms over it as far as
+/// `veil` blurs it.
+fn backdrop(backdrop: &Backdrop, picture: Picture, corners: Corners<Pixels>, veil: f32) -> Div {
+    let layer = |image: &Arc<RenderImage>, opacity: f32| {
+        div()
+            .absolute()
+            .inset_0()
+            .opacity(opacity)
+            .child(paint::picture(
+                image.clone(),
+                picture.fit,
+                picture.focus,
+                corners,
+            ))
+    };
+    div()
+        .absolute()
+        .inset_0()
+        .child(layer(&backdrop.sharp, 1.0))
+        .when(veil > 0.0, |stack| {
+            stack
+                .child(layer(&backdrop.soft, (2.0 * veil).min(1.0)))
+                .child(layer(&backdrop.blurred, (2.0 * veil - 1.0).max(0.0)))
+        })
 }
 
 fn cased(text: &str, case: Option<Case>) -> String {
@@ -364,7 +398,16 @@ impl Builder<'_> {
             Kind::Box { flow, clips } => self.boxed(layer, &look, &inner_ctx, *flow, *clips),
             Kind::Text => self.text(&look, zoom, item),
             Kind::Field { .. } => self.field(layer, &look, zoom),
-            Kind::Image(picture) => self.image(layer, &look, *picture, zoom)?,
+            Kind::Image {
+                picture,
+                slideshow: Some(_),
+            }
+            | Kind::Wallpaper {
+                picture,
+                slideshow: Some(_),
+                ..
+            } => self.slideshow(index, layer, &look, *picture, zoom),
+            Kind::Image { picture, .. } => self.image(layer, &look, *picture, zoom)?,
             Kind::Svg { picture, tint } => self.svg(layer, &look, *picture, *tint, zoom)?,
             Kind::Wallpaper { picture, .. } => self.wallpaper(layer, &look, *picture, zoom),
             Kind::Tiles(spec) => self.tiles(layer, spec, &look, &inner_ctx),
@@ -815,40 +858,59 @@ impl Builder<'_> {
 
     fn wallpaper(&self, layer: &Layer, look: &Look, picture: Picture, zoom: f32) -> Div {
         let backdrops = self.view.backdrops;
-        let veil = look.blurred;
         let corners = self.corners(&look.props, zoom);
-        let pictures = move |backdrop: &Backdrop| {
-            let layer = |image: Arc<gpui_kit::RenderImage>, opacity: f32| {
-                div()
-                    .absolute()
-                    .inset_0()
-                    .opacity(opacity)
-                    .child(paint::picture(image, picture.fit, picture.focus, corners))
-            };
-            div()
-                .absolute()
-                .inset_0()
-                .child(layer(backdrop.sharp.clone(), 1.0))
-                .when(veil > 0.0, |stack| {
-                    stack
-                        .child(layer(backdrop.soft.clone(), (2.0 * veil).min(1.0)))
-                        .child(layer(backdrop.blurred.clone(), (2.0 * veil - 1.0).max(0.0)))
-                })
-        };
         let mut element = div().relative().overflow_hidden();
         if let Some(old) = &backdrops.previous {
-            element = element.child(pictures(old));
+            element = element.child(backdrop(old, picture, corners, look.blurred));
         }
         if let Some(new) = &backdrops.current {
             element = element.child(
                 div()
                     .absolute()
                     .inset_0()
-                    .child(pictures(new))
+                    .child(backdrop(new, picture, corners, look.blurred))
                     .with_animation(("arrival", backdrops.arrivals), fade(), |layer, t| {
                         layer.opacity(t)
                     }),
             );
+        }
+        self.sized(element, layer, look, zoom, None)
+    }
+
+    /// A slideshow: the slide on screen fading in over the one it replaces,
+    /// in a box whose size the slides are made for.
+    fn slideshow(
+        &self,
+        index: usize,
+        layer: &Layer,
+        look: &Look,
+        picture: Picture,
+        zoom: f32,
+    ) -> Div {
+        let slides = &self.view.greeter.slides;
+        let corners = self.corners(&look.props, zoom);
+        let mut element = div().relative().overflow_hidden();
+        if let Some(drawn) = slides.drawn(index) {
+            element = element.child(paint::measure(drawn));
+        }
+        if let Some(showing) = slides.showing(index, self.now, self.frame.pace) {
+            let leaving = showing.leaving.map(|made| (made, 1.0));
+            for (made, opacity) in leaving.into_iter().chain(showing.on) {
+                self.frame
+                    .slides
+                    .borrow_mut()
+                    .extend(made.images().cloned());
+                let drawn = match &made {
+                    Made::Picture(image) => div().absolute().inset_0().child(paint::picture(
+                        image.clone(),
+                        picture.fit,
+                        picture.focus,
+                        corners,
+                    )),
+                    Made::Backdrop(made) => backdrop(made, picture, corners, look.blurred),
+                };
+                element = element.child(drawn.opacity(opacity));
+            }
         }
         self.sized(element, layer, look, zoom, None)
     }
@@ -1184,6 +1246,21 @@ impl Fill for Filler<'_> {
             Binding::ItemNumber => {
                 if let Some(item) = self.item {
                     out.push_str(&(item + 1).to_string());
+                }
+            }
+            Binding::Slide | Binding::SlideNumber | Binding::SlideCount => {
+                let folder = builder.frame.folder;
+                let layer = match arg {
+                    Some(id) => folder.layer_named(id.trim()),
+                    None => folder.slideshows.first().copied(),
+                };
+                let caption = layer.and_then(|layer| greeter.slides.caption(layer, builder.now));
+                if let Some((name, number, count)) = caption {
+                    match binding {
+                        Binding::Slide => out.push_str(&name),
+                        Binding::SlideNumber => out.push_str(&number.to_string()),
+                        _ => out.push_str(&count.to_string()),
+                    }
                 }
             }
             Binding::ArmedKey => {

@@ -1,11 +1,15 @@
 //! The window over one monitor: it draws the theme for that monitor and
 //! passes keys and pointer movement to the shared greeter.
 
+use std::cell::RefCell;
 use std::collections::HashSet;
+use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use gpui_kit::prelude::*;
-use gpui_kit::{Entity, FocusHandle, KeyDownEvent, MouseMoveEvent, Subscription, Window, div, px};
+use gpui_kit::{
+    Entity, FocusHandle, KeyDownEvent, MouseMoveEvent, RenderImage, Subscription, Window, div, px,
+};
 
 use super::model::Greeter;
 use super::theme::folder::{self, MonitorPictures, Pace, Timeline};
@@ -19,6 +23,9 @@ pub struct Screen {
     monitor: Monitor,
     backdrops: Backdrops,
     folder: FolderScreen,
+    /// The slides this window has drawn, which GPUI keeps as textures until
+    /// they are dropped.
+    slides: Vec<Arc<RenderImage>>,
     focus: FocusHandle,
     _observing: Subscription,
 }
@@ -76,6 +83,7 @@ impl Screen {
             monitor,
             backdrops: Backdrops::default(),
             folder: FolderScreen::new(),
+            slides: Vec::new(),
             focus,
             _observing: observing,
         }
@@ -167,6 +175,7 @@ impl Render for Screen {
         let now = Instant::now();
         let screen = cx.entity();
         let pace = Pace::default();
+        let slides = RefCell::new(Vec::new());
         let mut pending = false;
         let on_screen = self.greeter.read(cx).on_screen;
         let content = {
@@ -208,12 +217,28 @@ impl Render for Screen {
                         hovered: &state.hovered,
                         screen,
                         pace: &pace,
+                        slides: &slides,
                     };
                     folder::render(&view, &frame)
                 }
                 _ => theme::render(&view),
             }
         };
+        {
+            let greeter = self.greeter.read(cx);
+            for image in slides.into_inner() {
+                if !self.slides.contains(&image) {
+                    self.slides.push(image);
+                }
+            }
+            self.slides.retain(|image| {
+                let kept = greeter.slides.holds(image);
+                if !kept {
+                    let _ = window.drop_image(image.clone());
+                }
+                kept
+            });
+        }
         {
             let state = &mut self.folder;
             if pace.settling.get() || pending {

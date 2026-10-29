@@ -70,13 +70,18 @@ pub enum Binding {
     TilesLayout,
     Item,
     ItemNumber,
+    /// The slide a slideshow shows: its file's name, its number in the
+    /// round, and how many there are.
+    Slide,
+    SlideNumber,
+    SlideCount,
     ArmedKey,
     ArmedAction,
     /// `{t.key}`: one of the theme's strings, or one of the greeter's own.
     String(Arc<str>),
 }
 
-const NAMES: [(&str, Binding); 37] = [
+const NAMES: [(&str, Binding); 40] = [
     ("time", Binding::Time(None)),
     ("time.en", Binding::Time(Some(Language::English))),
     ("time.zh-CN", Binding::Time(Some(Language::Chinese))),
@@ -112,6 +117,9 @@ const NAMES: [(&str, Binding); 37] = [
     ("tiles.layout", Binding::TilesLayout),
     ("item", Binding::Item),
     ("item.number", Binding::ItemNumber),
+    ("slide", Binding::Slide),
+    ("slide.number", Binding::SlideNumber),
+    ("slide.count", Binding::SlideCount),
     ("armed.key", Binding::ArmedKey),
     ("armed.action", Binding::ArmedAction),
 ];
@@ -168,9 +176,10 @@ impl Template {
         self.pieces.is_empty()
     }
 
-    pub fn bindings(&self) -> impl Iterator<Item = &Binding> {
+    /// Each binding with what follows its colon, if anything.
+    pub fn bindings(&self) -> impl Iterator<Item = (&Binding, Option<&str>)> {
         self.pieces.iter().filter_map(|piece| match piece {
-            Piece::Binding { binding, .. } => Some(binding),
+            Piece::Binding { binding, arg } => Some((binding, arg.as_deref())),
             Piece::Text(_) => None,
         })
     }
@@ -243,6 +252,8 @@ fn binding(inside: &str) -> Result<Piece, String> {
         (Binding::Time(_) | Binding::Date(_), Some(format)) => check_format(format)?,
         (Binding::Uptime, Some("short")) => {}
         (Binding::Typed | Binding::Sent, Some(glyph)) if !glyph.is_empty() => {}
+        (Binding::Slide | Binding::SlideNumber | Binding::SlideCount, Some(id))
+            if !id.trim().is_empty() => {}
         (_, Some(arg)) => return Err(format!("{{{name}}} takes no \":{arg}\"")),
     }
     Ok(Piece::Binding {
@@ -471,13 +482,13 @@ mod tests {
     #[test]
     fn dates_can_keep_one_language() {
         let bar = Template::parse("{date.en:%a %b %-d} {time.zh-CN:%p} {date}").unwrap();
-        let bindings: Vec<&Binding> = bar.bindings().collect();
+        let bindings: Vec<(&Binding, Option<&str>)> = bar.bindings().collect();
         assert_eq!(
             bindings,
             [
-                &Binding::Date(Some(Language::English)),
-                &Binding::Time(Some(Language::Chinese)),
-                &Binding::Date(None),
+                (&Binding::Date(Some(Language::English)), Some("%a %b %-d")),
+                (&Binding::Time(Some(Language::Chinese)), Some("%p")),
+                (&Binding::Date(None), None),
             ]
         );
     }

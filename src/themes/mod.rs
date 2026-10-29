@@ -24,7 +24,9 @@ use std::sync::Arc;
 use std::time::Duration;
 
 pub use color::Color;
-pub use files::{Asset, AssetKind, FontFile, render_svg};
+pub use files::{
+    Asset, AssetKind, FontFile, decode as decode_picture, read as read_file, render_svg,
+};
 pub use keys::{Action, Chord, Held, Keymap, TileAction};
 pub use layer::*;
 pub use motion::{Animated, Easing, Motion, Transition};
@@ -109,8 +111,11 @@ pub struct Folder {
     pub assets: Vec<Asset>,
     /// The tiles layer, if the theme has one.
     pub tiles: Option<usize>,
-    /// What a wallpaper layer blurs it by, if the theme shows the wallpaper.
+    /// What a wallpaper layer blurs it by, if the theme shows the wallpaper
+    /// picked; a wallpaper slideshow makes its own.
     pub wallpaper: Option<f32>,
+    /// The layers with a slideshow; `{slide}` names the first.
+    pub slideshows: Vec<usize>,
     /// The system facts the theme's text uses.
     pub uses: facts::Uses,
 }

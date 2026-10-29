@@ -43,6 +43,8 @@ choices the user can react to:
   The session starts the moment the password is accepted: the greeter
   never holds a welcome, so there is no welcome to design or animate, and
   checking lasts only as long as PAM takes.
+- Pictures: one, or a slideshow that fades from one to the next, in an
+  image layer or over the wallpaper folder (`slideshow` in the reference).
 - Languages: English, Chinese, or both (`[strings.en]`, `[strings.zh-CN]`).
 
 Agree on the design with the user before writing much theme.toml. If they
@@ -96,6 +98,8 @@ times as large.
 - Prefer SVG for marks and drawings. One-colour marks work best with
   `tint = true`, which lets states recolour and turn them; SVGs must embed
   any pictures as `data:` URLs and have text converted to paths.
+- A slideshow's pictures go in a folder of their own, such as `slides/`,
+  each scaled to the box it fills on a 4K screen, photographs as JPEG.
 - Never fetch anything at login: everything the theme draws is a file in
   its folder.
 

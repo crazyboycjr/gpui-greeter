@@ -418,7 +418,11 @@ pub enum Kind {
         /// In frame pixels; by default a bar is 3.6 wide and a block 0.6 em.
         caret_width: Option<f32>,
     },
-    Image(Picture),
+    Image {
+        picture: Picture,
+        /// Pictures shown in turn, in place of `file`.
+        slideshow: Option<Slideshow>,
+    },
     Svg {
         picture: Picture,
         /// Draws the SVG's shape in the layer's colour, which can turn and
@@ -429,6 +433,8 @@ pub enum Kind {
         picture: Picture,
         /// How far the blurred form is blurred, in frame pixels.
         blur: f32,
+        /// The wallpaper folder's pictures in turn, from the one picked.
+        slideshow: Option<Slideshow>,
     },
     Tiles(Tiles),
 }
@@ -439,12 +445,32 @@ impl Kind {
             Kind::Box { .. } => "box",
             Kind::Text => "text",
             Kind::Field { .. } => "field",
-            Kind::Image(_) => "image",
+            Kind::Image { .. } => "image",
             Kind::Svg { .. } => "svg",
             Kind::Wallpaper { .. } => "wallpaper",
             Kind::Tiles(_) => "tiles",
         }
     }
+
+    pub fn slideshow(&self) -> Option<&Slideshow> {
+        match self {
+            Kind::Image { slideshow, .. } | Kind::Wallpaper { slideshow, .. } => slideshow.as_ref(),
+            _ => None,
+        }
+    }
+}
+
+/// Pictures a layer shows in turn, each for `interval`, the next fading in
+/// over `crossfade`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Slideshow {
+    /// Pictures in the theme folder, in order; a wallpaper layer's is
+    /// empty, as it shows the wallpaper folder's.
+    pub files: Vec<String>,
+    pub interval: Duration,
+    pub crossfade: Duration,
+    /// The first slide, then all of them in a new order each round.
+    pub shuffle: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]

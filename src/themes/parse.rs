@@ -549,9 +549,16 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
 
     let tiles = check_tiles(&layers, &mut r);
     let wallpaper = layers.iter().find_map(|layer| match layer.kind {
-        Kind::Wallpaper { blur, .. } => Some(blur),
+        Kind::Wallpaper {
+            blur,
+            slideshow: None,
+            ..
+        } => Some(blur),
         _ => None,
     });
+    let slideshows = (0..layers.len())
+        .filter(|&i| layers[i].kind.slideshow().is_some())
+        .collect();
     let mut uses = Uses::default();
     check_layers(
         &layers,
@@ -572,7 +579,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
             r.error(span, "[keys]: pick is for clicks on a for_each layer");
         }
     }
-    check_strings(&strings, &mut uses, tiles.is_some(), &mut r);
+    check_strings(&strings, &layers, &mut uses, tiles.is_some(), &mut r);
     check_fonts(&layers, &text_style, &fonts, fonts_span, &mut r);
 
     Some(Folder {
@@ -592,6 +599,7 @@ pub fn folder(dir: &Path, name: &str, problems: &mut Vec<Problem>) -> Option<Fol
         assets: assets.assets,
         tiles,
         wallpaper,
+        slideshows,
         uses,
     })
 }
@@ -770,7 +778,10 @@ fn read_layer(
             blink: f.millis(r, "blink").unwrap_or(Duration::from_millis(1060)),
             caret_width: f.number_in(r, "caret_width", 0.0..400.0),
         },
-        "image" => Kind::Image(picture(&mut f, r)),
+        "image" => Kind::Image {
+            picture: picture(&mut f, r),
+            slideshow: read_slideshow(&mut f, r, assets.dir, false),
+        },
         "svg" => Kind::Svg {
             picture: picture(&mut f, r),
             tint: f.boolean(r, "tint").unwrap_or(false),
@@ -778,6 +789,7 @@ fn read_layer(
         "wallpaper" => Kind::Wallpaper {
             picture: picture(&mut f, r),
             blur: f.number_in(r, "blur", 0.0..400.0).unwrap_or(0.0),
+            slideshow: read_slideshow(&mut f, r, assets.dir, true),
         },
         "tiles" => Kind::Tiles(read_tiles(&mut f, r)),
         _ => Kind::Box {
@@ -927,10 +939,30 @@ fn read_layer(
     if matches!(kind, Kind::Text) && !mentions("text") {
         r.error(table.span(), format!("{what}: a text layer needs `text`"));
     }
-    if matches!(kind, Kind::Image(_) | Kind::Svg { .. }) && !mentions("file") {
+    let shows = kind.slideshow().is_some();
+    let needs = match kind {
+        Kind::Image { .. } if !shows => Some("`file` or `slideshow`"),
+        Kind::Svg { .. } => Some("`file`"),
+        _ => None,
+    };
+    if let Some(needs) = needs.filter(|_| !mentions("file")) {
         r.error(
             table.span(),
-            format!("{what}: an {} layer needs `file`", kind.name()),
+            format!("{what}: an {} layer needs {needs}", kind.name()),
+        );
+    }
+    if shows && mentions("file") {
+        r.error(
+            table.span(),
+            format!("{what}: a layer shows a file or a slideshow, not both"),
+        );
+    }
+    let sized =
+        anchor == Anchor::Fill || table.contains_key("width") && table.contains_key("height");
+    if matches!(kind, Kind::Image { .. }) && shows && !sized {
+        r.error(
+            table.span(),
+            format!("{what}: a slideshow's pictures differ in shape: give it a width and a height, or anchor = \"fill\""),
         );
     }
 
@@ -1024,6 +1056,84 @@ fn read_pane(f: &mut Fields, r: &mut Reader, what: &str) -> Pane {
             .number_in(r, "max_scale_full", 0.05..20.0)
             .unwrap_or(max_scale),
     }
+}
+
+/// A layer's `slideshow`: its pictures, checked as far as their headers,
+/// and its timing. A wallpaper layer's shows the wallpaper folder.
+fn read_slideshow(
+    f: &mut Fields,
+    r: &mut Reader,
+    dir: &Path,
+    wallpaper: bool,
+) -> Option<Slideshow> {
+    let (table, span) = f.table(r, "slideshow")?;
+    let mut s = Fields::new(table, span.clone(), format!("{}: slideshow", f.what));
+    let interval = s
+        .number_in(r, "interval", 500.0..86_400_000.0)
+        .map_or(Duration::from_secs(10), |ms| {
+            Duration::from_secs_f64(f64::from(ms) / 1000.0)
+        });
+    let crossfade = s
+        .millis(r, "crossfade")
+        .unwrap_or(Duration::from_millis(600));
+    if crossfade > interval {
+        r.error(
+            s.span("crossfade"),
+            format!(
+                "{}: the crossfade must be no longer than the interval",
+                s.what
+            ),
+        );
+    }
+    let shuffle = s
+        .choice(r, "order", &[("sequence", false), ("shuffle", true)])
+        .unwrap_or(false);
+    let listed = s.strings(r, "files");
+    let folder = s.string(r, "folder");
+    let mut files = Vec::new();
+    match (wallpaper, listed, folder) {
+        (true, None, None) => {}
+        (true, ..) => r.error(
+            span,
+            format!(
+                "{}: a wallpaper's slideshow shows the wallpaper folder, and takes no files or folder",
+                s.what
+            ),
+        ),
+        (false, Some(_), Some(_)) => {
+            r.error(span, format!("{}: files or a folder, not both", s.what))
+        }
+        (false, None, None) => r.error(
+            span,
+            format!("{}: it needs `files` or a `folder` of pictures", s.what),
+        ),
+        (false, Some(listed), None) => files = listed.into_iter().map(str::to_string).collect(),
+        (false, None, Some(folder)) => match files::pictures_in(dir, folder) {
+            Ok(found) if found.is_empty() => r.error(
+                s.span("folder"),
+                format!("{}: no pictures in {folder}", s.what),
+            ),
+            Ok(found) => files = found,
+            Err(message) => r.error(s.span("folder"), format!("{}: {message}", s.what)),
+        },
+    }
+    let key = if s.has("files") { "files" } else { "folder" };
+    for file in &files {
+        if let Err(message) = files::check_picture(dir, file) {
+            if files::resolve(dir, file).is_ok() {
+                r.file_error(file, message);
+            } else {
+                r.error(s.span(key), format!("{}: {message}", s.what));
+            }
+        }
+    }
+    s.finish(r);
+    Some(Slideshow {
+        files,
+        interval,
+        crossfade,
+        shuffle,
+    })
 }
 
 fn read_transition(f: &mut Fields, r: &mut Reader, key: &str) -> Option<Transition> {
@@ -1568,7 +1678,7 @@ fn check_layers(
             .flat_map(|props| props.text.iter().chain(props.placeholder.iter()))
             .chain(layer.pane.iter().map(|pane| &pane.title));
         for template in templates {
-            for binding in template.bindings() {
+            for (binding, arg) in template.bindings() {
                 uses.note(binding);
                 match binding {
                     Binding::TilesTitle | Binding::TilesLayout if !has_tiles => {
@@ -1576,6 +1686,9 @@ fn check_layers(
                             span.clone(),
                             format!("{}: {{tiles.*}} needs a tiles layer", layer.label()),
                         );
+                    }
+                    Binding::Slide | Binding::SlideNumber | Binding::SlideCount => {
+                        check_slide(layers, arg, &layer.label(), span.clone(), r)
                     }
                     Binding::Item | Binding::ItemNumber if !in_each => {
                         r.error(
@@ -1677,7 +1790,8 @@ fn check_layers(
         for file in all_props.filter_map(|props| props.file) {
             let kind_matches = matches!(
                 (&layer.kind, &assets[file].kind),
-                (Kind::Image(_), AssetKind::Raster(_)) | (Kind::Svg { .. }, AssetKind::Svg { .. })
+                (Kind::Image { .. }, AssetKind::Raster(_))
+                    | (Kind::Svg { .. }, AssetKind::Svg { .. })
             );
             if !kind_matches {
                 r.error(
@@ -1789,12 +1903,49 @@ fn check_string_key(
     }
 }
 
-fn check_strings(strings: &Strings, uses: &mut Uses, has_tiles: bool, r: &mut Reader) {
+/// That a slide binding names a layer with a slideshow: `show`, by its id,
+/// or else the theme's first.
+fn check_slide(
+    layers: &[Layer],
+    show: Option<&str>,
+    what: &str,
+    span: Option<Range<usize>>,
+    r: &mut Reader,
+) {
+    let found = match show.map(str::trim) {
+        Some(id) => layers.iter().find(|layer| layer.id.as_deref() == Some(id)),
+        None => layers.iter().find(|layer| layer.kind.slideshow().is_some()),
+    };
+    match (show, found) {
+        (_, Some(layer)) if layer.kind.slideshow().is_some() => {}
+        (Some(id), Some(_)) => r.error(span, format!("{what}: layer {id:?} has no slideshow")),
+        (Some(id), None) => r.error(span, format!("{what}: no layer {id:?} to show slides of")),
+        (None, _) => r.error(
+            span,
+            format!("{what}: {{slide}} needs a layer with a slideshow"),
+        ),
+    }
+}
+
+fn check_strings(
+    strings: &Strings,
+    layers: &[Layer],
+    uses: &mut Uses,
+    has_tiles: bool,
+    r: &mut Reader,
+) {
     for (language, map) in [("en", &strings.english), ("zh-CN", &strings.chinese)] {
         for (key, template) in map {
-            for binding in template.bindings() {
+            for (binding, arg) in template.bindings() {
                 uses.note(binding);
                 match binding {
+                    Binding::Slide | Binding::SlideNumber | Binding::SlideCount => check_slide(
+                        layers,
+                        arg,
+                        &format!("[strings.{language}] {key}"),
+                        Some(0..0),
+                        r,
+                    ),
                     Binding::String(inner)
                         if !strings.english.contains_key(inner.as_ref())
                             && !strings.chinese.contains_key(inner.as_ref())
@@ -1988,6 +2139,11 @@ mod tests {
     use super::*;
 
     fn theme(text: &str) -> (Option<Folder>, Vec<Problem>) {
+        theme_with(text, &[])
+    }
+
+    /// A theme of `text` with `files` beside it, at the paths given.
+    fn theme_with(text: &str, files: &[(&str, &[u8])]) -> (Option<Folder>, Vec<Problem>) {
         static FOLDERS: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
         let dir = std::env::temp_dir().join(format!(
             "gpui-greeter-parse-{}-{}",
@@ -2007,10 +2163,149 @@ mod tests {
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="67" height="104"><rect width="67" height="104"/></svg>"#,
         )
         .unwrap();
+        for (path, bytes) in files {
+            let path = dir.join(path);
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, bytes).unwrap();
+        }
         let mut problems = Vec::new();
         let folder = folder(&dir, "sample", &mut problems);
         let _ = std::fs::remove_dir_all(dir);
         (folder, problems)
+    }
+
+    fn png(width: u32, height: u32) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        image::RgbaImage::new(width, height)
+            .write_to(
+                &mut std::io::Cursor::new(&mut bytes),
+                image::ImageFormat::Png,
+            )
+            .unwrap();
+        bytes
+    }
+
+    #[test]
+    fn reads_a_slideshow_of_a_folder_s_pictures_by_name() {
+        let picture = png(8, 6);
+        let (folder, problems) = theme_with(
+            r##"format = 1
+[[layer]]
+id = "show"
+kind = "image"
+anchor = "fill"
+fit = "cover"
+slideshow = { folder = "slides", interval = 9000, crossfade = 600, order = "shuffle" }
+[[layer]]
+kind = "text"
+text = "feh [{slide.number} of {slide.count}] - {slide}"
+[[layer]]
+kind = "wallpaper"
+anchor = "fill"
+blur = 20
+slideshow = { interval = 60000 }
+[[layer]]
+kind = "text"
+text = "{slide:show}"
+"##,
+            &[
+                ("slides/b.png", &picture),
+                ("slides/a.png", &picture),
+                ("slides/.hidden.png", &picture),
+                ("slides/SOURCES.md", b"notes"),
+            ],
+        );
+        assert!(errors(&problems).is_empty(), "{problems:#?}");
+        let folder = folder.unwrap();
+        assert_eq!(folder.slideshows, [0, 2]);
+        let show = folder.layers[0].kind.slideshow().unwrap();
+        assert_eq!(show.files, ["slides/a.png", "slides/b.png"]);
+        assert_eq!(
+            (show.interval, show.crossfade.as_millis(), show.shuffle),
+            (Duration::from_secs(9), 600, true)
+        );
+        let wallpaper = folder.layers[2].kind.slideshow().unwrap();
+        assert!(wallpaper.files.is_empty());
+        assert_eq!(folder.wallpaper, None, "a wallpaper slideshow picks none");
+    }
+
+    #[test]
+    fn checks_a_slideshow_s_pictures_and_timing() {
+        let picture = png(8, 6);
+        let (_, problems) = theme_with(
+            r##"format = 1
+[[layer]]
+id = "both"
+kind = "image"
+file = "a.png"
+anchor = "fill"
+slideshow = { files = ["a.png", "missing.png", "notes.txt"], interval = 2000, crossfade = 3000 }
+[[layer]]
+id = "unsized"
+kind = "image"
+slideshow = { folder = "empty" }
+[[layer]]
+id = "nothing"
+kind = "image"
+width = 100
+height = 100
+slideshow = { interval = 5000 }
+[[layer]]
+id = "wall"
+kind = "wallpaper"
+anchor = "fill"
+slideshow = { folder = "empty" }
+[[layer]]
+kind = "text"
+text = "{slide:wall} {slide.count:nobody} {slide:unsized}"
+[[layer]]
+kind = "text"
+text = "{slide:label}"
+id = "label"
+"##,
+            &[
+                ("a.png", &picture),
+                ("notes.txt", b"hello"),
+                ("empty/x.md", b"-"),
+            ],
+        );
+        let errors = errors(&problems);
+        let has = |needle: &str| errors.iter().any(|e| e.contains(needle));
+        assert!(
+            has("layer \"both\": a layer shows a file or a slideshow, not both"),
+            "{errors:#?}"
+        );
+        assert!(has("missing.png does not exist"), "{errors:#?}");
+        assert!(
+            has("notes.txt: slides are PNG, JPEG or WebP pictures"),
+            "{errors:#?}"
+        );
+        assert!(
+            has("the crossfade must be no longer than the interval"),
+            "{errors:#?}"
+        );
+        assert!(
+            has("layer \"unsized\": a slideshow's pictures differ in shape"),
+            "{errors:#?}"
+        );
+        assert!(has("no pictures in empty"), "{errors:#?}");
+        assert!(
+            has("layer \"nothing\": slideshow: it needs `files` or a `folder`"),
+            "{errors:#?}"
+        );
+        assert!(
+            has("a wallpaper's slideshow shows the wallpaper folder"),
+            "{errors:#?}"
+        );
+        assert!(has("no layer \"nobody\" to show slides of"), "{errors:#?}");
+        assert!(has("layer \"label\" has no slideshow"), "{errors:#?}");
+        let (_, problems) = theme("format = 1\n[[layer]]\nkind = \"text\"\ntext = \"{slide}\"\n");
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.message.contains("{slide} needs a layer with a slideshow")),
+            "{problems:#?}"
+        );
     }
 
     fn errors(problems: &[Problem]) -> Vec<String> {

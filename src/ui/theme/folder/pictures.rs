@@ -79,7 +79,7 @@ pub fn decode(folder: &Folder, largest: (u32, u32)) -> Pictures {
     Pictures { images }
 }
 
-fn shrink(image: &RgbaImage, (width, height): (u32, u32)) -> Result<RgbaImage> {
+pub(super) fn shrink(image: &RgbaImage, (width, height): (u32, u32)) -> Result<RgbaImage> {
     let mut out = RgbaImage::new(width, height);
     let options = ResizeOptions::new().resize_alg(ResizeAlg::Convolution(FilterType::CatmullRom));
     Resizer::new().resize(image, &mut out, &options)?;

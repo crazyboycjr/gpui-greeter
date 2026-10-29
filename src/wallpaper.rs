@@ -3,6 +3,7 @@
 
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context as _, Result};
 use fast_image_resize::{FilterType, ResizeAlg, ResizeOptions, Resizer};
@@ -49,6 +50,21 @@ pub fn candidates(dir: &Path) -> Vec<PathBuf> {
     pictures
 }
 
+/// The picture `pick` names among `pictures` now: a random one differs from
+/// one start to the next, a daily one from one day to the next.
+pub fn picked(pictures: &[PathBuf], pick: &Pick) -> Option<PathBuf> {
+    let seed = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |time| {
+            time.as_nanos() as u64 ^ u64::from(std::process::id())
+        });
+    let day = jiff::Zoned::now()
+        .date()
+        .since(jiff::civil::date(2000, 1, 1))
+        .map_or(0, |span| span.get_days().into());
+    choose(pictures, pick, seed, day)
+}
+
 /// The picture `pick` names among `pictures`; `seed` varies the random one
 /// and `day` the daily one.
 pub fn choose(pictures: &[PathBuf], pick: &Pick, seed: u64, day: i64) -> Option<PathBuf> {
@@ -80,6 +96,10 @@ impl Picture {
             .with_context(|| format!("cannot decode {}", path.display()))?;
         image.apply_orientation(orientation);
         Ok(Self(image.into_rgba8()))
+    }
+
+    pub fn dimensions(&self) -> (u32, u32) {
+        self.0.dimensions()
     }
 
     /// The picture cropped about its centre and scaled to fill `size`

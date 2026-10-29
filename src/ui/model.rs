@@ -10,6 +10,7 @@ use gpui_kit::{Context, KeyDownEvent, Task};
 use jiff::Zoned;
 
 use super::looks::Looks;
+use super::theme::folder::{Slides, slides};
 use crate::config::{Config, PaperBackground, Theme};
 use crate::greetd::Greetd;
 use crate::i18n::{self, Strings};
@@ -206,6 +207,10 @@ pub struct Greeter {
     /// afresh.
     pub theme_changes: u32,
     pub tiles: Option<TilesState>,
+    /// The theme folder's slideshows.
+    pub slides: Slides,
+    /// Where slideshows send the slides they want made.
+    slide_requests: async_channel::Sender<slides::Request>,
     /// The last action a key or a click ran, and when.
     pub fired: Option<(themes::Action, Instant)>,
     /// Passwords refused since the last rest.
@@ -230,6 +235,7 @@ pub struct Greeter {
     facts_read: Uses,
     x11: Rc<X11>,
     _clock: Task<()>,
+    _slide_making: Task<()>,
 }
 
 impl Greeter {
@@ -287,7 +293,18 @@ impl Greeter {
         } else {
             String::new()
         };
+        let (slide_requests, to_make) = async_channel::unbounded();
+        let slides = Slides::new(
+            folder.as_deref(),
+            (&config.wallpaper.dir, &config.wallpaper.pick),
+            largest(&monitors),
+            0,
+            slide_requests.clone(),
+        );
         Self {
+            slides,
+            slide_requests,
+            _slide_making: Self::make_slides(to_make, cx),
             strings: if lock_screen {
                 i18n::lock_strings(config.language)
             } else {
@@ -1016,6 +1033,13 @@ impl Greeter {
         self.tiles = folder.as_deref().and_then(TilesState::new);
         self.folder = folder;
         self.theme_changes += 1;
+        self.slides = Slides::new(
+            self.folder.as_deref(),
+            (&self.config.wallpaper.dir, &self.config.wallpaper.pick),
+            largest(&self.monitors),
+            self.theme_changes.into(),
+            self.slide_requests.clone(),
+        );
         self.fired = None;
         self.menu = None;
         if !self.has_rest() {
@@ -1059,6 +1083,34 @@ impl Greeter {
                 })
                 .detach(),
         }
+    }
+
+    /// Makes the slides the slideshows ask for, one at a time, in the
+    /// background, and draws them once made.
+    fn make_slides(
+        requests: async_channel::Receiver<slides::Request>,
+        cx: &mut Context<Self>,
+    ) -> Task<()> {
+        cx.spawn(async move |this, cx| {
+            while let Ok(request) = requests.recv().await {
+                let (request, made) = cx
+                    .background_executor()
+                    .spawn(async move {
+                        let made = request.make();
+                        (request, made)
+                    })
+                    .await;
+                let arrived = this.update(cx, |greeter, cx| {
+                    greeter.slides.arrived(&request, made, Instant::now());
+                    if greeter.on_screen {
+                        cx.notify();
+                    }
+                });
+                if arrived.is_err() {
+                    break;
+                }
+            }
+        })
     }
 
     fn clock(cx: &mut Context<Self>) -> Task<()> {
@@ -1179,6 +1231,16 @@ fn has_rest(theme: &Theme, folder: Option<&Folder>, lock_screen: bool) -> bool {
         Some(folder) => folder.rest,
         None => lock_screen || *theme == Theme::Frost,
     }
+}
+
+/// The largest monitor's size, in pixels.
+fn largest(monitors: &[Monitor]) -> (u32, u32) {
+    monitors.iter().fold((1, 1), |(width, height), monitor| {
+        (
+            width.max(monitor.rect.width),
+            height.max(monitor.rect.height),
+        )
+    })
 }
 
 /// The tiles pane the password field is in, if it is in one.

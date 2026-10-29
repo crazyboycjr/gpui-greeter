@@ -75,6 +75,16 @@ pub struct FontFace {
 /// `relative` inside `dir`, as long as it names a regular file there:
 /// never an absolute path, `..`, or a link that leads out.
 pub fn resolve(dir: &Path, relative: &str) -> Result<PathBuf, String> {
+    let full = inside(dir, relative)?;
+    if !full.is_file() {
+        return Err(format!("{relative} is not a file"));
+    }
+    Ok(full)
+}
+
+/// `relative` resolved inside `dir`: never an absolute path, `..`, or a
+/// link that leads out.
+fn inside(dir: &Path, relative: &str) -> Result<PathBuf, String> {
     let path = Path::new(relative);
     if relative.is_empty() {
         return Err("names no file".into());
@@ -101,10 +111,72 @@ pub fn resolve(dir: &Path, relative: &str) -> Result<PathBuf, String> {
     if !full.starts_with(&root) {
         return Err(format!("{relative} leads out of the theme folder"));
     }
-    if !full.is_file() {
-        return Err(format!("{relative} is not a file"));
-    }
     Ok(full)
+}
+
+/// The pictures in `relative`, a folder inside `dir`, by name, as paths
+/// relative to `dir`: those install-theme copies, so no hidden files and
+/// no links.
+pub fn pictures_in(dir: &Path, relative: &str) -> Result<Vec<String>, String> {
+    let full = inside(dir, relative)?;
+    let entries = std::fs::read_dir(&full).map_err(|error| match error.kind() {
+        std::io::ErrorKind::NotADirectory => format!("{relative} is not a folder"),
+        _ => format!("{relative}: {error}"),
+    })?;
+    let mut names: Vec<String> = entries
+        .flatten()
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_file()))
+        .filter_map(|entry| entry.file_name().into_string().ok())
+        .filter(|name| !name.starts_with('.') && is_raster(name))
+        .collect();
+    names.sort();
+    Ok(names
+        .into_iter()
+        .map(|name| {
+            Path::new(relative)
+                .join(name)
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect())
+}
+
+fn is_raster(relative: &str) -> bool {
+    matches!(
+        extension(relative).as_str(),
+        "png" | "jpg" | "jpeg" | "webp"
+    )
+}
+
+/// Checks a picture as far as its header, without decoding it: a kind a
+/// theme draws, inside the folder, and no larger than a picture may be.
+pub fn check_picture(dir: &Path, relative: &str) -> Result<(), String> {
+    if !is_raster(relative) {
+        return Err(format!("{relative}: slides are PNG, JPEG or WebP pictures"));
+    }
+    let path = resolve(dir, relative)?;
+    let length = std::fs::metadata(&path)
+        .map_err(|error| format!("{relative}: {error}"))?
+        .len();
+    if length > MAX_FILE {
+        return Err(format!("{relative} is larger than {} MiB", MAX_FILE >> 20));
+    }
+    let (width, height) = ImageReader::open(&path)
+        .and_then(ImageReader::with_guessed_format)
+        .map_err(|error| format!("{relative}: {error}"))?
+        .into_dimensions()
+        .map_err(|error| format!("{relative}: {error}"))?;
+    let fits = width > 0
+        && height > 0
+        && width <= MAX_SIDE
+        && height <= MAX_SIDE
+        && u64::from(width) * u64::from(height) <= MAX_PIXELS;
+    if !fits {
+        return Err(format!(
+            "{relative}: {width}×{height} pixels is too large a picture"
+        ));
+    }
+    Ok(())
 }
 
 /// The bytes of `relative`, refusing files over `MAX_FILE`.
@@ -145,7 +217,7 @@ pub fn load_asset(dir: &Path, relative: &str) -> Result<Asset, String> {
                 size: (size.width(), size.height()),
             }
         }
-        "png" | "jpg" | "jpeg" | "webp" => AssetKind::Raster(Arc::new(
+        _ if is_raster(relative) => AssetKind::Raster(Arc::new(
             decode(&bytes).map_err(|error| format!("{relative}: {error:#}"))?,
         )),
         _ => {
@@ -160,7 +232,8 @@ pub fn load_asset(dir: &Path, relative: &str) -> Result<Asset, String> {
     })
 }
 
-fn decode(bytes: &[u8]) -> Result<RgbaImage> {
+/// A picture's pixels, refusing one larger than a picture may be.
+pub fn decode(bytes: &[u8]) -> Result<RgbaImage> {
     let mut reader = ImageReader::new(std::io::Cursor::new(bytes)).with_guessed_format()?;
     let mut limits = image::Limits::default();
     limits.max_image_width = Some(MAX_SIDE);

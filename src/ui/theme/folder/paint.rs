@@ -1,6 +1,9 @@
 //! What GPUI's elements leave out for themes: cutting a layer down to part
-//! of its box, and pictures placed by `fit` about a focus point.
+//! of its box, pictures placed by `fit` about a focus point, and noting the
+//! size a box is drawn at, for pictures made to fill it.
 
+use std::cell::Cell;
+use std::rc::Rc;
 use std::sync::Arc;
 
 use gpui_kit::{
@@ -107,6 +110,25 @@ pub fn picture(
             let _ = window.paint_image(bounds, drawn, radius, image.clone(), 0, false);
         },
     )
+    .size_full()
+}
+
+/// Notes in `largest` the largest its element is drawn, in device pixels,
+/// for pictures made to fill it.
+pub fn measure(largest: Rc<Cell<(u32, u32)>>) -> impl IntoElement {
+    canvas(
+        |_, _, _| {},
+        move |bounds, _, window, _| {
+            let scale = window.scale_factor();
+            let device = |side: Pixels| (side.as_f32() * scale).ceil() as u32;
+            let (width, height) = largest.get();
+            largest.set((
+                width.max(device(bounds.size.width)),
+                height.max(device(bounds.size.height)),
+            ));
+        },
+    )
+    .absolute()
     .size_full()
 }
 
