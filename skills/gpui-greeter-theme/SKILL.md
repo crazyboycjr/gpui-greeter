@@ -195,11 +195,15 @@ done
 ```
 
 Then look at every screenshot, and compare it with the design: spacing,
-alignment, sizes, colours, what each state shows. Check other shapes too
-(`--size 2560x1440`, `--size 1920x1200`, `--size 3440x1440`). A state's
-transitions run before the screenshot; to catch the middle of one, use
-`--at MS`. Iterate until it matches. Drop `--user` and `--host` to see the
-user's own names.
+alignment, sizes, colours, what each state shows. A 4K screenshot shows
+the theme as a 27-inch 4K monitor does, a frame pixel to a pixel. Check
+other sizes and shapes too (`--size 1920x1080`, `--size 1920x1200`,
+`--size 3440x1440`): a preview's screen reports no size, so it is laid out
+as 2560 by 1440 points fitted to its pixels and never less than a pixel
+to a point, and `--size 1920x1080` shows a 24-inch 1920 by 1080 monitor,
+2880 by 1620 of the frame's pixels. A state's transitions run before the
+screenshot; to catch the middle of one, use `--at MS`. Iterate until it
+matches. Drop `--user` and `--host` to see the user's own names.
 
 Then the same theme as the lock screen, at rest and with its form, and
 check that it looks right without the session row:
