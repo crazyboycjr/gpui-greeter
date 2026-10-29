@@ -1,10 +1,15 @@
 //! The mockups' CSS animations, as GPUI animations over gpui-kit's
 //! keyframes and easings.
 
-use std::time::Duration;
+use std::cell::Cell;
+use std::rc::Rc;
+use std::time::{Duration, Instant};
 
-use gpui_kit::Animation;
 use gpui_kit::base::motion::{Easing, Keyframe, Keyframes};
+use gpui_kit::{
+    Animation, AnyElement, App, Bounds, Element, ElementId, GlobalElementId, InspectorElementId,
+    IntoElement, LayoutId, Pixels, Window,
+};
 
 fn keyframes(frames: &[(f32, f32)], easing: Easing) -> Keyframes<f32> {
     Keyframes::try_new(
@@ -48,8 +53,10 @@ impl Shake {
     }
 }
 
-/// Content that appears rises into place as it fades in.
-pub fn rise(duration_ms: u64) -> Animation {
+/// Content that appears fades in where it stands: GPUI lays out and paints
+/// on whole pixels, so content that slid into place would step a pixel at
+/// a time at the slow end of its easing.
+pub fn appear(duration_ms: u64) -> Animation {
     Animation::new(Duration::from_millis(duration_ms)).with_easing(|t| css_ease().sample(t))
 }
 
@@ -95,15 +102,112 @@ pub fn run(period: Duration) -> Animation {
     Animation::new(period).repeat().with_max_fps(60.0)
 }
 
-/// A caret or a cursor block that blinks: on for the first half.
-pub fn blink(period_ms: u64) -> Animation {
-    Animation::new(Duration::from_millis(period_ms))
-        .repeat()
-        .with_max_fps(8.0)
+/// A caret or a cursor block that blinks: drawn for the first half of each
+/// `period` since it first showed under `id`, gone for the second. The
+/// window draws again only when it turns on or off, twice a period, not
+/// for every frame of a running animation.
+pub fn blinking(id: impl Into<ElementId>, period: Duration, child: impl IntoElement) -> Blink {
+    Blink {
+        id: id.into(),
+        period,
+        child: child.into_any_element(),
+    }
 }
 
-pub fn blink_opacity(t: f32) -> f32 {
-    if t < 0.5 { 1.0 } else { 0.0 }
+pub struct Blink {
+    id: ElementId,
+    period: Duration,
+    child: AnyElement,
+}
+
+struct BlinkState {
+    start: Instant,
+    /// The turn a redraw is waiting for.
+    awaited: Rc<Cell<Option<Instant>>>,
+}
+
+impl IntoElement for Blink {
+    type Element = Self;
+
+    fn into_element(self) -> Self {
+        self
+    }
+}
+
+impl Element for Blink {
+    type RequestLayoutState = ();
+    type PrepaintState = bool;
+
+    fn id(&self) -> Option<ElementId> {
+        Some(self.id.clone())
+    }
+
+    fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+        None
+    }
+
+    fn request_layout(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        window: &mut Window,
+        cx: &mut App,
+    ) -> (LayoutId, ()) {
+        (self.child.request_layout(window, cx), ())
+    }
+
+    fn prepaint(
+        &mut self,
+        id: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        window: &mut Window,
+        cx: &mut App,
+    ) -> bool {
+        self.child.prepaint(window, cx);
+        let half = self.period / 2;
+        let id = id.expect("a blink has an id");
+        window.with_element_state(id, |state: Option<BlinkState>, window| {
+            let state = state.unwrap_or_else(|| BlinkState {
+                start: Instant::now(),
+                awaited: Rc::default(),
+            });
+            let halves = state.start.elapsed().as_nanos() / half.as_nanos().max(1);
+            let turn = state.start + half * (halves as u32 + 1);
+            if state.awaited.get() != Some(turn) {
+                state.awaited.set(Some(turn));
+                let awaited = state.awaited.clone();
+                let view = window.current_view();
+                window
+                    .spawn(cx, async move |cx| {
+                        let wait = turn.saturating_duration_since(Instant::now());
+                        cx.background_executor()
+                            .timer(wait + Duration::from_millis(1))
+                            .await;
+                        awaited.set(None);
+                        cx.update(|_, cx| cx.notify(view)).ok();
+                    })
+                    .detach();
+            }
+            (halves.is_multiple_of(2), state)
+        })
+    }
+
+    fn paint(
+        &mut self,
+        _: Option<&GlobalElementId>,
+        _: Option<&InspectorElementId>,
+        _: Bounds<Pixels>,
+        _: &mut (),
+        on: &mut bool,
+        window: &mut Window,
+        cx: &mut App,
+    ) {
+        if *on {
+            self.child.paint(window, cx);
+        }
+    }
 }
 
 /// Frost's wallpaper blurs and dims, and clears again.

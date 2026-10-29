@@ -15,7 +15,7 @@ use super::{FieldLook, View, color, field_text, u};
 use crate::i18n;
 use crate::power::Action;
 use crate::ui::model::Status;
-use crate::ui::motion::{Shake, fade, rise, veil};
+use crate::ui::motion::{Shake, appear, fade, veil};
 use crate::ui::text::{Label, label};
 use crate::wallpaper::Backdrop;
 
@@ -97,12 +97,17 @@ impl Veiled {
 
 /// The wallpaper `veil` of the way from sharp to blurred: it blurs through
 /// a softer form on the way, and swells a little, as CSS's filter and
-/// transform do in the mockup.
+/// transform do in the mockup. Only what shows is drawn, at most two of the
+/// three; one that is clear or covered is drawn a clear point across, which
+/// keeps its texture on the GPU, so that nothing is uploaded mid-motion.
 fn pictures(backdrop: Backdrop, veil: f32) -> gpui_kit::Div {
     let grow = 0.08 * veil;
     let picture = |image: std::sync::Arc<gpui_kit::RenderImage>, opacity: f32| {
-        img(image)
-            .absolute()
+        let picture = img(image).absolute();
+        if opacity <= 0.0 {
+            return picture.size(u(1.)).opacity(0.);
+        }
+        picture
             .left(relative(-grow / 2.))
             .top(relative(-grow / 2.))
             .w(relative(1. + grow))
@@ -110,12 +115,17 @@ fn pictures(backdrop: Backdrop, veil: f32) -> gpui_kit::Div {
             .object_fit(ObjectFit::Cover)
             .opacity(opacity)
     };
+    let soft = (2.0 * veil).min(1.0);
+    let blurred = (2.0 * veil - 1.0).max(0.0);
     div()
         .absolute()
         .inset_0()
-        .child(picture(backdrop.sharp, 1.0))
-        .child(picture(backdrop.soft, (2.0 * veil).min(1.0)))
-        .child(picture(backdrop.blurred, (2.0 * veil - 1.0).max(0.0)))
+        .child(picture(backdrop.sharp, if soft < 1.0 { 1.0 } else { 0.0 }))
+        .child(picture(
+            backdrop.soft,
+            if blurred < 1.0 { soft } else { 0.0 },
+        ))
+        .child(picture(backdrop.blurred, blurred))
 }
 
 fn shadowed(text: Label, blur: f32, alpha: f32) -> Label {
@@ -157,7 +167,6 @@ fn clock_screen(view: &View) -> impl IntoElement {
     // As macOS sets its lock screen on a 1440-point screen: the date's
     // capitals from 139 points down, the clock's figures from 207 to 329.
     let clock = div()
-        .relative()
         .mt(u(129.))
         .flex()
         .flex_col()
@@ -178,9 +187,9 @@ fn clock_screen(view: &View) -> impl IntoElement {
             0.4,
         ))
         .with_animation(
-            ("clock-rise", greeter.rest_changes as usize),
-            rise(550),
-            |clock, t| clock.opacity(t).top(u(10. * (1. - t))),
+            ("clock-appear", greeter.rest_changes as usize),
+            appear(550),
+            |clock, t| clock.opacity(t),
         );
     div()
         .absolute()
@@ -304,7 +313,6 @@ fn form(view: &View) -> impl IntoElement {
             move |field, t| field.left(u(frames.sample(t)))
         });
     div()
-        .relative()
         .flex()
         .flex_col()
         .items_center()
@@ -313,9 +321,9 @@ fn form(view: &View) -> impl IntoElement {
         .child(field)
         .child(div().mt(u(8.)).h(u(15.)).child(message(view)))
         .with_animation(
-            ("form-rise", greeter.rest_changes as usize),
-            rise(550),
-            |form, t| form.opacity(t).top(u(10. * (1. - t))),
+            ("form-appear", greeter.rest_changes as usize),
+            appear(550),
+            |form, t| form.opacity(t),
         )
 }
 

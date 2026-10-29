@@ -2,6 +2,7 @@
 //! of them, drawn with GPUI and gpui-kit.
 
 mod assets;
+mod frames;
 mod looks;
 pub mod miniature;
 mod model;

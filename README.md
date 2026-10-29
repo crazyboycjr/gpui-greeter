@@ -355,6 +355,16 @@ holds a fake `gpui-greeter-lock` service, so that no real password is
 involved. `gpui-greeter preview DIR --lock` shows a theme folder as the
 lock screen.
 
+To see how smoothly a look moves on a real screen, set
+`GPUI_GREETER_FRAMES=1`: after each burst of motion, such as a wake from
+rest, every window says on stderr how many frames it drew, how far apart
+they came, how long each took to lay out and paint, and which were slow.
+The lock screen is the easy place to read it, in a terminal of the
+session: wake it, press Escape to send it back to rest, a few times over,
+then unlock.
+
+    GPUI_GREETER_FRAMES=1 gpui-greeter lock 2> frames.log
+
 `cargo test` covers the parts without a screen: the greetd conversation,
 the lock's PAM conversation (against libpam, with a fake service of the
 tests' own), desktop entries, users, the wallpaper copy, Bing's folder

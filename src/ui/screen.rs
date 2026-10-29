@@ -4,6 +4,7 @@
 
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -14,6 +15,7 @@ use gpui_kit::{
     Subscription, Window, div, px,
 };
 
+use super::frames::{self, FrameLog, Timed};
 use super::model::Greeter;
 use super::theme::folder::{self, MonitorPictures, Pace, Timeline};
 use super::theme::{self, DESIGN_REM};
@@ -33,6 +35,8 @@ pub struct Screen {
     /// The box it is drawn in, inside another window, rather than over a
     /// window of its own.
     inset: Option<Size<Pixels>>,
+    /// How its frames go, when that is asked for.
+    frames: Option<Rc<RefCell<FrameLog>>>,
     _observing: Subscription,
 }
 
@@ -92,6 +96,7 @@ impl Screen {
             slides: Vec::new(),
             focus,
             inset: None,
+            frames: frames::enabled().then(|| FrameLog::new(output)),
             _observing: observing,
         }
     }
@@ -114,6 +119,7 @@ impl Screen {
             slides: Vec::new(),
             focus: cx.focus_handle(),
             inset: Some(size),
+            frames: None,
             _observing: observing,
         }
     }
@@ -213,6 +219,7 @@ impl Screen {
 
 impl Render for Screen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let start = Instant::now();
         let scale = self.greeter.read(cx).scale();
         let (viewport, unit) = match self.inset {
             // The monitor's points, shrunk to the box.
@@ -322,7 +329,7 @@ impl Render for Screen {
             }
             .into_any_element();
         }
-        div()
+        let screen = div()
             .id("screen")
             .size_full()
             .track_focus(&self.focus)
@@ -330,7 +337,16 @@ impl Render for Screen {
             .on_mouse_move(cx.listener(Self::pointer))
             .capture_any_mouse_down(cx.listener(Self::press))
             .child(content)
-            .into_any_element()
+            .into_any_element();
+        match &self.frames {
+            Some(log) => Timed {
+                start,
+                log: log.clone(),
+                child: screen,
+            }
+            .into_any_element(),
+            None => screen,
+        }
     }
 }
 

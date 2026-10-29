@@ -10,8 +10,8 @@ mod paper;
 
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnimationExt as _, AnyElement, App, Context, Entity, Hsla, IntoElement, ObjectFit,
-    ParentElement, Rems, Styled, StyledImage as _, Window, div, img, relative, rems, rgb,
+    AnyElement, App, Context, Entity, Hsla, IntoElement, ObjectFit, ParentElement, Rems, Styled,
+    StyledImage as _, Window, div, img, relative, rems, rgb,
 };
 
 use std::sync::Arc;
@@ -122,16 +122,15 @@ fn field_text(view: &View, look: &FieldLook, placeholder: &str) -> impl IntoElem
     // The caret restarts its blink with each key, so it shows while typing,
     // and goes once the session starts.
     let welcome = greeter.phase == super::model::Phase::Welcome;
-    let caret = div()
-        .w(u(1.5))
-        .h(u(look.size * 1.15))
-        .when(!welcome, |caret| caret.bg(look.caret))
-        .flex_shrink_0()
-        .with_animation(
-            ("caret", greeter.typed_len()),
-            super::motion::blink(1060),
-            |caret, t| caret.opacity(super::motion::blink_opacity(t)),
-        );
+    let caret = super::motion::blinking(
+        ("caret", greeter.typed_len()),
+        std::time::Duration::from_millis(1060),
+        div()
+            .w(u(1.5))
+            .h(u(look.size * 1.15))
+            .when(!welcome, |caret| caret.bg(look.caret))
+            .flex_shrink_0(),
+    );
     let caret_after = typed.is_some();
     let text = match typed {
         Some(text) => {

@@ -23,7 +23,7 @@ use crate::power::Action;
 use crate::scenery::{Floor, Motion, Pulse, Scenery};
 use crate::system;
 use crate::ui::model::{Phase, Status};
-use crate::ui::motion::{Beacon, Glitch, beam, blink, blink_opacity, fill as fill_animation, run};
+use crate::ui::motion::{Beacon, Glitch, beam, blinking, fill as fill_animation, run};
 use crate::ui::text::label;
 use crate::wallpaper::render_image;
 
@@ -814,11 +814,11 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
 }
 
 fn cursor(palette: &Palette) -> impl IntoElement {
-    div()
-        .child(text("\u{258C}", 12.).color(palette.accent))
-        .with_animation("blink", blink(1100), |cursor, t| {
-            cursor.opacity(blink_opacity(t))
-        })
+    blinking(
+        "blink",
+        Duration::from_millis(1100),
+        div().child(text("\u{258C}", 12.).color(palette.accent)),
+    )
 }
 
 fn bottom_left(view: &View, palette: &Palette) -> impl IntoElement {
