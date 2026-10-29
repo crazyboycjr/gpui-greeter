@@ -128,21 +128,22 @@ fn top_right(view: &View) -> impl IntoElement {
         .get(greeter.layout)
         .map(|layout| layout.to_uppercase())
         .unwrap_or_default();
+    // A menu bar's right end: 13-point items in a 24-point band.
     div()
         .absolute()
-        .top(u(28.))
-        .right(u(36.))
+        .top(u(4.))
+        .right(u(16.))
         .flex()
         .items_center()
-        .gap(u(20.))
+        .gap(u(14.))
         .child(
             div()
                 .opacity(0.85)
-                .child(shadowed(label(layout).size(14.), 6., 0.45)),
+                .child(shadowed(label(layout).size(13.), 6., 0.45)),
         )
         .when(!greeter.resting, |row| {
             row.child(shadowed(
-                label(i18n::clock(&greeter.now, false)).size(14.),
+                label(i18n::clock(&greeter.now, false)).size(13.),
                 6.,
                 0.45,
             ))
@@ -152,24 +153,26 @@ fn top_right(view: &View) -> impl IntoElement {
 fn clock_screen(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
     let s = greeter.strings;
+    // As macOS sets its lock screen on a 1440-point screen: the date's
+    // capitals from 139 points down, the clock's figures from 207 to 329.
     let clock = div()
         .relative()
-        .mt(u(120.))
+        .mt(u(129.))
         .flex()
         .flex_col()
         .items_center()
-        .gap(u(6.))
+        .gap(u(2.))
         .child(div().opacity(0.92).child(shadowed(
-            label(i18n::long_date(greeter.config.language, &greeter.now)).size(22.),
+            label(i18n::long_date(greeter.config.language, &greeter.now)).size(40.),
             18.,
             0.4,
         )))
         .child(shadowed(
             label(i18n::clock(&greeter.now, false))
                 .font("Inter", FontWeight::EXTRA_LIGHT)
-                .size(148.)
+                .size(168.)
                 .line_height(1.05)
-                .tracking(-2.),
+                .tracking(-2.3),
             18.,
             0.4,
         ))
@@ -185,17 +188,23 @@ fn clock_screen(view: &View) -> impl IntoElement {
         .flex()
         .flex_col()
         .items_center()
-        .gap(u(8.))
+        .gap(u(6.))
         .child(
             svg()
                 .path("icons/chevron-up.svg")
-                .size(u(22.))
+                .size(u(14.))
                 .text_color(color(WHITE, 1.0)),
         )
-        .child(shadowed(label(s.click_to_log_in).size(15.), 8., 0.45))
+        .child(shadowed(
+            label(s.click_to_log_in)
+                .font("Inter", FontWeight::MEDIUM)
+                .size(12.),
+            8.,
+            0.45,
+        ))
         .with_animation("nudge", Nudge::animation(), |nudge, t| {
             let (lift, opacity) = Nudge::at(t);
-            nudge.bottom(u(64. - lift)).opacity(opacity)
+            nudge.bottom(u(78. - lift)).opacity(opacity)
         });
     div()
         .id("clock-screen")
@@ -244,8 +253,10 @@ fn form(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
     let s = greeter.strings;
     let user = greeter.user();
+    // macOS's sizes: a 72-point avatar on a 1440-point screen, the name
+    // 18.5 points under it, and the field 18.5 under the name's baseline.
     let avatar = div()
-        .size(u(128.))
+        .size(u(72.))
         .rounded_full()
         .overflow_hidden()
         .flex()
@@ -260,8 +271,8 @@ fn form(view: &View) -> impl IntoElement {
         .border_color(color(WHITE, 0.35))
         .shadow(vec![BoxShadow {
             color: color(0, 0.25),
-            offset: point(view.px(0.), view.px(10.)),
-            blur_radius: view.px(40.),
+            offset: point(view.px(0.), view.px(6.)),
+            blur_radius: view.px(24.),
             spread_radius: view.px(0.),
             inset: false,
         }])
@@ -273,12 +284,12 @@ fn form(view: &View) -> impl IntoElement {
                 .into_any_element(),
             None => label(user.map(|user| user.initial()).unwrap_or_default())
                 .font("Inter", FontWeight::EXTRA_LIGHT)
-                .size(60.)
+                .size(34.)
                 .into_any_element(),
         });
     let name = div()
         .id("user")
-        .mt(u(18.))
+        .mt(u(15.))
         .when(greeter.users.len() > 1, |name| {
             name.cursor_pointer()
                 .on_click(view.on(|greeter, cx| greeter.next_user(1, cx)))
@@ -288,20 +299,20 @@ fn form(view: &View) -> impl IntoElement {
             user.map(|user| user.display_name.clone())
                 .unwrap_or_default(),
         )
-        .size(21.)
+        .size(15.)
         .font("Inter", FontWeight::MEDIUM)
         .tracking_em(0.02),
-        10.,
+        8.,
         0.4,
     ));
     let round_button = |id: &'static str, icon: &'static str| {
         frosted(div(), 0.12, 0.28)
-            .size(u(36.))
+            .size(u(22.))
             .rounded_full()
             .flex()
             .items_center()
             .justify_center()
-            .child(svg().path(icon).size(u(16.)).text_color(color(WHITE, 1.0)))
+            .child(svg().path(icon).size(u(10.)).text_color(color(WHITE, 1.0)))
             .id(id)
             .cursor_pointer()
             .opacity(0.8)
@@ -312,7 +323,7 @@ fn form(view: &View) -> impl IntoElement {
     let look = FieldLook {
         family: "Inter",
         weight: FontWeight::LIGHT,
-        size: 15.,
+        size: 13.,
         color: color(WHITE, 1.0),
         tracking: 0.32,
         placeholder: color(WHITE, 0.58),
@@ -323,7 +334,7 @@ fn form(view: &View) -> impl IntoElement {
     let checking = greeter.phase == Phase::Checking;
     let submit = div()
         .id("submit")
-        .size(u(32.))
+        .size(u(20.))
         .flex_shrink_0()
         .rounded_full()
         .bg(color(WHITE, 0.88))
@@ -335,7 +346,7 @@ fn form(view: &View) -> impl IntoElement {
         .child(if checking {
             svg()
                 .path("icons/spinner.svg")
-                .size(u(16.))
+                .size(u(10.))
                 .text_color(color(0x3A1F24, 1.0))
                 .with_animation("spin", spin(), |icon, t| {
                     icon.with_transformation(Transformation::rotate(radians(
@@ -346,7 +357,7 @@ fn form(view: &View) -> impl IntoElement {
         } else {
             svg()
                 .path("icons/arrow-right.svg")
-                .size(u(16.))
+                .size(u(10.))
                 .text_color(color(0x3A1F24, 1.0))
                 .into_any_element()
         });
@@ -356,11 +367,11 @@ fn form(view: &View) -> impl IntoElement {
     // in the middle of the pill.
     let pill = frosted(div(), 0.12, if focused { 0.46 } else { 0.22 })
         .relative()
-        .w(u(300.))
-        .h(u(44.))
-        .rounded(u(22.))
-        .pl(u(38.))
-        .pr(u(6.))
+        .w(u(160.))
+        .h(u(28.))
+        .rounded(u(14.))
+        .pl(u(24.))
+        .pr(u(4.))
         .flex()
         .items_center()
         .when(focused, |pill| {
@@ -384,23 +395,23 @@ fn form(view: &View) -> impl IntoElement {
             move |pill, t| pill.left(u(frames.sample(t)))
         });
     let row = div()
-        .mt(u(26.))
+        .mt(u(15.))
         .flex()
         .items_center()
-        .gap(u(12.))
+        .gap(u(9.))
         .child(back)
         .child(pill)
-        .child(div().w(u(36.)));
+        .child(div().w(u(22.)));
     div()
         .relative()
-        .mt(u(-40.))
+        .mt(u(-24.))
         .flex()
         .flex_col()
         .items_center()
         .child(avatar)
         .child(name)
         .child(row)
-        .child(div().mt(u(16.)).h(u(20.)).child(status(view)))
+        .child(div().mt(u(8.)).h(u(15.)).child(status(view)))
         .with_animation(
             ("form-rise", greeter.rest_changes as usize),
             rise(550),
@@ -413,9 +424,8 @@ fn status(view: &View) -> AnyElement {
     let s = greeter.strings;
     let text = |text: &str, color: Hsla, opacity: f32| {
         let line = label(text.to_string())
-            .size(12.5)
-            .font("Inter", FontWeight::LIGHT)
-            .tracking_em(0.04)
+            .size(12.)
+            .tracking_em(0.02)
             .color(color);
         div()
             .opacity(opacity)
@@ -442,19 +452,19 @@ fn power_buttons(view: &View) -> impl IntoElement {
             .flex()
             .flex_col()
             .items_center()
-            .gap(u(10.))
+            .gap(u(8.))
             .cursor_pointer()
             .opacity(if armed { 1.0 } else { 0.8 })
             .hover(|button| button.opacity(1.0))
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
             .child(
                 frosted(div(), if armed { 0.3 } else { 0.12 }, 0.3)
-                    .size(u(44.))
+                    .size(u(28.))
                     .rounded_full()
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(svg().path(icon).size(u(18.)).text_color(color(WHITE, 1.0))),
+                    .child(svg().path(icon).size(u(13.)).text_color(color(WHITE, 1.0))),
             )
             .child(shadowed(
                 label(greeter.action_name(action)).size(13.),
@@ -462,14 +472,15 @@ fn power_buttons(view: &View) -> impl IntoElement {
                 0.5,
             ))
     };
+    // macOS's power buttons stand about 100 points apart, centre to centre.
     div()
         .absolute()
         .left_0()
         .right_0()
-        .bottom(u(44.))
+        .bottom(u(36.))
         .flex()
         .justify_center()
-        .gap(u(56.))
+        .gap(u(44.))
         .child(button(Action::Suspend, "sleep", "icons/moon.svg"))
         .child(button(Action::Reboot, "restart", "icons/restart.svg"))
         .child(button(Action::PowerOff, "shutdown", "icons/power.svg"))
@@ -478,19 +489,19 @@ fn power_buttons(view: &View) -> impl IntoElement {
 fn session_chip(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
     let chip = frosted(div(), 0.12, 0.28)
-        .h(u(36.))
-        .px(u(14.))
-        .rounded(u(18.))
+        .h(u(28.))
+        .px(u(10.))
+        .rounded(u(14.))
         .flex()
         .items_center()
-        .gap(u(8.))
+        .gap(u(6.))
         .child(
             svg()
                 .path("icons/monitor.svg")
-                .size(u(15.))
+                .size(u(13.))
                 .text_color(color(WHITE, 1.0)),
         )
-        .child(label(greeter.session_name().to_string()).size(14.))
+        .child(label(greeter.session_name().to_string()).size(13.))
         .id("session")
         .cursor_pointer()
         .opacity(if greeter.menu.is_some() { 1.0 } else { 0.8 })
@@ -498,19 +509,19 @@ fn session_chip(view: &View) -> impl IntoElement {
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)));
     let theme = frosted(div(), 0.12, 0.28)
-        .h(u(36.))
-        .px(u(14.))
-        .rounded(u(18.))
+        .h(u(28.))
+        .px(u(10.))
+        .rounded(u(14.))
         .flex()
         .items_center()
-        .gap(u(8.))
+        .gap(u(6.))
         .child(
             svg()
                 .path("icons/theme.svg")
-                .size(u(15.))
+                .size(u(13.))
                 .text_color(color(WHITE, 1.0)),
         )
-        .child(label(greeter.theme_title()).size(14.))
+        .child(label(greeter.theme_title()).size(13.))
         .id("theme")
         .cursor_pointer()
         .opacity(0.8)
@@ -519,10 +530,10 @@ fn session_chip(view: &View) -> impl IntoElement {
         .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)));
     div()
         .absolute()
-        .left(u(36.))
-        .bottom(u(44.))
+        .left(u(24.))
+        .bottom(u(36.))
         .flex()
-        .gap(u(10.))
+        .gap(u(8.))
         .when_some(greeter.menu, |anchor, highlighted| {
             anchor.child(menu(view, highlighted))
         })
@@ -537,10 +548,10 @@ fn menu(view: &View, highlighted: usize) -> impl IntoElement {
     div()
         .absolute()
         .left_0()
-        .bottom(u(52.))
-        .min_w(u(190.))
-        .p(u(6.))
-        .rounded(u(14.))
+        .bottom(u(36.))
+        .min_w(u(160.))
+        .p(u(5.))
+        .rounded(u(10.))
         .border(u(1.))
         .border_color(color(WHITE, 0.25))
         .bg(color(0x28161C, 0.72))
@@ -553,19 +564,19 @@ fn menu(view: &View, highlighted: usize) -> impl IntoElement {
                 .id(("session-option", index))
                 .flex()
                 .justify_between()
-                .gap(u(20.))
-                .px(u(12.))
-                .py(u(10.))
-                .rounded(u(9.))
+                .gap(u(16.))
+                .px(u(10.))
+                .py(u(6.))
+                .rounded(u(6.))
                 .cursor_pointer()
                 .when(index == highlighted, |option| option.bg(hover))
                 .hover(|option| option.bg(hover))
                 .on_click(view.on(move |greeter, cx| greeter.pick_session(index, cx)))
-                .child(label(session.name.clone()).size(14.))
+                .child(label(session.name.clone()).size(13.))
                 .child(
                     div()
                         .opacity(0.7)
-                        .child(label(if current { greeter.strings.current } else { "" }).size(12.)),
+                        .child(label(if current { greeter.strings.current } else { "" }).size(11.)),
                 )
         }))
 }
