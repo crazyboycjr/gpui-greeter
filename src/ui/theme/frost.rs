@@ -446,10 +446,14 @@ fn status(view: &View) -> AnyElement {
 
 fn power_buttons(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
+    // macOS's power buttons stand 103 points apart, centre to centre,
+    // whatever their labels' widths: each sits in the middle of a slot
+    // that wide.
     let button = |action: Action, id: &'static str, icon: &'static str| {
         let armed = greeter.status() == Status::Confirm(action);
-        div()
+        let button = div()
             .id(id)
+            .flex_shrink_0()
             .flex()
             .flex_col()
             .items_center()
@@ -471,9 +475,9 @@ fn power_buttons(view: &View) -> impl IntoElement {
                 label(greeter.action_name(action)).size(13.),
                 8.,
                 0.5,
-            ))
+            ));
+        div().w(u(103.)).flex().justify_center().child(button)
     };
-    // macOS's power buttons stand about 100 points apart, centre to centre.
     div()
         .absolute()
         .left_0()
@@ -481,7 +485,6 @@ fn power_buttons(view: &View) -> impl IntoElement {
         .bottom(u(36.))
         .flex()
         .justify_center()
-        .gap(u(44.))
         .child(button(Action::Suspend, "sleep", "icons/moon.svg"))
         .child(button(Action::Reboot, "restart", "icons/restart.svg"))
         .child(button(Action::PowerOff, "shutdown", "icons/power.svg"))
