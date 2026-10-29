@@ -24,12 +24,17 @@ pub struct Palette {
     ink: u32,
     line_alpha: f32,
     menu: u32,
-    underline_alpha: f32,
     error: u32,
     error_line: u32,
     /// The drafting sheet's frame lines, and its thinner ones.
     frame: (u32, f32),
     frame_thin: (u32, f32),
+    /// How far the accent is drawn toward the ink, so that it reads on a
+    /// dark ground as well as on paper.
+    accent_lift: f32,
+    /// The accent's opacity where it only marks the form at rest: the
+    /// avatar's ring and the field's underline before anything is typed.
+    accent_quiet: f32,
 }
 
 const DAY: Palette = Palette {
@@ -37,11 +42,12 @@ const DAY: Palette = Palette {
     ink: 0x2A2622,
     line_alpha: 0.16,
     menu: 0xFBF8F2,
-    underline_alpha: 0.3,
     error: 0xA8452A,
     error_line: 0xB0472A,
     frame: (0x503E2D, 0.55),
     frame_thin: (0x503E2D, 0.25),
+    accent_lift: 0.0,
+    accent_quiet: 0.5,
 };
 
 const NIGHT: Palette = Palette {
@@ -49,12 +55,35 @@ const NIGHT: Palette = Palette {
     ink: 0xECE5D8,
     line_alpha: 0.18,
     menu: 0x26231F,
-    underline_alpha: 0.35,
     error: 0xE08A6A,
     error_line: 0xE08A6A,
     frame: (0xECE5D8, 0.5),
     frame_thin: (0xECE5D8, 0.22),
+    accent_lift: 0.3,
+    accent_quiet: 0.9,
 };
+
+/// What a control lit by the pointer, the menu's highlighted session or an
+/// armed cell of the title block lays under itself.
+const LIT_ALPHA: f32 = 0.12;
+const CELL_LIT_ALPHA: f32 = 0.08;
+
+impl Palette {
+    /// The settings' accent as this palette shows it.
+    fn accent(&self, view: &View) -> Hsla {
+        let accent = view.greeter.config.paper.accent.0;
+        color(mix(accent, self.ink, self.accent_lift), 1.0)
+    }
+}
+
+/// The colour `t` of the way from `from` to `to`, both 0xRRGGBB.
+fn mix(from: u32, to: u32, t: f32) -> u32 {
+    [16, 8, 0].into_iter().fold(0, |rgb, shift| {
+        let (a, b) = ((from >> shift) & 0xFF, (to >> shift) & 0xFF);
+        let channel = a as f32 + (b as f32 - a as f32) * t;
+        rgb | (channel.round().clamp(0.0, 255.0) as u32) << shift
+    })
+}
 
 /// The desk's sheet of paper, cream by night too.
 const SHEET: u32 = 0xF7F2E7;
@@ -201,12 +230,14 @@ fn main_column(view: &View, palette: &Palette) -> impl IntoElement {
 fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
     let greeter = view.greeter;
     let ink = color(palette.ink, 1.0);
-    let accent: Hsla = gpui_kit::rgb(greeter.config.paper.accent.0).into();
+    let accent = palette.accent(view);
     let failed = matches!(greeter.status(), Status::Denied(_) | Status::Failed(_));
     let underline = if failed {
         color(palette.error_line, 1.0)
+    } else if greeter.typed_len() > 0 {
+        accent
     } else {
-        color(palette.ink, palette.underline_alpha)
+        accent.opacity(palette.accent_quiet)
     };
     let user = greeter.user();
     let name = user
@@ -221,7 +252,7 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
         .flex_shrink_0()
         .rounded_full()
         .border(u(1.))
-        .border_color(color(palette.ink, palette.line_alpha))
+        .border_color(accent.opacity(palette.accent_quiet))
         .overflow_hidden()
         .flex()
         .items_center()
@@ -229,6 +260,7 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
         .when(switches, |avatar| {
             avatar
                 .cursor_pointer()
+                .hover(move |avatar| avatar.border_color(accent))
                 .on_click(view.on(|greeter, cx| greeter.next_user(1, cx)))
         })
         .child(match user.and_then(|user| user.avatar.clone()) {
@@ -242,8 +274,10 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
         });
     let who = div()
         .id("user")
+        .text_color(ink)
         .when(switches, |name| {
             name.cursor_pointer()
+                .hover(move |name| name.text_color(accent))
                 .on_click(view.on(|greeter, cx| greeter.next_user(1, cx)))
         })
         .child(
@@ -251,7 +285,7 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
                 .size(15.)
                 .font("Inter", FontWeight::MEDIUM)
                 .tracking_em(0.02)
-                .color(ink),
+                .inherit_color(),
         );
     let look = FieldLook {
         family: "Inter",
@@ -310,9 +344,7 @@ fn status_line(view: &View, palette: &Palette, accent: Hsla) -> impl IntoElement
     match greeter.status() {
         Status::Hint => line.child(text(s.press_enter, ink(0.68))),
         Status::Notice(notice) => line.child(text(notice, ink(0.68))),
-        Status::Checking => line
-            .child(text(s.checking, ink(0.68)))
-            .child(dots(ink(0.68))),
+        Status::Checking => line.child(text(s.checking, ink(0.68))).child(dots(accent)),
         Status::Denied(notice) => line.child(text(notice.unwrap_or(s.wrong_password), error)),
         Status::Failed(message) => line.child(text(message, error)),
         Status::Confirm(action) => {
@@ -342,53 +374,46 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
     let greeter = view.greeter;
     let s = greeter.strings;
     let ink = color(palette.ink, 1.0);
-    let accent: Hsla = gpui_kit::rgb(greeter.config.paper.accent.0).into();
-    let session_button = div()
-        .id("session")
-        .flex()
-        .items_center()
-        .gap(u(6.))
-        .py(u(8.))
-        .cursor_pointer()
-        .opacity(if greeter.menu.is_some() { 1.0 } else { 0.7 })
-        .hover(|button| button.opacity(1.0))
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
-        .child(
-            label(s.session)
-                .font("Inter", FontWeight::LIGHT)
-                .size(13.)
-                .tracking_em(0.04)
-                .color(ink),
-        )
-        .child(
-            label(greeter.session_name().to_string())
-                .size(13.)
-                .font("Inter", FontWeight::MEDIUM)
-                .tracking_em(0.04)
-                .color(ink),
-        )
-        .child(
-            svg()
-                .path("icons/caret-up.svg")
-                .size(u(10.))
-                .text_color(ink),
-        );
+    let accent = palette.accent(view);
+    let open = greeter.menu.is_some();
+    let session_button = control(
+        div().id("session").flex().items_center().gap(u(6.)),
+        ink,
+        accent,
+        open,
+    )
+    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+    .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
+    .child(
+        label(s.session)
+            .font("Inter", FontWeight::LIGHT)
+            .size(13.)
+            .tracking_em(0.04)
+            .inherit_color(),
+    )
+    .child(
+        label(greeter.session_name().to_string())
+            .size(13.)
+            .font("Inter", FontWeight::MEDIUM)
+            .tracking_em(0.04)
+            .inherit_color(),
+    )
+    .child(
+        svg()
+            .path("icons/caret-up.svg")
+            .size(u(10.))
+            .text_color(accent),
+    );
     let power = |action: Action, id: &'static str| {
         let armed = greeter.status() == Status::Confirm(action);
-        div()
-            .id(id)
-            .py(u(8.))
-            .cursor_pointer()
-            .opacity(if armed { 1.0 } else { 0.7 })
-            .hover(|button| button.opacity(1.0))
+        control(div().id(id), ink, accent, armed)
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
             .child(
                 label(greeter.action_name(action))
                     .font("Inter", FontWeight::LIGHT)
                     .size(13.)
                     .tracking_em(0.04)
-                    .color(if armed { accent } else { ink }),
+                    .inherit_color(),
             )
     };
     div()
@@ -419,7 +444,7 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
                     )
                 })
                 .when(greeter.looks.cycle.len() > 1, |left| {
-                    left.child(theme_button(view, ink))
+                    left.child(theme_button(view, ink, accent))
                 }),
         )
         .child(
@@ -432,34 +457,47 @@ fn bottom_bar(view: &View, palette: &Palette, right: f32) -> impl IntoElement {
         )
 }
 
-/// "Theme Paper": switches to the next look, as F9 does.
-fn theme_button(view: &View, ink: Hsla) -> impl IntoElement {
-    let greeter = view.greeter;
-    div()
-        .id("theme")
-        .flex()
-        .items_center()
-        .gap(u(6.))
+/// One of the bar's words that act: quiet ink, and the accent under the
+/// pointer or while `lit`, as an open menu's control or an armed action is.
+fn control(
+    button: gpui_kit::Stateful<gpui_kit::Div>,
+    ink: Hsla,
+    accent: Hsla,
+    lit: bool,
+) -> gpui_kit::Stateful<gpui_kit::Div> {
+    button
         .py(u(8.))
         .cursor_pointer()
-        .opacity(0.7)
-        .hover(|button| button.opacity(1.0))
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)))
-        .child(
-            label(greeter.strings.theme)
-                .font("Inter", FontWeight::LIGHT)
-                .size(13.)
-                .tracking_em(0.04)
-                .color(ink),
-        )
-        .child(
-            label(greeter.theme_title())
-                .size(13.)
-                .font("Inter", FontWeight::MEDIUM)
-                .tracking_em(0.04)
-                .color(ink),
-        )
+        .text_color(if lit { accent } else { ink })
+        .opacity(if lit { 1.0 } else { 0.7 })
+        .hover(move |button| button.opacity(1.0).text_color(accent))
+}
+
+/// "Theme Paper": switches to the next look, as F9 does.
+fn theme_button(view: &View, ink: Hsla, accent: Hsla) -> impl IntoElement {
+    let greeter = view.greeter;
+    control(
+        div().id("theme").flex().items_center().gap(u(6.)),
+        ink,
+        accent,
+        false,
+    )
+    .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+    .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)))
+    .child(
+        label(greeter.strings.theme)
+            .font("Inter", FontWeight::LIGHT)
+            .size(13.)
+            .tracking_em(0.04)
+            .inherit_color(),
+    )
+    .child(
+        label(greeter.theme_title())
+            .size(13.)
+            .font("Inter", FontWeight::MEDIUM)
+            .tracking_em(0.04)
+            .inherit_color(),
+    )
 }
 
 /// How the session menu looks: rounded over the bar, square on the
@@ -508,7 +546,7 @@ impl MenuLook {
 
 fn menu(view: &View, look: &MenuLook, highlighted: usize, accent: Hsla) -> gpui_kit::Div {
     let greeter = view.greeter;
-    let hover = color(0x7F6E5A, 0.12);
+    let hover = accent.opacity(LIT_ALPHA);
     let ink = look.ink;
     div()
         .absolute()
@@ -559,9 +597,9 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
     let greeter = view.greeter;
     let s = greeter.strings;
     let ink = color(palette.ink, 1.0);
-    let accent: Hsla = gpui_kit::rgb(greeter.config.paper.accent.0).into();
+    let accent = palette.accent(view);
     let thin = color(palette.frame_thin.0, palette.frame_thin.1);
-    let hover = color(0x786046, 0.08);
+    let hover = accent.opacity(CELL_LIT_ALPHA);
     let cell = |columns: f32, caption: String| {
         div()
             .w(u(COLUMN * columns))
@@ -589,14 +627,27 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
         .id("session")
         .border_r(u(1.))
         .cursor_pointer()
+        .when(greeter.menu.is_some(), |cell| cell.bg(hover))
         .hover(|cell| cell.bg(hover))
         .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
         .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
         .child(
-            label(greeter.session_name().to_string())
-                .size(13.)
-                .font("Inter", FontWeight::MEDIUM)
-                .color(ink),
+            div()
+                .flex()
+                .items_center()
+                .gap(u(6.))
+                .child(
+                    label(greeter.session_name().to_string())
+                        .size(13.)
+                        .font("Inter", FontWeight::MEDIUM)
+                        .color(ink),
+                )
+                .child(
+                    svg()
+                        .path("icons/caret-up.svg")
+                        .size(u(10.))
+                        .text_color(accent),
+                ),
         );
     let keys = greeter.power_keys();
     // The lock screen's session is the one running, not chosen there: the
@@ -612,6 +663,7 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
             .id(key)
             .when(index + 1 < keys.len(), |cell| cell.border_r(u(1.)))
             .cursor_pointer()
+            .when(armed, |cell| cell.bg(hover))
             .hover(|cell| cell.bg(hover))
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
             .child(
@@ -674,4 +726,16 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                 })
                 .children(actions),
         )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mixes_each_channel_on_its_own() {
+        assert_eq!(mix(0xB0612E, 0xECE5D8, 0.0), 0xB0612E);
+        assert_eq!(mix(0xB0612E, 0xECE5D8, 1.0), 0xECE5D8);
+        assert_eq!(mix(0x00FF00, 0xFF0000, 0.5), 0x808000);
+    }
 }

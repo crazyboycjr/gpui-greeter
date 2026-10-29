@@ -42,6 +42,7 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         typed: SmallVec::new(),
         size: 16.0,
         color: gpui_kit::white(),
+        inherits_color: false,
         tracking: Tracking::Px(0.0),
         line_height: None,
         shadows: SmallVec::new(),
@@ -63,6 +64,7 @@ pub struct Label {
     typed: SmallVec<[Range<usize>; 1]>,
     size: f32,
     color: Hsla,
+    inherits_color: bool,
     tracking: Tracking,
     line_height: Option<f32>,
     shadows: SmallVec<[Shadow; 2]>,
@@ -152,6 +154,13 @@ impl Label {
 
     pub fn color(mut self, color: impl Into<Hsla>) -> Self {
         self.color = color.into();
+        self
+    }
+
+    /// Takes its colour from the box it is in, whose `text_color` and hover
+    /// style set it, as a control's words follow the control.
+    pub fn inherit_color(mut self) -> Self {
+        self.inherits_color = true;
         self
     }
 
@@ -386,8 +395,13 @@ impl Element for Label {
                 }
             }
         }
+        let color = if self.inherits_color {
+            window.text_style().color
+        } else {
+            self.color
+        };
         for (origin, font_id, glyph_id) in &glyphs {
-            let _ = window.paint_glyph(*origin, *font_id, *glyph_id, font_size, self.color);
+            let _ = window.paint_glyph(*origin, *font_id, *glyph_id, font_size, color);
         }
     }
 }

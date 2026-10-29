@@ -15,8 +15,11 @@ language = "en"
 scale = 1.0
 
 [paper]
-# The caret and the session menu's mark. The mockup offered
-# "#B0612E", "#3E6E8E", "#5B7F4F" and "#8A5BA6".
+# The accent, quiet: the password field's caret and underline, the
+# session's mark and the menu's, and the controls under the pointer or
+# waiting for a second press; on Night's dark ground it is drawn a little
+# toward the ink. The mockup offered "#B0612E", "#3E6E8E", "#5B7F4F" and
+# "#8A5BA6".
 accent = "#B0612E"
 # What lies under the clock: "desk" (a sheet of paper on a wooden desk),
 # "ledger" (blue rules and a red margin), "drafting" (a drafting sheet whose
