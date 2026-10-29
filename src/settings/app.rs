@@ -154,6 +154,9 @@ struct Sliders {
 pub struct Settings {
     paths: Paths,
     palette: Palette,
+    x11: Rc<X11>,
+    /// The ground the window was given last, as 0xRRGGBB.
+    painted_ground: Option<u32>,
     words: &'static Words,
     user: User,
     session: Option<Session>,
@@ -252,7 +255,7 @@ impl Settings {
                 }),
             );
         }
-        let preview = cx.new(|cx| Miniature::new(x11, monitor, svgs, cx));
+        let preview = cx.new(|cx| Miniature::new(x11.clone(), monitor, svgs, cx));
         let looks = looks(&saved.config);
         let mut this = Self {
             words: words(saved.config.language),
@@ -260,6 +263,8 @@ impl Settings {
             selected: saved.config.theme.clone(),
             paths,
             palette,
+            x11,
+            painted_ground: None,
             user,
             session,
             saved,
@@ -793,6 +798,20 @@ impl Render for Settings {
         if self.title_language != self.draft.config.language {
             self.title_language = self.draft.config.language;
             window.set_window_title(self.words.title);
+        }
+        let ground = gpui_kit::Rgba::from(self.palette.ground);
+        let ground = [ground.r, ground.g, ground.b]
+            .into_iter()
+            .fold(0, |rgb, channel| {
+                rgb << 8 | (channel * 255.0).round() as u32
+            });
+        if self.painted_ground != Some(ground)
+            && let Some(xid) = crate::ui::xid(window)
+        {
+            self.painted_ground = Some(ground);
+            if let Err(error) = self.x11.set_background(xid, ground) {
+                log::warn!("cannot give the window its ground: {error:#}");
+            }
         }
         // The preview as large as about half the window allows, and the
         // controls in a column as wide, both in the middle.

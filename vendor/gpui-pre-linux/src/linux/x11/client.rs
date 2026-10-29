@@ -744,6 +744,22 @@ impl X11Client {
                 break;
             }
 
+            // gpui-greeter: of the ConfigureNotify events read in one go, each window's last is
+            // handled: a window manager resizing a window under the pointer sends one for every
+            // motion, and each would cost a layout.
+            let mut configured = HashSet::new();
+            events = events
+                .into_iter()
+                .rev()
+                .filter(|event| match event {
+                    Event::ConfigureNotify(event) => configured.insert(event.window),
+                    _ => true,
+                })
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+
             for event in events.into_iter() {
                 let mut state = self.0.borrow_mut();
                 if !state.has_xim() {
@@ -795,12 +811,20 @@ impl X11Client {
             }
 
             for x_window in windows_to_refresh {
-                let window = self
-                    .0
-                    .borrow()
-                    .windows
-                    .get(&x_window)
-                    .and_then(|window| window.is_mapped.then(|| window.window.clone()));
+                // gpui-greeter: the child a window's frames go into is exposed for the window.
+                let window = {
+                    let state = self.0.borrow();
+                    state
+                        .windows
+                        .get(&x_window)
+                        .or_else(|| {
+                            state
+                                .windows
+                                .values()
+                                .find(|window| window.window.surface_child() == x_window)
+                        })
+                        .and_then(|window| window.is_mapped.then(|| window.window.clone()))
+                };
                 if let Some(window) = window {
                     window.refresh(RequestFrameOptions {
                         require_presentation: true,
@@ -1398,7 +1422,12 @@ impl X11Client {
                 state.mouse_focused_window = Some(event.event);
                 state.restore_cursor_after_hide();
             }
-            Event::XinputLeave(event) if event.mode == xinput::NotifyMode::NORMAL => {
+            // gpui-greeter: the pointer going on into the child a window's frames go into
+            // stays in the window.
+            Event::XinputLeave(event)
+                if event.mode == xinput::NotifyMode::NORMAL
+                    && event.detail != xinput::NotifyDetail::INFERIOR =>
+            {
                 let mut state = self.0.borrow_mut();
 
                 // Set last scroll values to `None` so that a large delta isn't created if scrolling is done outside the window (the valuator is global)

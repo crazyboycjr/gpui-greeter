@@ -20,6 +20,10 @@ const MAX_INSTANCE_BUFFER_SIZE: u64 = 256 * 1024 * 1024;
 
 const INSTANCE_TEXTURE_TEXEL_SIZE: u64 = 16;
 
+/// gpui-greeter: how soon after its size last changed a window whose size changes again counts
+/// as being resized, its swapchain made again for nearly every frame.
+const RESIZING: std::time::Duration = std::time::Duration::from_millis(250);
+
 /// Shader variant for backends with storage buffer support: the shared shader
 /// logic plus the storage-buffer instance transport.
 const STORAGE_BUFFER_SHADERS: &str = concat!(
@@ -251,7 +255,10 @@ pub struct WgpuRenderer {
     #[allow(dead_code)]
     compositor_gpu: Option<CompositorGpuHint>,
     state: RendererState,
+    /// gpui-greeter: the window's size and present mode; the swapchain can be larger.
     surface_config: wgpu::SurfaceConfiguration,
+    /// The size the surface was last configured for.
+    configured_size: (u32, u32),
     atlas: Arc<WgpuAtlas>,
     transparent_alpha_mode: wgpu::CompositeAlphaMode,
     opaque_alpha_mode: wgpu::CompositeAlphaMode,
@@ -262,6 +269,19 @@ pub struct WgpuRenderer {
     observed_error_generation: u64,
     last_surface_error: Option<String>,
     needs_redraw: bool,
+    /// gpui-greeter: the present modes the surface offers, and the one used while the window is
+    /// not being resized.
+    present_modes: Vec<wgpu::PresentMode>,
+    resting_mode: wgpu::PresentMode,
+    /// gpui-greeter: when the drawable size last changed and whether it changed shortly before
+    /// that; when the last swapchain was made and how long it took.
+    resized_at: Option<std::time::Instant>,
+    resized_again: bool,
+    configured_at: Option<std::time::Instant>,
+    configure_took: std::time::Duration,
+    /// gpui-greeter: the size of the window the surface presents into, when that is a child the
+    /// window clips rather than the window itself, as on X11.
+    surface_size: Option<(u32, u32)>,
 }
 
 impl WgpuRenderer {
@@ -462,11 +482,13 @@ impl WgpuRenderer {
         surface.configure(&context.device, &surface_config);
 
         let core = WgpuRendererCore::new(context, atlas.clone(), surface_format, alpha_mode);
+        let resting_mode = surface_config.present_mode;
 
         Ok(Self {
             context: gpu_context,
             compositor_gpu,
             state: RendererState::Ready { surface, core },
+            configured_size: (surface_config.width, surface_config.height),
             surface_config,
             atlas,
             transparent_alpha_mode,
@@ -478,6 +500,13 @@ impl WgpuRenderer {
             observed_error_generation: 0,
             last_surface_error: None,
             needs_redraw: false,
+            present_modes: surface_caps.present_modes,
+            resting_mode,
+            resized_at: None,
+            resized_again: false,
+            configured_at: None,
+            configure_took: std::time::Duration::ZERO,
+            surface_size: None,
         })
     }
 }
@@ -1018,6 +1047,71 @@ impl WgpuRenderer {
         }
         self.surface_config.width = clamped_width.max(1);
         self.surface_config.height = clamped_height.max(1);
+        // gpui-greeter: the surface follows in the next frame, so that sizes which come and go
+        // before it cost no swapchain.
+        let now = std::time::Instant::now();
+        self.resized_again = self.resized_at.is_some_and(|at| now - at < RESIZING);
+        self.resized_at = Some(now);
+    }
+
+    /// gpui-greeter: the size of the child window the surface presents into, which the window
+    /// clips; the swapchain is made for it rather than for the window.
+    pub fn set_surface_size(&mut self, size: Size<DevicePixels>) {
+        self.surface_size = Some((
+            (size.width.0 as u32).clamp(1, self.max_texture_size),
+            (size.height.0 as u32).clamp(1, self.max_texture_size),
+        ));
+    }
+
+    /// gpui-greeter: whether the window's size keeps changing, as it does under the pointer.
+    fn resizing(&self) -> bool {
+        self.resized_again && self.resized_at.is_some_and(|at| at.elapsed() < RESIZING)
+    }
+
+    /// gpui-greeter: the present mode for the next swapchain. While the window is being resized,
+    /// as it is while the surface's child is larger than the window, its frames are presented
+    /// at once rather than at the next vertical blank, so that each is on the screen as soon as
+    /// it is drawn: composited, nothing tears.
+    fn present_mode(&self) -> wgpu::PresentMode {
+        let window = (self.surface_config.width, self.surface_config.height);
+        let resizing = match self.surface_size {
+            Some(size) => size != window,
+            None => self.resizing(),
+        };
+        if resizing && self.present_modes.contains(&wgpu::PresentMode::Immediate) {
+            wgpu::PresentMode::Immediate
+        } else {
+            self.resting_mode
+        }
+    }
+
+    /// Reconfigures the surface for the size `update_drawable_size` recorded last, and for the
+    /// present mode the window's resizing calls for.
+    ///
+    /// gpui-greeter: the swapchain is the size of the child window the surface presents into,
+    /// where there is one. Otherwise, while the size keeps changing, the window gets a swapchain
+    /// for its size no sooner than twice what the last took, which on NVIDIA is 5 to 60 ms and
+    /// stale again by the time it exists.
+    fn follow_drawable_size(&mut self) {
+        let window = (self.surface_config.width, self.surface_config.height);
+        let mode = self.present_mode();
+        let size = if let Some(size) = self.surface_size {
+            size
+        } else if !self.resizing() {
+            window
+        } else if self
+            .configured_at
+            .is_some_and(|at| at.elapsed() < self.configure_took * 2)
+        {
+            return;
+        } else {
+            window
+        };
+        if size == self.configured_size && mode == self.surface_config.present_mode {
+            return;
+        }
+        self.surface_config.present_mode = mode;
+        let (width, height) = size;
 
         let Some(core) = self.core_mut() else {
             return;
@@ -1046,7 +1140,22 @@ impl WgpuRenderer {
         resources.invalidate_intermediate_textures();
 
         if let RendererState::Ready { surface, core } = &self.state {
-            surface.configure(&core.resources.device, &self.surface_config);
+            let started = std::time::Instant::now();
+            let config = wgpu::SurfaceConfiguration {
+                width,
+                height,
+                ..self.surface_config.clone()
+            };
+            surface.configure(&core.resources.device, &config);
+            self.configured_size = size;
+            self.configured_at = Some(std::time::Instant::now());
+            self.configure_took = started.elapsed();
+            log::debug!(
+                "configured {width}x{height} {mode:?} for a {}x{} window in {:.2} ms",
+                window.0,
+                window.1,
+                self.configure_took.as_secs_f64() * 1e3,
+            );
         }
     }
 
@@ -1085,6 +1194,7 @@ impl WgpuRenderer {
 
         if let RendererState::Ready { surface, core } = &self.state {
             surface.configure(&core.resources.device, &self.surface_config);
+            self.configured_size = (self.surface_config.width, self.surface_config.height);
         }
     }
 
@@ -1121,6 +1231,7 @@ impl WgpuRenderer {
     }
 
     pub fn draw(&mut self, scene: &Scene) -> bool {
+        self.follow_drawable_size();
         #[cfg(target_family = "wasm")]
         if self.device_lost() {
             if matches!(self.state, RendererState::Ready { .. }) {
@@ -1165,15 +1276,15 @@ impl WgpuRenderer {
         }
 
         let frame = match surface.get_current_texture() {
-            wgpu::CurrentSurfaceTexture::Success(frame) => frame,
-            wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
-                // Textures must be destroyed before the surface can be reconfigured.
-                drop(frame);
-                surface.configure(&core.resources.device, &self.surface_config);
-                return false;
-            }
+            // gpui-greeter: a frame for a swapchain the window's size has moved away from is
+            // shown all the same, at the window's top left: a frame a size behind beats none.
+            wgpu::CurrentSurfaceTexture::Success(frame)
+            | wgpu::CurrentSurfaceTexture::Suboptimal(frame) => frame,
+            // gpui-greeter: no frame to be had from this swapchain; the next frame makes one.
             wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
-                surface.configure(&core.resources.device, &self.surface_config);
+                self.configured_size = (0, 0);
+                self.configured_at = None;
+                self.needs_redraw = true;
                 return false;
             }
             wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
@@ -1208,6 +1319,11 @@ impl WgpuRenderer {
         }
 
         frame.present();
+        // gpui-greeter: until the swapchain is the window's size again, which waits for the size
+        // to rest, another frame follows.
+        if self.configured_size != (self.surface_config.width, self.surface_config.height) {
+            self.needs_redraw = true;
+        }
         true
     }
 }
@@ -2177,6 +2293,7 @@ impl WgpuRenderer {
             }
         };
         surface.configure(&core.resources.device, &self.surface_config);
+        self.configured_size = (width, height);
         core.resources.invalidate_intermediate_textures();
         self.state = RendererState::Ready { surface, core };
 

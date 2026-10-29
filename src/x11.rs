@@ -261,6 +261,20 @@ impl X11 {
         Ok(())
     }
 
+    /// The colour the X server fills what `window` and its children newly
+    /// show with, until the next frame is there: the ground, rather than
+    /// black, in the strip a window gains as it grows, and in the child its
+    /// frames go into.
+    pub fn set_background(&self, window: u32, rgb: u32) -> Result<()> {
+        let aux = xproto::ChangeWindowAttributesAux::new().background_pixel(0xFF00_0000 | rgb);
+        let tree = self.conn.query_tree(window)?.reply()?;
+        for window in std::iter::once(window).chain(tree.children) {
+            self.conn.change_window_attributes(window, &aux)?;
+        }
+        self.conn.flush()?;
+        Ok(())
+    }
+
     /// Takes `window` off the screen; GPUI draws no frames for it then.
     pub fn hide(&self, window: u32) -> Result<()> {
         self.conn.unmap_window(window)?;

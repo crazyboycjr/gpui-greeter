@@ -604,7 +604,8 @@ fn open_screen(
     Ok((screen, handle, xid))
 }
 
-fn xid(window: &Window) -> Option<u32> {
+/// The X window GPUI made for `window`.
+pub fn xid(window: &Window) -> Option<u32> {
     match HasWindowHandle::window_handle(window).ok()?.as_raw() {
         RawWindowHandle::Xcb(handle) => Some(handle.window.get()),
         RawWindowHandle::Xlib(handle) => u32::try_from(handle.window).ok(),

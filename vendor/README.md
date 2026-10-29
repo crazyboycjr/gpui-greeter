@@ -1,11 +1,47 @@
 # gpui's Linux and wgpu backends, vendored
 
 `gpui-pre-linux` and `gpui-pre-wgpu` 0.3.9, as crates.io publishes them,
-taken in through `[patch.crates-io]` in the top `Cargo.toml`. The first
-commit that touches them adds them unchanged, without their `Cargo.lock`
-and the wgpu backend's benchmark, so `git log -p -- vendor` shows every
-change made since; in the code, `gpui-greeter:` comments mark them. Both
-crates are Zed's, under the Apache License 2.0, whose text is beside each.
+taken in through `[patch.crates-io]` in the top `Cargo.toml`, with one
+change on top. The first commit that touches them adds them unchanged,
+without their `Cargo.lock` and the wgpu backend's benchmark, so
+`git log -p -- vendor` shows every change made since; in the code,
+`gpui-greeter:` comments mark them. Both crates are Zed's, under the
+Apache License 2.0, whose text is beside each.
+
+- **A window dragged to a new size gets its frames** (`x11/client.rs`,
+  `x11/window.rs`, `wgpu_renderer.rs`). NVIDIA's X11 Vulkan surfaces put a
+  swapchain out of date at any change of their window's size, and making
+  one takes longer than the pointer takes to change the size again, so a
+  window that presents into itself got one to five frames a second to the
+  screen while it was dragged larger, and its content lagged the pointer
+  by up to half a second. Measured on NVIDIA with a probe, a fixed child
+  window as large as the screen that the window clips took 210 to 235
+  frames a second, 6 to 9 pixels behind the pointer.
+
+  So the GPU presents into a child of the window rather than the window
+  itself. While the size keeps changing (a size within a quarter of a
+  second of the last), the child is as large as the screen, or half as
+  large again as a window that outgrows the screen, and the window clips
+  it, so its swapchain stays good; once the size has rested for a tenth
+  of a second over two frames and the server has the size last seen, the
+  child is the window's size again. Frames are presented at once while
+  the child is larger than the window and at the vertical blank (FIFO) at
+  rest. The child's exposures count as the window's, and the pointer
+  moving into it stays in the window. Of the ConfigureNotify events read
+  in one go, each window's last is handled, and the layout and the
+  swapchain take its size without a round trip to the server, which
+  would wait behind the window manager's resizes; the swapchain follows a
+  new size at the next frame, so sizes that come and go in between cost
+  none, and a frame for a swapchain a size behind is shown rather than
+  dropped. The window keeps its last frame at its top left (north-west bit
+  gravity) until the next is drawn, and the settings app gives the window
+  and the child its ground as their background, so a strip a window gains
+  shows the ground rather than black.
+
+  The same change carries the window resizing of silent, a file previewer
+  drawn with gpui, without silent's other changes to these crates. The
+  greeter's own windows, over whole monitors and never resized, present
+  into a child the size of the window, as before into the window itself.
 
 To take a newer gpui, copy its crates over these, drop their `Cargo.lock`
-and benchmarks, and carry the changes over.
+and benchmarks, and carry the change over.
