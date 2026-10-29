@@ -434,20 +434,20 @@ fn top_left(view: &View, palette: &Palette) -> impl IntoElement {
     .join(" \u{00B7} ");
     div()
         .absolute()
-        .left(u(64.))
-        .top(u(52.))
+        .left(u(40.))
+        .top(u(36.))
         .flex()
         .flex_col()
-        .gap(u(6.))
+        .gap(u(4.))
         .child(
             div()
                 .flex()
                 .items_center()
-                .gap(u(8.))
+                .gap(u(6.))
                 .child(
                     svg()
                         .path("icons/corner.svg")
-                        .size(u(9.))
+                        .size(u(7.))
                         .text_color(palette.accent),
                 )
                 .child(
@@ -457,37 +457,38 @@ fn top_left(view: &View, palette: &Palette) -> impl IntoElement {
                         } else {
                             "greetd"
                         },
-                        13.,
+                        12.,
                     )
                     .font(MONO, FontWeight::BOLD)
                     .color(palette.accent)
                     .tracking_em(0.14),
                 ),
         )
-        .child(div().opacity(0.55).child(text(place, 13.)))
+        .child(div().opacity(0.55).child(text(place, 12.)))
 }
 
 fn top_right(view: &View, palette: &Palette) -> impl IntoElement {
     let now = &view.greeter.now;
+    // A terminal's status corner rather than a lock screen's clock.
     div()
         .absolute()
-        .right(u(64.))
-        .top(u(44.))
+        .right(u(40.))
+        .top(u(30.))
         .flex()
         .flex_col()
         .items_end()
-        .gap(u(4.))
+        .gap(u(2.))
         .child(
-            text(i18n::clock(now, true), 40.)
+            text(i18n::clock(now, true), 28.)
                 .font(MONO, FontWeight::MEDIUM)
                 .tracking_em(0.04)
                 .color(palette.accent)
-                .shadow(0., 0., 18., palette.glow),
+                .shadow(0., 0., 12., palette.glow),
         )
         .child(
             div()
                 .opacity(0.6)
-                .child(text(i18n::iso_date(now), 13.).tracking_em(0.1)),
+                .child(text(i18n::iso_date(now), 12.).tracking_em(0.1)),
         )
 }
 
@@ -505,12 +506,12 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
             } else {
                 Glitch::pose(t)
             };
-            let mut name = text(hostname.clone(), 92.)
+            let mut name = text(hostname.clone(), 64.)
                 .font(MONO, FontWeight::EXTRA_BOLD)
                 .line_height(0.9)
-                .tracking(-1.)
+                .tracking(-0.7)
                 .color(color(BRIGHT, 1.0))
-                .shadow(0., 0., 26., glow);
+                .shadow(0., 0., 18., glow);
             if split != 0.0 {
                 name = name.shadow(split, 0., 0., color(0xFF2E63, 1.0)).shadow(
                     -split,
@@ -527,13 +528,13 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
         .flex()
         .flex_col()
         .items_end()
-        .child(text(machine.os.clone(), 12.).line_height(1.6))
-        .child(text(machine.kernel.clone(), 12.).line_height(1.6));
+        .child(text(machine.os.clone(), 11.).line_height(1.6))
+        .child(text(machine.kernel.clone(), 11.).line_height(1.6));
     let column = div()
-        .w(u(760.))
+        .w(u(540.))
         .flex()
         .flex_col()
-        .gap(u(26.))
+        .gap(u(18.))
         .child(
             div()
                 .flex()
@@ -556,7 +557,7 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
     div()
         .absolute()
         .inset_0()
-        .pb(u(32.))
+        .pb(u(24.))
         .flex()
         .items_center()
         .justify_center()
@@ -567,12 +568,12 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
 /// wake the terminal.
 fn resting_line(view: &View, palette: &Palette) -> impl IntoElement {
     div()
-        .px(u(32.))
+        .px(u(24.))
         .flex()
         .items_center()
-        .gap(u(16.))
+        .gap(u(12.))
         .child(
-            text("[ LOCKED ]", 14.)
+            text("[ LOCKED ]", 12.)
                 .font(MONO, FontWeight::BOLD)
                 .color(palette.accent)
                 .tracking_em(0.04),
@@ -580,11 +581,11 @@ fn resting_line(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .opacity(0.8)
-                .child(text(view.greeter.strings.neon.wake, 14.).tracking_em(0.04)),
+                .child(text(view.greeter.strings.neon.wake, 12.).tracking_em(0.04)),
         )
         .child(
             div()
-                .child(text("\u{258C}", 14.).color(palette.accent))
+                .child(text("\u{258C}", 12.).color(palette.accent))
                 .with_animation("blink", blink(1100), |cursor, t| {
                     cursor.opacity(blink_opacity(t))
                 }),
@@ -595,25 +596,25 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
     let greeter = view.greeter;
     let s = &greeter.strings.neon;
     let corner = |top: bool, left: bool| {
-        let bracket = div().absolute().size(u(18.)).border_color(palette.edge);
+        let bracket = div().absolute().size(u(12.)).border_color(palette.edge);
         let bracket = if top {
-            bracket.top(u(-1.)).border_t(u(2.))
+            bracket.top(u(-1.)).border_t(u(1.5))
         } else {
-            bracket.bottom(u(-1.)).border_b(u(2.))
+            bracket.bottom(u(-1.)).border_b(u(1.5))
         };
         if left {
-            bracket.left(u(-1.)).border_l(u(2.))
+            bracket.left(u(-1.)).border_l(u(1.5))
         } else {
-            bracket.right(u(-1.)).border_r(u(2.))
+            bracket.right(u(-1.)).border_r(u(1.5))
         }
     };
     let session = div()
         .id("session")
         .flex()
         .items_center()
-        .gap(u(10.))
-        .px(u(10.))
-        .py(u(6.))
+        .gap(u(8.))
+        .px(u(8.))
+        .py(u(4.))
         .border(u(1.))
         .border_color(palette.line)
         .cursor_pointer()
@@ -625,22 +626,22 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .opacity(0.55)
-                .child(text(s.session, 12.).tracking_em(0.08)),
+                .child(text(s.session, 11.).tracking_em(0.08)),
         )
         .child(
-            text(greeter.session_name().to_string(), 12.)
+            text(greeter.session_name().to_string(), 11.)
                 .font(MONO, FontWeight::BOLD)
                 .tracking_em(0.08),
         )
-        .child(text("F2", 12.).color(palette.accent).tracking_em(0.08));
+        .child(text("F2", 11.).color(palette.accent).tracking_em(0.08));
     // The theme, a line like the session's, in Neon's lower case.
     let theme = div()
         .id("theme")
         .flex()
         .items_center()
-        .gap(u(10.))
-        .px(u(10.))
-        .py(u(6.))
+        .gap(u(8.))
+        .px(u(8.))
+        .py(u(4.))
         .border(u(1.))
         .border_color(palette.line)
         .cursor_pointer()
@@ -649,19 +650,19 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .opacity(0.55)
-                .child(text(s.theme, 12.).tracking_em(0.08)),
+                .child(text(s.theme, 11.).tracking_em(0.08)),
         )
         .child(
-            text(greeter.theme_title().to_lowercase(), 12.)
+            text(greeter.theme_title().to_lowercase(), 11.)
                 .font(MONO, FontWeight::BOLD)
                 .tracking_em(0.08),
         )
-        .child(text("F9", 12.).color(palette.accent).tracking_em(0.08));
+        .child(text("F9", 11.).color(palette.accent).tracking_em(0.08));
     let header = div()
         .flex()
         .justify_between()
         .items_center()
-        .mb(u(22.))
+        .mb(u(16.))
         .child(
             text(
                 if greeter.lock_screen {
@@ -669,7 +670,7 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
                 } else {
                     "\u{258D}AUTH // login"
                 },
-                12.,
+                11.,
             )
             .color(palette.accent)
             .tracking_em(0.12),
@@ -677,17 +678,18 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .flex()
-                .gap(u(10.))
+                .gap(u(8.))
                 .when(greeter.looks.cycle.len() > 1, |controls| {
                     controls.child(theme)
                 })
                 // The lock screen's session is the one running.
                 .when(!greeter.lock_screen, |controls| controls.child(session)),
         );
+    // macOS's sizes: the name at 15 points, the field's text at 13.
     let look = FieldLook {
         family: MONO,
         weight: FontWeight::NORMAL,
-        size: 20.,
+        size: 13.,
         color: color(BRIGHT, 1.0),
         tracking: 0.32,
         placeholder: color(0xBEE6F0, 0.32),
@@ -701,10 +703,10 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
             .items_center()
             .child(
                 div()
-                    .w(u(150.))
+                    .w(u(104.))
                     .flex_shrink_0()
                     .opacity(0.5)
-                    .child(text(format!("> {name}"), 18.)),
+                    .child(text(format!("> {name}"), 13.)),
             )
             .child(div().flex_1().min_w_0().child(value))
     };
@@ -715,25 +717,25 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
     let fields = div()
         .flex()
         .flex_col()
-        .gap(u(18.))
+        .gap(u(12.))
         .child(row(
             s.user,
-            text(user, 18.)
+            text(user, 15.)
                 .font(MONO, FontWeight::MEDIUM)
                 .into_any_element(),
         ))
         .child(row(
             s.password,
             div()
-                .py(u(4.))
+                .py(u(3.))
                 .child(field_text(view, &look, s.placeholder))
                 .into_any_element(),
         ));
     div()
         .relative()
-        .pt(u(26.))
-        .px(u(32.))
-        .pb(u(22.))
+        .pt(u(18.))
+        .px(u(24.))
+        .pb(u(16.))
         .bg(color(0x080D11, 0.84))
         .border(u(1.))
         .border_color(palette.line)
@@ -775,16 +777,16 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
         ),
     };
     let line = div()
-        .mt(u(24.))
-        .pt(u(14.))
+        .mt(u(16.))
+        .pt(u(10.))
         .border_t(u(1.))
         .border_dashed()
         .border_color(palette.line)
         .flex()
         .items_center()
-        .gap(u(16.))
+        .gap(u(12.))
         .child(
-            text(format!("[ {tag} ]"), 14.)
+            text(format!("[ {tag} ]"), 12.)
                 .font(MONO, FontWeight::BOLD)
                 .color(tag_color)
                 .tracking_em(0.04),
@@ -792,13 +794,13 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .opacity(0.8)
-                .child(text(message, 14.).tracking_em(0.04)),
+                .child(text(message, 12.).tracking_em(0.04)),
         );
     match greeter.status() {
         Status::Checking => line.child(
             div()
                 .flex_1()
-                .h(u(6.))
+                .h(u(4.))
                 .border(u(1.))
                 .border_color(palette.line)
                 .child(
@@ -808,7 +810,7 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
                         .shadow(vec![BoxShadow {
                             color: palette.glow,
                             offset: point(view.px(0.), view.px(0.)),
-                            blur_radius: view.px(10.),
+                            blur_radius: view.px(8.),
                             spread_radius: view.px(0.),
                             inset: false,
                         }])
@@ -817,7 +819,7 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
         ),
         Status::Hint => line.child(
             div()
-                .child(text("\u{258C}", 14.).color(palette.accent))
+                .child(text("\u{258C}", 12.).color(palette.accent))
                 .with_animation("blink", blink(1100), |cursor, t| {
                     cursor.opacity(blink_opacity(t))
                 }),
@@ -849,21 +851,21 @@ fn bottom_left(view: &View, palette: &Palette) -> impl IntoElement {
         .unwrap_or_default();
     div()
         .absolute()
-        .left(u(64.))
-        .bottom(u(52.))
+        .left(u(40.))
+        .bottom(u(36.))
         .flex()
         .flex_col()
-        .gap(u(6.))
+        .gap(u(4.))
         .opacity(0.6)
         .child(
             div()
                 .flex()
-                .gap(u(8.))
-                .child(text("\u{25CF}", 12.).color(dot))
-                .child(text(net, 12.).tracking_em(0.06)),
+                .gap(u(6.))
+                .child(text("\u{25CF}", 11.).color(dot))
+                .child(text(net, 11.).tracking_em(0.06)),
         )
-        .child(text(display, 12.).tracking_em(0.06))
-        .child(text(format!("uptime {uptime}"), 12.).tracking_em(0.06))
+        .child(text(display, 11.).tracking_em(0.06))
+        .child(text(format!("uptime {uptime}"), 11.).tracking_em(0.06))
 }
 
 fn keys(view: &View, palette: &Palette) -> impl IntoElement {
@@ -880,24 +882,24 @@ fn keys(view: &View, palette: &Palette) -> impl IntoElement {
             .id(id)
             .flex()
             .items_center()
-            .gap(u(8.))
-            .px(u(14.))
-            .py(u(10.))
+            .gap(u(6.))
+            .px(u(10.))
+            .py(u(6.))
             .border(u(1.))
             .border_color(palette.line)
             .bg(color(GROUND, 0.6))
             .cursor_pointer()
             .hover(|key| key.bg(accent_bg))
-            .child(text(name, 13.).color(palette.accent))
-            .child(text(what, 13.))
+            .child(text(name, 12.).color(palette.accent))
+            .child(text(what, 12.))
     };
     let armed = |action| greeter.status() == Status::Confirm(action);
     div()
         .absolute()
-        .right(u(64.))
-        .bottom(u(48.))
+        .right(u(40.))
+        .bottom(u(36.))
         .flex()
-        .gap(u(12.))
+        .gap(u(10.))
         .when(!greeter.lock_screen, |keys| {
             keys.child(
                 key("f2", "F2", s.session.into()).on_click(view.on(|greeter, cx| {
