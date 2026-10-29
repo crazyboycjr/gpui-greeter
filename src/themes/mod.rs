@@ -25,7 +25,8 @@ use std::time::Duration;
 
 pub use color::Color;
 pub use files::{
-    Asset, AssetKind, FontFile, decode as decode_picture, read as read_file, render_svg,
+    Asset, AssetKind, FontFile, decode as decode_picture, face_families, read as read_file,
+    render_svg,
 };
 pub use keys::{Action, Chord, Held, Keymap, TileAction};
 pub use layer::*;

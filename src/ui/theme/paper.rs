@@ -237,6 +237,7 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
                 .font("Inter", FontWeight::LIGHT)
                 .size(30.)
                 .color(ink)
+                .ink()
                 .into_any_element(),
         });
     let who = div()

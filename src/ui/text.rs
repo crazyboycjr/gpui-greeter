@@ -8,10 +8,12 @@ use std::sync::Arc;
 use gpui_kit::{
     App, Bounds, Display, Element, ElementId, FlexDirection, FontFallbacks, FontFeatures,
     FontStyle, FontWeight, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
-    Pixels, Point, ShapedLine, SharedString, Style, TextRun, Window, font, point, px, size,
+    Pixels, Point, ShapedLine, SharedString, Style, TextRun, Window, WindowTextSystem, font, point,
+    px, size,
 };
 use smallvec::SmallVec;
 
+use super::assets;
 use super::theme::DESIGN_REM;
 
 /// Families that draw what the bundled fonts lack, Chinese above all,
@@ -36,6 +38,7 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         features: FontFeatures::default(),
         fallback: None,
         strut: false,
+        ink: false,
         typed: SmallVec::new(),
         size: 16.0,
         color: gpui_kit::white(),
@@ -55,6 +58,7 @@ pub struct Label {
     features: FontFeatures,
     fallback: Option<Arc<[Arc<str>]>>,
     strut: bool,
+    ink: bool,
     /// Byte ranges of typed characters, in order.
     typed: SmallVec<[Range<usize>; 1]>,
     size: f32,
@@ -112,6 +116,16 @@ impl Label {
     /// as a field does, so that what is typed never moves it.
     pub fn strut(mut self) -> Self {
         self.strut = true;
+        self
+    }
+
+    /// Sets the text on its ink rather than on its line, as a letter in a
+    /// circle wants: its box is as tall as its font's capitals and as wide
+    /// as its glyphs' outlines (their advances where the font is not a
+    /// built-in one), and they fill it, so that a box that centres it
+    /// centres what is drawn.
+    pub fn ink(mut self) -> Self {
+        self.ink = true;
         self
     }
 
@@ -184,6 +198,16 @@ pub struct Layout {
     unit: f32,
     ascent: Pixels,
     descent: Pixels,
+    ink: Option<Ink>,
+}
+
+/// Where a line's ink lies: from `left` along the line, `width` wide, and
+/// `cap` tall above the baseline.
+#[derive(Clone, Copy)]
+struct Ink {
+    left: Pixels,
+    width: Pixels,
+    cap: Pixels,
 }
 
 impl IntoElement for Label {
@@ -252,16 +276,26 @@ impl Element for Label {
         } else {
             (line.ascent, line.descent)
         };
-        let chars = self.text.chars().count() as f32;
-        let width = line.width + px(self.tracking_px() * unit * chars);
-        let height = match self.line_height {
-            Some(factor) => font_size * factor,
-            None => ascent + descent,
+        let tracking = px(self.tracking_px() * unit);
+        let ink = self
+            .ink
+            .then(|| ink(self, &line, tracking, text_system))
+            .flatten();
+        let (width, height, baseline) = match ink {
+            Some(ink) => (ink.width, ink.cap, ink.cap),
+            None => {
+                let chars = self.text.chars().count() as f32;
+                let height = match self.line_height {
+                    Some(factor) => font_size * factor,
+                    None => ascent + descent,
+                };
+                let baseline = ((height - ascent - descent) / 2.0 + ascent).max(px(0.0));
+                (line.width + tracking * chars, height, baseline)
+            }
         };
         // GPUI tells the layout no baseline, which would then take the
         // bottom edge for one; a first child as deep as the baseline gives
         // rows that align baselines the real one.
-        let baseline = ((height - ascent - descent) / 2.0 + ascent).max(px(0.0));
         let depth = Style {
             size: size(px(0.0).into(), baseline.into()),
             flex_shrink: 0.0,
@@ -280,6 +314,7 @@ impl Element for Label {
             unit,
             ascent,
             descent,
+            ink,
         };
         (window.request_layout(style, [depth], cx), layout)
     }
@@ -310,10 +345,20 @@ impl Element for Label {
             unit,
             ascent,
             descent,
+            ink,
         } = layout;
         let unit = *unit;
         let font_size = line.font_size;
-        let baseline = bounds.origin.y + (bounds.size.height - *ascent - *descent) / 2.0 + *ascent;
+        let (left, baseline) = match ink {
+            Some(ink) => (
+                bounds.origin.x + (bounds.size.width - ink.width) / 2.0 - ink.left,
+                bounds.origin.y + (bounds.size.height + ink.cap) / 2.0,
+            ),
+            None => (
+                bounds.origin.x,
+                bounds.origin.y + (bounds.size.height - *ascent - *descent) / 2.0 + *ascent,
+            ),
+        };
         let tracking = self.tracking_px() * unit;
         let glyphs: Vec<(Point<Pixels>, _, _)> = line
             .runs
@@ -321,10 +366,7 @@ impl Element for Label {
             .flat_map(|run| run.glyphs.iter().map(move |glyph| (run.font_id, glyph)))
             .map(|(font_id, glyph)| {
                 let before = self.text[..glyph.index].chars().count() as f32;
-                let origin = point(
-                    bounds.origin.x + glyph.position.x + px(tracking * before),
-                    baseline,
-                );
+                let origin = point(left + glyph.position.x + px(tracking * before), baseline);
                 (origin, font_id, glyph.id)
             })
             .collect();
@@ -366,6 +408,55 @@ fn pieces(len: usize, typed: &[Range<usize>]) -> SmallVec<[(usize, bool); 3]> {
         pieces.push((len - at, false));
     }
     pieces
+}
+
+/// Where the ink of `label`, shaped as `line`, lies: across, the outlines of
+/// the glyphs a built-in font draws and the advances of the others; up, to
+/// the tallest capitals of the fonts that draw it. `None` where no font
+/// gives the height of its capitals.
+fn ink(
+    label: &Label,
+    line: &ShapedLine,
+    tracking: Pixels,
+    text_system: &WindowTextSystem,
+) -> Option<Ink> {
+    let (text, family, weight) = (&label.text, &label.family, label.weight);
+    let font_size = line.font_size;
+    let glyphs: Vec<_> = line
+        .runs
+        .iter()
+        .flat_map(|run| run.glyphs.iter().map(move |glyph| (run.font_id, glyph)))
+        .collect();
+    let mut cap = px(0.0);
+    let mut span: Option<(Pixels, Pixels)> = None;
+    for (at, &(font_id, glyph)) in glyphs.iter().enumerate() {
+        cap = cap.max(text_system.cap_height(font_id, font_size));
+        let before = text[..glyph.index].chars().count() as f32;
+        let origin = glyph.position.x + tracking * before;
+        let outline = text[glyph.index..]
+            .chars()
+            .next()
+            .and_then(|ch| assets::outline(family, weight.0, ch, glyph.id.0));
+        let (start, end) = match outline {
+            Some([left, _, right, _]) => (origin + font_size * left, origin + font_size * right),
+            None => {
+                let next = glyphs
+                    .get(at + 1)
+                    .map_or(line.width, |(_, next)| next.position.x);
+                (origin, origin + next - glyph.position.x)
+            }
+        };
+        span = Some(match span {
+            Some((first, last)) => (first.min(start), last.max(end)),
+            None => (start, end),
+        });
+    }
+    let (start, end) = span?;
+    (cap > px(0.0)).then_some(Ink {
+        left: start,
+        width: end - start,
+        cap,
+    })
 }
 
 /// `features` without the ones that join glyphs or change them by their

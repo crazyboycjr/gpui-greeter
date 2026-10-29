@@ -285,6 +285,7 @@ fn form(view: &View) -> impl IntoElement {
             None => label(user.map(|user| user.initial()).unwrap_or_default())
                 .font("Inter", FontWeight::EXTRA_LIGHT)
                 .size(34.)
+                .ink()
                 .into_any_element(),
         });
     let name = div()

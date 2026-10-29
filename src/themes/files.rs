@@ -365,7 +365,7 @@ pub fn load_font(dir: &Path, relative: &str) -> Result<FontFile, String> {
 
 /// The names a face answers to, as the text system's font database reads
 /// them: its typographic family, or its family when it has none.
-fn face_families(face: &ttf_parser::Face) -> Vec<String> {
+pub fn face_families(face: &ttf_parser::Face) -> Vec<String> {
     let named = |id: u16| {
         let mut names: Vec<String> = Vec::new();
         for name in face.names() {
