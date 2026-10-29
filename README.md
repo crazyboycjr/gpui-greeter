@@ -202,8 +202,9 @@ away again; F9 and Shift+F9 switch looks there too, and the lock keeps the
 look picked for next time in `~/.local/state/gpui-greeter/lock.toml`,
 until the settings' `theme` changes. F10 to F12 and the power buttons act
 as at the login screen, a second press confirming. The user is the one who
-locked, and the session the one running, shown but not chosen; a theme
-folder can hide its session row there (`locked` in
+locked, and the session the one running, which is not chosen there: the
+built-in looks leave out their session controls, the session keys do
+nothing, and a theme folder hides its session row with `locked` (see
 [the format](skills/gpui-greeter-theme/reference.md)). Once the password
 is accepted the lock is gone at once, and every window is as it was. Its
 drawn backgrounds are kept in the user's own `~/.cache/gpui-greeter`.

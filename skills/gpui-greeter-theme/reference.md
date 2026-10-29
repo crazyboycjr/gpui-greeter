@@ -431,7 +431,8 @@ themes over a running session, starting at rest, which is what the screen
 shows while its user is away; there the theme keys switch looks without
 leaving rest. A theme without `rest` shows its form at once there too.
 The user is the one who locked and `{session}` the session running, which
-cannot be changed; the condition `locked` tells the two screens apart.
+cannot be changed: the session keys and actions only leave rest there,
+and light nothing. The condition `locked` tells the two screens apart.
 
 The session starts as soon as the password is accepted: `checking` lasts
 only as long as PAM takes, and the greeter never holds `welcome`, which is

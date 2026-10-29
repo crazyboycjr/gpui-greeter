@@ -627,6 +627,16 @@ impl Greeter {
         if !keeps_rest {
             self.wake();
         }
+        // The lock screen's session is the one running: a session key or
+        // control only wakes it, and lights nothing.
+        let chooses_session = matches!(
+            action,
+            Run::NextSession | Run::PreviousSession | Run::Session(_) | Run::Pick
+        );
+        if self.lock_screen && chooses_session {
+            cx.notify();
+            return;
+        }
         self.fired = Some((action, Instant::now()));
         match action {
             Run::Submit => self.submit(cx),
