@@ -600,6 +600,10 @@ fn open_screen(
         is_minimizable: false,
         window_background: WindowBackgroundAppearance::Opaque,
         app_id: Some("gpui-greeter".into()),
+        // GPUI draws the motion of a window without the keyboard at most
+        // 30 times a second, and the lock's never have it: its supervisor
+        // holds the keyboard. Nor do the monitors without the form.
+        inactive_frame_interval: None,
         ..Default::default()
     };
     let (handle, screen) = gpui_kit::open_window(options, cx, |window, cx| {
