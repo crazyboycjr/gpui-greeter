@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=gpui-greeter Settings
+Name[zh_CN]=登录界面设置
+Comment=The login screen's look, wallpapers, avatar, size and language
+Comment[zh_CN]=登录界面的外观、壁纸、头像、大小和语言
+Exec=gpui-greeter settings
+Icon=preferences-desktop-theme
+Terminal=false
+Categories=Settings;DesktopSettings;
+Keywords=greeter;login;lock;wallpaper;avatar;
+Keywords[zh_CN]=登录;锁屏;壁纸;头像;
+StartupWMClass=gpui-greeter-settings

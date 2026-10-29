@@ -116,8 +116,9 @@ The greeter's log, startx's and the X server's are in
 ## Wallpapers
 
 The greeter cannot read anyone's home, so Frost's pictures are copied to
-`/usr/local/share/gpui-greeter/wallpapers`; copy them again whenever the
-folder changes:
+`/usr/local/share/gpui-greeter/wallpapers`: one by one under Wallpaper in
+`gpui-greeter settings` (see [Settings](#settings)), or a whole folder at
+once, again whenever it changes:
 
     sudo gpui-greeter sync-wallpapers ~/Pictures/Wallpapers
 
@@ -131,6 +132,26 @@ arrives and keeps the last week's in
 `/var/lib/gpui-greeter/.cache/gpui-greeter/bing`.
 
 ## Settings
+
+`gpui-greeter settings`, "gpui-greeter Settings" among the applications,
+is a window for the settings used day to day: the look the login screen
+and the lock screen start with, each look's background and accent, Frost's
+wallpapers, your avatar, the size and the language. It shows the look as
+the greeter draws it, small, and follows each change at once.
+
+    gpui-greeter settings --section wallpaper
+
+Nothing changes until Apply. The avatar goes to AccountsService, which
+lets everyone set their own. The settings file and the wallpaper folder
+are root's, so Apply runs `gpui-greeter apply-settings` once through
+pkexec, and polkit asks for the password. That helper reads the changes
+from its standard input, pictures included, and checks them all before it
+changes anything: only the settings the window offers, each value as the
+greeter reads it; new pictures that decode, under plain names, written
+into the configured wallpaper folder alone; removals of pictures that are
+there; and no folder that other users can write to. It keeps the settings
+file's comments. Without polkit, the window gives the `sudo` command that
+does the same.
 
 `dist/config.toml` lists every setting with its default: the theme, the
 language, the scale, each theme's accent and background, Frost's blur, dim

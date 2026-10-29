@@ -29,7 +29,9 @@ depends=(
 )
 makedepends=(cargo git)
 optdepends=(
-    'accountsservice: the session LightDM last used, before the first login here'
+    'accountsservice: avatars, and the session LightDM last used, before the first login here'
+    'polkit: gpui-greeter settings asks for the password to apply what root keeps'
+    'xdg-desktop-portal: the file dialogs of gpui-greeter settings'
     'noto-fonts-cjk: Chinese text'
     'xorg-server-xvfb: gpui-greeter preview --shot, without a display'
     'vulkan-swrast: drawing previews on the CPU (lavapipe)'
@@ -76,6 +78,8 @@ package() {
     install -Dm644 dist/greetd-service.conf \
         "$pkgdir/usr/lib/systemd/system/greetd.service.d/$_name.conf"
     install -Dm644 dist/tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$_name.conf"
+    install -Dm644 "dist/$_name-settings.desktop" \
+        "$pkgdir/usr/share/applications/$_name-settings.desktop"
     install -Dm644 README.md "$pkgdir/usr/share/doc/$_name/README.md"
     install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" assets/fonts/OFL-*.txt
     # The skill for designing themes with an agent, and its example theme.
