@@ -11,7 +11,6 @@ pub struct Strings {
     pub password: &'static str,
     /// The field's placeholder as macOS words it, for Frost.
     pub enter_password: &'static str,
-    pub press_enter: &'static str,
     pub checking: &'static str,
     pub wrong_password: &'static str,
     pub welcome_back: &'static str,
@@ -27,7 +26,6 @@ pub struct Strings {
     pub shut_down_button: &'static str,
     /// The control that switches between looks.
     pub theme: &'static str,
-    pub click_to_log_in: &'static str,
     /// The drafting sheet's title block.
     pub project: &'static str,
     pub host: &'static str,
@@ -47,9 +45,6 @@ pub struct NeonStrings {
     pub theme: &'static str,
     pub reboot: &'static str,
     pub poweroff: &'static str,
-    pub ready: &'static str,
-    /// At rest on the lock screen.
-    pub wake: &'static str,
     pub verifying: &'static str,
     pub denied: &'static str,
     pub starting: &'static str,
@@ -59,7 +54,6 @@ pub struct NeonStrings {
 const ENGLISH: Strings = Strings {
     password: "Password",
     enter_password: "Enter Password",
-    press_enter: "Press Enter to log in",
     checking: "Checking",
     wrong_password: "Wrong password, try again",
     welcome_back: "Welcome back",
@@ -72,7 +66,6 @@ const ENGLISH: Strings = Strings {
     shut_down: "Shut down",
     shut_down_button: "Shut Down",
     theme: "Theme",
-    click_to_log_in: "Click anywhere to log in",
     project: "Project",
     host: "Host",
     no_greetd: "Cannot reach greetd",
@@ -87,8 +80,6 @@ const ENGLISH: Strings = Strings {
         theme: "theme",
         reboot: "reboot",
         poweroff: "poweroff",
-        ready: "awaiting credentials",
-        wake: "press any key",
         verifying: "verifying",
         denied: "authentication failed",
         starting: "starting ",
@@ -99,7 +90,6 @@ const ENGLISH: Strings = Strings {
 const CHINESE: Strings = Strings {
     password: "密码",
     enter_password: "输入密码",
-    press_enter: "按回车登录",
     checking: "验证中",
     wrong_password: "密码不对，再试一次",
     welcome_back: "欢迎回来",
@@ -112,7 +102,6 @@ const CHINESE: Strings = Strings {
     shut_down: "关机",
     shut_down_button: "关机",
     theme: "主题",
-    click_to_log_in: "点击任意处登录",
     project: "项目",
     host: "主机",
     no_greetd: "连不上 greetd",
@@ -127,8 +116,6 @@ const CHINESE: Strings = Strings {
         theme: "主题",
         reboot: "重启",
         poweroff: "关机",
-        ready: "等待凭据",
-        wake: "按任意键",
         verifying: "校验中",
         denied: "认证失败，再试一次",
         starting: "正在启动 ",
@@ -136,31 +123,10 @@ const CHINESE: Strings = Strings {
     },
 };
 
-/// The lock screen's words: the same, but for unlocking rather than
-/// logging in.
-const ENGLISH_LOCK: Strings = Strings {
-    press_enter: "Press Enter to unlock",
-    click_to_log_in: "Click anywhere to unlock",
-    ..ENGLISH
-};
-
-const CHINESE_LOCK: Strings = Strings {
-    press_enter: "按回车解锁",
-    click_to_log_in: "点击任意处解锁",
-    ..CHINESE
-};
-
 pub fn strings(language: Language) -> &'static Strings {
     match language {
         Language::English => &ENGLISH,
         Language::Chinese => &CHINESE,
-    }
-}
-
-pub fn lock_strings(language: Language) -> &'static Strings {
-    match language {
-        Language::English => &ENGLISH_LOCK,
-        Language::Chinese => &CHINESE_LOCK,
     }
 }
 

@@ -27,9 +27,6 @@ tracking = 4
 
 [strings.en]
 date = "{date:%A, %-d %B}"
-hint = "Press Enter"
-unlock = "Press Enter"
-wake = "Press any key"
 wrong = "Wrong password"
 confirm = "Press {armed.key} again"
 up = "up"
@@ -39,9 +36,6 @@ shut_down = "Shut down"
 
 [strings.zh-CN]
 date = "{date:%-m月%-d日 %A}"
-hint = "按回车登录"
-unlock = "按回车解锁"
-wake = "按任意键"
 wrong = "密码不对"
 confirm = "再按一次 {armed.key}"
 up = "已运行"
@@ -207,18 +201,14 @@ color = "#ece4d8"
 caret_color = "#e8a33d"
 caret_width = 2.4
 
-# One line of status under the field, its words by state.
+# One line of status under the field, quiet until there is something to
+# say, as on macOS: what PAM says, the check, a refused password.
 [[layer]]
 parent = "form"
 kind = "text"
-text = "{t.hint}"
+text = "{message}"
 case = "upper"
 color = "#7d6c5d"
-
-# The lock screen unlocks rather than logs in; the states below still
-# say their own words there.
-[layer.on.locked]
-text = "{t.unlock}"
 
 [layer.on.checking]
 text = "{t.checking}"
@@ -230,21 +220,6 @@ color = "#e5703b"
 
 [layer.on.zh-CN]
 tracking = 2.4
-
-# At rest, a hint at the bottom that breathes.
-[[layer]]
-kind = "text"
-text = "{t.wake}"
-case = "upper"
-color = "#8f7d6c"
-anchor = "bottom"
-y = -120
-visible = false
-transition = 300
-motion = { property = "opacity", keyframes = [[0, 0.45], [0.5, 1], [1, 0.45]], duration = 2400, easing = "ease-in-out", repeat = "infinite" }
-
-[layer.on.rest]
-visible = true
 
 # The session, bottom left: a click or Tab picks the next one.
 [[layer]]

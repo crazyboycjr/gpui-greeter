@@ -1161,7 +1161,7 @@ impl Fill for Filler<'_> {
                 _ => out.push_str(greeter.notice.as_deref().unwrap_or_default()),
             },
             Binding::Status => out.push_str(&match greeter.status() {
-                Status::Hint => s.press_enter.to_string(),
+                Status::Ready => String::new(),
                 Status::Notice(notice) => notice.to_string(),
                 Status::Checking => s.checking.to_string(),
                 Status::Denied(notice) => notice.unwrap_or(s.wrong_password).to_string(),
@@ -1285,7 +1285,6 @@ impl Fill for Filler<'_> {
 fn built_in(s: &i18n::Strings, key: &str) -> &'static str {
     match key {
         "password" => s.password,
-        "press_enter" => s.press_enter,
         "checking" => s.checking,
         "wrong_password" => s.wrong_password,
         "welcome_back" => s.welcome_back,
@@ -1295,7 +1294,6 @@ fn built_in(s: &i18n::Strings, key: &str) -> &'static str {
         "sleep" => s.sleep,
         "restart" => s.restart,
         "shut_down" => s.shut_down,
-        "click_to_log_in" => s.click_to_log_in,
         _ => "",
     }
 }

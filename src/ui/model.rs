@@ -47,7 +47,9 @@ pub struct Question {
 /// What the line under the password field says.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Status<'a> {
-    Hint,
+    /// Nothing: the field waits, and as on macOS no look says how to fill
+    /// it.
+    Ready,
     Notice(&'a str),
     Checking,
     Denied(Option<&'a str>),
@@ -308,11 +310,7 @@ impl Greeter {
             slides,
             slide_requests,
             _slide_making: Self::make_slides(to_make, cx),
-            strings: if lock_screen {
-                i18n::lock_strings(config.language)
-            } else {
-                i18n::strings(config.language)
-            },
+            strings: i18n::strings(config.language),
             resting: has_rest(&config.theme, folder.as_deref(), lock_screen),
             rest_pointer: None,
             tiles: folder.as_deref().and_then(TilesState::new),
@@ -472,7 +470,7 @@ impl Greeter {
             return Status::Confirm(armed.action);
         }
         match &self.phase {
-            Phase::Idle => self.notice.as_deref().map_or(Status::Hint, Status::Notice),
+            Phase::Idle => self.notice.as_deref().map_or(Status::Ready, Status::Notice),
             Phase::Checking => Status::Checking,
             Phase::Denied { notice } => Status::Denied(notice.as_deref()),
             Phase::Failed(message) => Status::Failed(message),

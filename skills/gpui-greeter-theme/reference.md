@@ -36,7 +36,7 @@ pixels to a point (the metrics below):
 | what | points | frame pixels |
 | --- | --- | --- |
 | body text, labels, a session or a power action's name | 13 | 19.5 |
-| a hint or a status line under the field | 12 | 18 |
+| the status line under the field | 12 | 18 |
 | the user's name | 15 | 22.5 |
 | the password field, and its text | 160 by 28, 13 | 240 by 42, 19.5 |
 | an avatar | 72 | 108 |
@@ -145,10 +145,10 @@ font = "Inter"
 size = 19.5                # 13 points, macOS's body text, and the default
 color = "#a8917c"
 
-[strings.en]               # the theme's words: {t.hint}
-hint = "Press Enter"
+[strings.en]               # the theme's words: {t.wrong}
+wrong = "Wrong password"
 [strings.zh-CN]
-hint = "按回车登录"
+wrong = "密码不对"
 
 [keys]                     # keys, over the defaults
 "mod-j" = "tile.focus-next"
@@ -430,6 +430,14 @@ rest. Moving the pointer more than 8 points leaves rest too; a nudge of
 the desk does not. A theme without `rest` starts idle, and Escape clears
 the field.
 
+Nothing says how to log in or how to wake the screen, as on a Mac: no
+"Press Enter" under the field, no "Press any key" or "Click anywhere" at
+rest. The line under the field stays empty until there is something to
+say: what PAM says (`{message}`), the check, a refused password. `{status}`
+says nothing while the field waits, and the greeter's own words hold no
+hint. Keys a theme draws as part of its picture, such as a pane listing a
+window manager's bindings, are its content, not hints.
+
 A theme is also a lock screen: `gpui-greeter lock` shows the installed
 themes over a running session, starting at rest, which is what the screen
 shows while its user is away; there the theme keys switch looks without
@@ -462,7 +470,7 @@ order, so a later one wins where two set the same key:
 Hide the session row on the lock screen with `[layer.on.locked]` and
 `visible = false` on a layer whose visibility no state changes, such as the
 row itself inside a form that rest hides; change words there the same way,
-and the states' own words still win, as dial's status line shows.
+and the states' own words still win.
 
 `hover`, `armed` and `fired` belong to the nearest layer with an `action`,
 the layer itself or one it sits in, so a button's label can change colour
@@ -471,7 +479,7 @@ when the pointer is anywhere on the button.
 ```toml
 [[layer]]
 kind = "text"
-text = "{t.hint}"
+text = "{message}"
 transition = 300            # how it changes on entering any state
 
 [layer.on.error]
@@ -542,7 +550,7 @@ brace. An unknown name is an error.
 | `{theme}` | the theme's `name`, for a control that switches looks |
 | `{prompt}` | what PAM asks, without its colon; "Password" before it asks |
 | `{message}` | what PAM or greetd last said, such as why a login was refused, if anything |
-| `{status}` | the greeter's own sentence for where the login stands |
+| `{status}` | the greeter's own sentence for where the login stands; nothing while the field waits |
 | `{os}`, `{arch}`, `{kernel}` | "Arch Linux", "x86_64", "6.17.1-arch1-1" |
 | `{uptime}`, `{uptime:short}` | "1 day, 6 hours, 35 mins" (or "1 天 6 小时 35 分钟"), "30h 35m" |
 | `{cpu}`, `{gpu}`, `{memory}` | "AMD Ryzen 7 5800X (16)", "NVIDIA GeForce RTX 3060", "3.81 GiB / 15.26 GiB" |
@@ -564,10 +572,9 @@ when a template uses them. A theme cannot run commands.
 `{t.KEY}` takes the string from `[strings.zh-CN]` when the greeter speaks
 Chinese (`language = "zh-CN"`), falling back to `[strings.en]`; strings may
 hold bindings. check-theme warns about a string with no translation. The
-greeter's own words are also there: `password`, `press_enter`, `checking`,
+greeter's own words are also there: `password`, `checking`,
 `wrong_password`, `welcome_back`, `starting`, `session`, `current`,
-`sleep`, `restart`, `shut_down`, `click_to_log_in`; on the lock screen
-`press_enter` and `click_to_log_in` say to unlock instead.
+`sleep`, `restart`, `shut_down`.
 
 Time formats: `%Y` year, `%y` its last two digits, `%m` month, `%d` day,
 `%e` day padded with a space, `%H` hour, `%I` hour of twelve, `%M`

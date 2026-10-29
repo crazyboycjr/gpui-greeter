@@ -342,7 +342,7 @@ fn status_line(view: &View, palette: &Palette, accent: Hsla) -> impl IntoElement
             .color(color)
     };
     match greeter.status() {
-        Status::Hint => line.child(text(s.press_enter, ink(0.68))),
+        Status::Ready | Status::Welcome => line,
         Status::Notice(notice) => line.child(text(notice, ink(0.68))),
         Status::Checking => line.child(text(s.checking, ink(0.68))).child(dots(accent)),
         Status::Denied(notice) => line.child(text(notice.unwrap_or(s.wrong_password), error)),
@@ -350,7 +350,6 @@ fn status_line(view: &View, palette: &Palette, accent: Hsla) -> impl IntoElement
         Status::Confirm(action) => {
             line.child(text(&s.confirm(greeter.action_name(action)), accent))
         }
-        Status::Welcome => line,
     }
 }
 

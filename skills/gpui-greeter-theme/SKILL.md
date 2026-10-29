@@ -32,6 +32,11 @@ choices the user can react to:
   status bar). Show a rough sketch in words or ASCII before the details.
 - Which states should look different: a rest screen before the first key
   (`rest = true`), typing, checking, a refused password.
+- No hints. As on macOS, the screen says nothing until there is something
+  to say: no "Press Enter to log in" under the field, no "Press any key"
+  or "Click anywhere" at rest. The line under the field speaks only when
+  PAM does, while the password is checked, and when it is refused. Offer
+  none, even when a mockup has one.
 - The lock screen: every installed theme is also the lock screen of a
   running session (`gpui-greeter lock`), which starts at rest and stays
   there while its user is away, so the rest screen is the face people
@@ -126,10 +131,10 @@ keep transitions short (150 to 500 ms).
 
 Size everything as macOS sizes its login and lock screen, point for
 point, at 1.5 frame pixels to a point: body text 13 points, 19.5 frame
-pixels; a hint 12 (18); the user's name 15 (22.5); the password field 160
-by 28 points (240 by 42) with 13-point text; an avatar 72 (108); a clock
-whose figures stand 122 points tall (183 frame pixels), as 173 points of
-SF Pro do. The reference's "macOS metrics" says where each comes from. A
+pixels; the status line 12 (18); the user's name 15 (22.5); the password
+field 160 by 28 points (240 by 42) with 13-point text; an avatar 72 (108);
+a clock whose figures stand 122 points tall (183 frame pixels), as 173
+points of SF Pro do. The reference's "macOS metrics" says where each comes from. A
 theme keeps its character at these sizes, a console's text as body text;
 larger looks clumsy, as if the screen were small.
 

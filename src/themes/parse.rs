@@ -20,9 +20,8 @@ use super::tiles;
 use super::{FORMAT, Folder, MANIFEST, Problem, Severity, Strings};
 
 /// The greeter's own words a theme may use as `{t.key}`.
-pub const BUILT_IN_STRINGS: [&str; 12] = [
+pub const BUILT_IN_STRINGS: [&str; 10] = [
     "password",
-    "press_enter",
     "checking",
     "wrong_password",
     "welcome_back",
@@ -32,7 +31,6 @@ pub const BUILT_IN_STRINGS: [&str; 12] = [
     "sleep",
     "restart",
     "shut_down",
-    "click_to_log_in",
 ];
 
 const MAX_MANIFEST: u64 = 1 << 20;

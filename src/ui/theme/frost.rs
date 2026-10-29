@@ -333,7 +333,7 @@ fn message(view: &View) -> AnyElement {
         Status::Denied(notice) => text(notice.unwrap_or(s.wrong_password)),
         Status::Failed(message) => text(message),
         Status::Confirm(action) => text(&s.confirm(greeter.action_name(action))),
-        Status::Hint | Status::Checking | Status::Welcome => div().into_any_element(),
+        Status::Ready | Status::Checking | Status::Welcome => div().into_any_element(),
     }
 }
 

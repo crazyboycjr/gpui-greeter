@@ -549,7 +549,7 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
             linear_color_stop(color(greeter.config.neon.accent.0, 0.0), 1.),
         )))
         .child(if greeter.resting {
-            resting_line(view, palette).into_any_element()
+            resting_line(palette).into_any_element()
         } else {
             panel(view, palette).into_any_element()
         });
@@ -564,9 +564,9 @@ fn center(view: &View, palette: &Palette) -> impl IntoElement {
         .child(column)
 }
 
-/// What stands in for the login panel at rest: a status line saying how to
-/// wake the terminal.
-fn resting_line(view: &View, palette: &Palette) -> impl IntoElement {
+/// What stands in for the login panel at rest: the terminal's status line,
+/// locked, its cursor blinking.
+fn resting_line(palette: &Palette) -> impl IntoElement {
     div()
         .px(u(24.))
         .flex()
@@ -578,18 +578,7 @@ fn resting_line(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(palette.accent)
                 .tracking_em(0.04),
         )
-        .child(
-            div()
-                .opacity(0.8)
-                .child(text(view.greeter.strings.neon.wake, 12.).tracking_em(0.04)),
-        )
-        .child(
-            div()
-                .child(text("\u{258C}", 12.).color(palette.accent))
-                .with_animation("blink", blink(1100), |cursor, t| {
-                    cursor.opacity(blink_opacity(t))
-                }),
-        )
+        .child(cursor(palette))
 }
 
 fn panel(view: &View, palette: &Palette) -> impl IntoElement {
@@ -759,21 +748,21 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
             .find(|&&(_, shown)| shown == action)
             .map_or(String::new(), |(key, _)| key.to_uppercase())
     };
-    let (tag, tag_color, message): (&str, Hsla, String) = match greeter.status() {
-        Status::Hint => ("READY", palette.accent, s.ready.into()),
-        Status::Notice(notice) => ("READY", palette.accent, notice.into()),
-        Status::Checking => ("AUTH", palette.accent, s.verifying.into()),
-        Status::Denied(notice) => ("DENIED", error, notice.unwrap_or(s.denied).into()),
-        Status::Failed(message) => ("ERROR", error, message.into()),
+    let (tag, tag_color, message): (&str, Hsla, Option<String>) = match greeter.status() {
+        Status::Ready => ("READY", palette.accent, None),
+        Status::Notice(notice) => ("READY", palette.accent, Some(notice.into())),
+        Status::Checking => ("AUTH", palette.accent, Some(s.verifying.into())),
+        Status::Denied(notice) => ("DENIED", error, Some(notice.unwrap_or(s.denied).into())),
+        Status::Failed(message) => ("ERROR", error, Some(message.into())),
         Status::Confirm(action) => (
             "CONFIRM",
             palette.accent,
-            format!("{}{}{}", s.confirm.0, key(action), s.confirm.1),
+            Some(format!("{}{}{}", s.confirm.0, key(action), s.confirm.1)),
         ),
         Status::Welcome => (
             "GRANTED",
             palette.accent,
-            format!("{}{} \u{2026}", s.starting, greeter.session_name()),
+            Some(format!("{}{} \u{2026}", s.starting, greeter.session_name())),
         ),
     };
     let line = div()
@@ -791,11 +780,13 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(tag_color)
                 .tracking_em(0.04),
         )
-        .child(
-            div()
-                .opacity(0.8)
-                .child(text(message, 12.).tracking_em(0.04)),
-        );
+        .when_some(message, |line, message| {
+            line.child(
+                div()
+                    .opacity(0.8)
+                    .child(text(message, 12.).tracking_em(0.04)),
+            )
+        });
     match greeter.status() {
         Status::Checking => line.child(
             div()
@@ -817,15 +808,17 @@ fn status_line(view: &View, palette: &Palette) -> impl IntoElement {
                         .with_animation("fill", fill_animation(), |bar, t| bar.w(relative(t))),
                 ),
         ),
-        Status::Hint => line.child(
-            div()
-                .child(text("\u{258C}", 12.).color(palette.accent))
-                .with_animation("blink", blink(1100), |cursor, t| {
-                    cursor.opacity(blink_opacity(t))
-                }),
-        ),
+        Status::Ready => line.child(cursor(palette)),
         _ => line,
     }
+}
+
+fn cursor(palette: &Palette) -> impl IntoElement {
+    div()
+        .child(text("\u{258C}", 12.).color(palette.accent))
+        .with_animation("blink", blink(1100), |cursor, t| {
+            cursor.opacity(blink_opacity(t))
+        })
 }
 
 fn bottom_left(view: &View, palette: &Palette) -> impl IntoElement {

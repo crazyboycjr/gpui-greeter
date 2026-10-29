@@ -16,12 +16,15 @@ chosen in its settings:
   with a big clock and the date. A click or a key blurs and dims it behind
   a round avatar, the name and a password field, as macOS sizes them, with
   Sleep, Restart and Shut Down at the bottom, the time in the top right
-  corner and the session in the bottom left. As on a Mac, nothing is said
-  until there is something to say: a refused password, PAM's word.
+  corner and the session in the bottom left.
 - **Neon**: a terminal over a city at night, a circuit board with light
   running along its traces, a synthwave sunset over a moving grid floor, or
   a faint grid, all with scanlines and a slow scan beam; a status line that
   goes READY, AUTH, then GRANTED or DENIED, and F-key buttons.
+
+None of them says how to log in or how to wake the screen: as on a Mac,
+the line under the field stays quiet until there is something to say, a
+refused password or a word from PAM.
 
 F9 switches between them at the login screen. Tab and F2 step to the next
 session, Shift+Tab to the one before, in every look, as a click on the
