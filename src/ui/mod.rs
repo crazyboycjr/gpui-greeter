@@ -91,9 +91,9 @@ pub fn run(options: Options) -> Result<()> {
         .iter()
         .map(|monitor| (monitor.rect.width, monitor.rect.height))
         .collect();
-    let preparing = looks::start(&config, folder.as_ref(), &sizes);
     let form = form_monitor(&monitors, x11.pointer());
     let scale = set_scale(&monitors[form]);
+    let preparing = looks::start(&config, folder.as_ref(), &sizes);
     let users = match preview.as_ref().and_then(|preview| preview.user.clone()) {
         Some(name) => vec![User {
             display_name: name.clone(),
