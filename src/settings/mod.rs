@@ -3,10 +3,10 @@
 //! look, Frost's wallpapers, the user's avatar, the size and the language.
 //!
 //! Nothing changes until Apply. The avatar goes to AccountsService, which
-//! lets users set their own; the settings file and the wallpaper folder are
-//! root's, and change in one run of `gpui-greeter apply-settings` under
-//! pkexec, which takes a closed set of changes and checks every one
-//! (see [`helper`]).
+//! lets users set their own; the settings file, the wallpaper folder and
+//! the daily Bing timer are root's, and change in one run of
+//! `gpui-greeter apply-settings` under pkexec, which takes a closed set of
+//! changes and checks every one (see [`helper`]).
 
 mod app;
 pub mod apply;
@@ -15,6 +15,7 @@ pub mod helper;
 pub mod request;
 pub mod setting;
 mod style;
+pub mod timer;
 mod words;
 
 use std::path::{Path, PathBuf};
@@ -36,8 +37,9 @@ pub struct Options {
     /// The section to open at.
     pub section: Option<Section>,
     /// A folder standing in for `/`, whose `etc/gpui-greeter/config.toml`
-    /// is the settings and whose `var/lib/AccountsService/icons` keeps the
-    /// avatars; the helper then runs as the user. Debug builds only.
+    /// is the settings, whose `var/lib/AccountsService/icons` keeps the
+    /// avatars and whose `usr/lib/systemd/system` holds the Bing timer;
+    /// the helper then runs as the user. Debug builds only.
     pub root: Option<PathBuf>,
     /// Behaves as if polkit could not ask for a password. Debug builds only.
     pub no_polkit: bool,
@@ -76,6 +78,14 @@ impl Paths {
                 cache,
                 elevate: Elevate::Pkexec,
             },
+        }
+    }
+
+    /// The units the helper changes: the system's, or the test folder's.
+    pub fn units(&self) -> timer::Units<'_> {
+        match &self.elevate {
+            Elevate::Pkexec => timer::Units::System,
+            Elevate::Direct { root } | Elevate::Unavailable { root } => timer::Units::Root(root),
         }
     }
 

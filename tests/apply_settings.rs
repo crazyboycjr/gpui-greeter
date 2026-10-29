@@ -10,8 +10,8 @@ use gpui_greeter::config::{Config, Pick, Theme};
 use gpui_greeter::settings::request::{NewPicture, Request};
 use gpui_greeter::settings::setting::Setting;
 
-/// A folder with the shipped settings, pointing at its own wallpaper and
-/// themes folders.
+/// A folder with the shipped settings, pointing at its own wallpaper,
+/// themes and Bing folders.
 fn root(name: &str) -> PathBuf {
     let root = Path::new(env!("CARGO_TARGET_TMPDIR")).join(format!("apply-settings-{name}"));
     let _ = std::fs::remove_dir_all(&root);
@@ -25,6 +25,10 @@ fn root(name: &str) -> PathBuf {
         .replace(
             "/usr/local/share/gpui-greeter/themes",
             &root.join("themes").display().to_string(),
+        )
+        .replace(
+            "/usr/local/share/gpui-greeter/bing4k",
+            &root.join("bing4k").display().to_string(),
         );
     std::fs::write(root.join("etc/gpui-greeter/config.toml"), shipped).unwrap();
     root
@@ -75,6 +79,7 @@ fn applies_a_request_from_standard_input() {
             bytes: png(),
         }],
         remove: vec![],
+        bing_timer: None,
     };
     let output = run(&root, &[], &encoded(&request));
     assert!(output.status.success(), "{output:?}");
@@ -95,7 +100,7 @@ fn refuses_anything_else_and_changes_nothing() {
     let config = root.join("etc/gpui-greeter/config.toml");
     let before = std::fs::read(&config).unwrap();
     let header = |json: &str| format!("gpui-greeter settings 1\n{json}\n").into_bytes();
-    let cases: [(&str, Vec<u8>, &[&str]); 7] = [
+    let cases: [(&str, Vec<u8>, &[&str]); 9] = [
         ("garbage", b"rm -rf /\n".to_vec(), &[]),
         (
             "the session command",
@@ -133,6 +138,25 @@ fn refuses_anything_else_and_changes_nothing() {
                 ..Request::default()
             }),
             &["--config", "/tmp/elsewhere.toml"],
+        ),
+        (
+            "a Bing picture that is not there",
+            encoded(&Request {
+                settings: vec![Setting::WallpaperPick(Pick::BingFile(
+                    "2026-10-29.jpg".into(),
+                ))],
+                ..Request::default()
+            }),
+            &[],
+        ),
+        (
+            "a timer that is not installed",
+            encoded(&Request {
+                settings: vec![Setting::Theme(Theme::Neon)],
+                bing_timer: Some(true),
+                ..Request::default()
+            }),
+            &[],
         ),
     ];
     for (why, input, args) in cases {

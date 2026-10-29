@@ -131,11 +131,17 @@ impl Setting {
             }
             "wallpaper.pick" => {
                 let pick = Pick::from(text()?.to_string());
-                if let Pick::File(name) = &pick {
-                    ensure!(
+                match &pick {
+                    Pick::File(name) => ensure!(
                         plain_picture_name(name),
                         "{key} takes random, daily, bing or a picture's file name, not {name:?}"
-                    );
+                    ),
+                    Pick::BingFile(name) => ensure!(
+                        crate::bing::is_kept_name(name),
+                        "{key} names one of Bing's pictures by its day, as \
+                         bing4k/2026-10-29.jpg, not {name:?}"
+                    ),
+                    Pick::Random | Pick::Daily | Pick::Bing => {}
                 }
                 Setting::WallpaperPick(pick)
             }
@@ -349,6 +355,10 @@ mod tests {
             parse("wallpaper.pick", json!("bing")).unwrap(),
             Setting::WallpaperPick(Pick::Bing)
         );
+        assert_eq!(
+            parse("wallpaper.pick", json!("bing4k/2026-10-29.jpg")).unwrap(),
+            Setting::WallpaperPick(Pick::BingFile("2026-10-29.jpg".into()))
+        );
     }
 
     #[test]
@@ -378,6 +388,10 @@ mod tests {
             ("wallpaper.pick", json!("/etc/shadow")),
             ("wallpaper.pick", json!(".hidden.jpg")),
             ("wallpaper.pick", json!("notes.txt")),
+            ("wallpaper.pick", json!("bing4k/../../etc/shadow")),
+            ("wallpaper.pick", json!("bing4k/lake.jpg")),
+            ("wallpaper.pick", json!("bing4k/2026-10-29.json")),
+            ("wallpaper.bing_dir", json!("/etc")),
         ] {
             assert!(parse(key, value.clone()).is_err(), "{key} = {value}");
         }
@@ -391,6 +405,7 @@ mod tests {
             Setting::FrostBlur(30.0),
             Setting::PaperAccent(Rgb(0x5B7F4F)),
             Setting::WallpaperPick(Pick::File("dunes.png".into())),
+            Setting::WallpaperPick(Pick::BingFile("2026-10-29.jpg".into())),
             Setting::Theme(Theme::PaperNight),
         ] {
             assert_eq!(

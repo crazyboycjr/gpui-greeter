@@ -27,6 +27,7 @@ use super::request::{MAX_PICTURE, NewPicture, Request, new_name};
 use super::setting::{self, BLUR, DIM, IDLE, SCALE};
 use super::style::{self, NOTE, Palette, TEXT};
 use super::words::{Words, words};
+use crate::bing::{self, Kept};
 use crate::config::{Config, Language, NeonBackground, PaperBackground, Pick, Rgb, Theme};
 use crate::sessions::{self, Session};
 use crate::themes;
@@ -48,6 +49,9 @@ const LABEL: f32 = 132.0;
 const PER_ROW: f32 = 4.0;
 const GAP: f32 = 14.0;
 const THUMB_PIXELS: (u32, u32) = (320, 180);
+/// Bing's pictures shown at first, and how many more each Show More adds:
+/// each is a large picture to make small.
+const BING_PAGE: usize = 8;
 
 /// The accents the mockups offered.
 const PAPER_ACCENTS: [u32; 4] = [0xB0612E, 0x3E6E8E, 0x5B7F4F, 0x8A5BA6];
@@ -106,6 +110,10 @@ struct Saved {
     problem: Option<String>,
     /// The wallpaper folder's pictures, by name.
     pictures: Vec<(String, PathBuf)>,
+    /// Bing's pictures kept, the newest first.
+    bing: Vec<Kept>,
+    /// Whether the daily Bing timer is on, where it is installed.
+    bing_timer: Option<bool>,
     avatar: Option<PathBuf>,
 }
 
@@ -170,6 +178,8 @@ pub struct Settings {
     /// Whether the preview shows its look at rest, if chosen.
     rest: Option<bool>,
     thumbnails: HashMap<PathBuf, Thumbnail>,
+    /// How many of Bing's pictures the gallery shows.
+    bing_shown: usize,
     sliders: Sliders,
     state: State,
     copied: bool,
@@ -274,6 +284,7 @@ impl Settings {
             preview,
             rest: None,
             thumbnails: HashMap::new(),
+            bing_shown: BING_PAGE,
             sliders,
             state: State::Ready,
             copied: false,
@@ -300,6 +311,17 @@ impl Settings {
             + self.draft.added.len()
             + self.draft.removed.len()
             + usize::from(self.draft.avatar.is_some())
+            + usize::from(self.timer_change().is_some())
+    }
+
+    /// The daily Bing timer's change, where it is installed: on while the
+    /// wallpaper is Bing's picture of the day, off otherwise.
+    fn timer_change(&self) -> Option<bool> {
+        let wanted = self.draft.config.wallpaper.pick == Pick::Bing;
+        self.saved
+            .bing_timer
+            .filter(|on| *on != wanted)
+            .map(|_| wanted)
     }
 
     /// The pictures Frost would choose from once applied, by name.
@@ -344,6 +366,19 @@ impl Settings {
 
     /// The wallpaper Frost would show today.
     fn preview_wallpaper(&self) -> Option<PathBuf> {
+        let bing = &self.saved.bing;
+        let newest_bing = || bing.first().map(|kept| kept.path.clone());
+        match &self.draft.config.wallpaper.pick {
+            Pick::Bing => return newest_bing().or_else(|| self.first_picture()),
+            Pick::BingFile(name) => {
+                let named = bing.iter().find(|kept| kept.name == *name);
+                return named
+                    .map(|kept| kept.path.clone())
+                    .or_else(newest_bing)
+                    .or_else(|| self.first_picture());
+            }
+            Pick::File(_) | Pick::Daily | Pick::Random => {}
+        }
         let pictures = self.pictures();
         if pictures.is_empty() {
             return None;
@@ -360,9 +395,13 @@ impl Settings {
                     .map_or(0, |span| span.get_days().unsigned_abs() as usize);
                 day % pictures.len()
             }
-            Pick::Random | Pick::Bing => 0,
+            Pick::Random | Pick::Bing | Pick::BingFile(_) => 0,
         };
         Some(pictures[at].1.clone())
+    }
+
+    fn first_picture(&self) -> Option<PathBuf> {
+        self.pictures().into_iter().next().map(|(_, path, _)| path)
     }
 
     fn shot(&self, size: gpui_kit::Size<Pixels>, scale_factor: f32) -> Shot {
@@ -386,10 +425,12 @@ impl Settings {
     }
 
     fn load_thumbnails(&mut self, cx: &mut Context<Self>) {
+        let bing = self.saved.bing.iter().take(self.bing_shown);
         let wanted: Vec<PathBuf> = self
             .pictures()
             .into_iter()
             .map(|(_, path, _)| path)
+            .chain(bing.map(|kept| kept.path.clone()))
             .filter(|path| !self.thumbnails.contains_key(path))
             .collect();
         for path in wanted {
@@ -584,6 +625,7 @@ impl Settings {
             .avatar
             .clone()
             .map(|png| (self.user.name.clone(), png));
+        let bing_timer = self.timer_change();
         let paths = self.paths.clone();
         cx.spawn(async move |this, cx| {
             let outcome = cx
@@ -601,6 +643,7 @@ impl Settings {
                             settings,
                             add,
                             remove: removed,
+                            bing_timer,
                         },
                         avatar,
                     };
@@ -677,7 +720,8 @@ impl Settings {
     }
 }
 
-/// Reads the settings, the wallpaper folder and `user`'s avatar.
+/// Reads the settings, the wallpaper folder, Bing's pictures, whether the
+/// Bing timer is on and `user`'s avatar.
 fn load(paths: &Paths, user: &str) -> Saved {
     let (config, problem) = paths.load();
     let pictures = wallpaper::candidates(&config.wallpaper.dir)
@@ -689,6 +733,8 @@ fn load(paths: &Paths, user: &str) -> Saved {
         .collect();
     Saved {
         avatar: avatar::current(&paths.icons, user),
+        bing: bing::kept(&config.wallpaper.bing_dir),
+        bing_timer: paths.units().enabled(),
         config,
         problem,
         pictures,
@@ -1171,13 +1217,16 @@ impl Settings {
         let w = self.words;
         let pick = self.draft.config.wallpaper.pick.clone();
         let modes = [
-            (w.one_picture, matches!(pick, Pick::File(_))),
+            (
+                w.one_picture,
+                matches!(pick, Pick::File(_) | Pick::BingFile(_)),
+            ),
             (w.random, pick == Pick::Random),
             (w.daily, pick == Pick::Daily),
             (w.bing, pick == Pick::Bing),
         ];
         let mode_note = match pick {
-            Pick::File(_) => w.one_picture_note,
+            Pick::File(_) | Pick::BingFile(_) => w.one_picture_note,
             Pick::Random => w.random_note,
             Pick::Daily => w.daily_note,
             Pick::Bing => w.bing_note,
@@ -1190,10 +1239,13 @@ impl Settings {
                 modes.into_iter(),
                 cx.listener(|this, clicked: &Vec<usize>, _, cx| {
                     let pick = match clicked.first() {
-                        Some(0) => this
-                            .pictures()
-                            .first()
-                            .map(|(name, _, _)| Pick::File(name.clone())),
+                        Some(0) => {
+                            let first = this.pictures().into_iter().next();
+                            let newest_bing = this.saved.bing.first();
+                            first.map(|(name, _, _)| Pick::File(name)).or_else(|| {
+                                newest_bing.map(|kept| Pick::BingFile(kept.name.clone()))
+                            })
+                        }
                         Some(1) => Some(Pick::Random),
                         Some(2) => Some(Pick::Daily),
                         Some(3) => Some(Pick::Bing),
@@ -1261,6 +1313,163 @@ impl Settings {
                     self.saved.config.wallpaper.dir.display()
                 ),
             ))
+            .child(self.bing_gallery(&pick, thumb, cx))
+    }
+
+    /// Bing's pictures kept, the newest first, each with its day and title;
+    /// a click shows that one always.
+    fn bing_gallery(
+        &self,
+        pick: &Pick,
+        thumb: (f32, f32),
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let p = self.palette;
+        let w = self.words;
+        let kept = &self.saved.bing;
+        let heading = h_flex()
+            .h(px(ROW))
+            .justify_between()
+            .border_b_1()
+            .border_color(p.rule)
+            .child(
+                div()
+                    .font(style::font(FontWeight::MEDIUM))
+                    .child(w.bing_pictures),
+            )
+            .when(!kept.is_empty(), |heading| {
+                heading.child(div().text_color(p.muted).child(kept.len().to_string()))
+            });
+        let gallery = if kept.is_empty() {
+            div()
+                .py(px(12.0))
+                .text_color(p.muted)
+                .child(w.no_bing_pictures)
+                .into_any_element()
+        } else {
+            h_flex()
+                .flex_wrap()
+                .gap(px(GAP))
+                .pt(px(12.0))
+                .children(
+                    kept.iter()
+                        .take(self.bing_shown)
+                        .enumerate()
+                        .map(|(index, kept)| self.bing_card(index, kept, pick, thumb, cx)),
+                )
+                .into_any_element()
+        };
+        let timer_note = match self.timer_change() {
+            Some(true) => Some(w.bing_timer_on),
+            Some(false) => Some(w.bing_timer_off),
+            None if *pick == Pick::Bing => Some(w.bing_daily_note),
+            None => None,
+        };
+        v_flex()
+            .child(div().h(px(18.0)))
+            .child(heading)
+            .child(gallery)
+            .when(kept.len() > self.bing_shown, |section| {
+                section.child(
+                    h_flex().pt(px(12.0)).child(
+                        Button::new("bing-more")
+                            .small()
+                            .label(w.show_more)
+                            .on_click(cx.listener(|this, _, _, cx| {
+                                this.bing_shown += BING_PAGE;
+                                this.load_thumbnails(cx);
+                                cx.notify();
+                            })),
+                    ),
+                )
+            })
+            .child(note(
+                &p,
+                format!(
+                    "{} {}",
+                    w.kept_in,
+                    self.saved.config.wallpaper.bing_dir.display()
+                ),
+            ))
+            .when_some(timer_note, |section, timer_note| {
+                section.child(note(&p, timer_note))
+            })
+    }
+
+    fn bing_card(
+        &self,
+        index: usize,
+        kept: &Kept,
+        pick: &Pick,
+        (width, height): (f32, f32),
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
+        let p = self.palette;
+        let picked = *pick == Pick::BingFile(kept.name.clone());
+        let name = kept.name.clone();
+        let title = kept
+            .about
+            .as_ref()
+            .map(|about| about.title.clone())
+            .filter(|title| !title.is_empty());
+        v_flex()
+            .id(("bing", index))
+            .w(px(width))
+            .gap(px(3.0))
+            .cursor_pointer()
+            .on_click(cx.listener(move |this, _, _, cx| {
+                this.draft.config.wallpaper.pick = Pick::BingFile(name.clone());
+                this.edited(cx);
+            }))
+            .child(
+                div()
+                    .w(px(width))
+                    .h(px(height))
+                    .mb(px(2.0))
+                    .rounded(px(4.0))
+                    .overflow_hidden()
+                    .border_2()
+                    .border_color(if picked { p.accent } else { p.rule })
+                    .bg(p.panel)
+                    .child(self.small_picture(&kept.path)),
+            )
+            .child(
+                div()
+                    .text_size(px(NOTE))
+                    .text_color(if picked { p.text } else { p.muted })
+                    .child(kept.day.clone()),
+            )
+            .when_some(title, |card, title| {
+                card.child(
+                    div()
+                        .truncate()
+                        .text_size(px(NOTE))
+                        .text_color(p.muted)
+                        .child(title),
+                )
+            })
+    }
+
+    /// The picture at `path` made small, or what stands in for it while it
+    /// is made or when it cannot be.
+    fn small_picture(&self, path: &Path) -> AnyElement {
+        let p = self.palette;
+        match self.thumbnails.get(path) {
+            Some(Thumbnail::Ready(image)) => img(image.clone())
+                .size_full()
+                .object_fit(ObjectFit::Cover)
+                .into_any_element(),
+            Some(Thumbnail::Failed) => div()
+                .size_full()
+                .flex()
+                .items_center()
+                .justify_center()
+                .text_color(p.muted)
+                .text_size(px(NOTE))
+                .child("?")
+                .into_any_element(),
+            _ => div().size_full().bg(p.panel).into_any_element(),
+        }
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -1277,22 +1486,7 @@ impl Settings {
         let p = self.palette;
         let w = self.words;
         let picked = *pick == Pick::File(name.clone());
-        let picture = match self.thumbnails.get(path) {
-            Some(Thumbnail::Ready(image)) => img(image.clone())
-                .size_full()
-                .object_fit(ObjectFit::Cover)
-                .into_any_element(),
-            Some(Thumbnail::Failed) => div()
-                .size_full()
-                .flex()
-                .items_center()
-                .justify_center()
-                .text_color(p.muted)
-                .text_size(px(NOTE))
-                .child("?")
-                .into_any_element(),
-            _ => div().size_full().bg(p.panel).into_any_element(),
-        };
+        let picture = self.small_picture(path);
         let remove_name = name.clone();
         let pick_name = name.clone();
         let group: SharedString = format!("thumb-{index}").into();

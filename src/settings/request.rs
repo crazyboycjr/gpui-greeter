@@ -1,14 +1,15 @@
 //! What the settings app hands the root helper on its standard input: the
-//! settings to change, and the wallpapers to add, with their bytes, or to
-//! remove. The pictures travel as bytes so that the helper, which runs as
-//! root, never opens a path the user names.
+//! settings to change, the wallpapers to add, with their bytes, or to
+//! remove, and whether the daily Bing timer is to be on. The pictures
+//! travel as bytes so that the helper, which runs as root, never opens a
+//! path the user names.
 //!
 //! A request is a line naming the format, a line of JSON, then the
 //! pictures' bytes one after another, as long as the JSON says each is:
 //!
 //! ```text
 //! gpui-greeter settings 1
-//! {"set":{"theme":"frost"},"add":[{"name":"lake.jpg","size":48213}],"remove":["old.png"]}
+//! {"set":{"theme":"frost"},"add":[{"name":"lake.jpg","size":48213}],"remove":["old.png"],"bing_timer":true}
 //! <48213 bytes of lake.jpg>
 //! ```
 
@@ -34,6 +35,8 @@ pub struct Request {
     pub add: Vec<NewPicture>,
     /// Names of pictures in the wallpaper folder.
     pub remove: Vec<String>,
+    /// Turns the daily Bing timer on or off.
+    pub bing_timer: Option<bool>,
 }
 
 #[derive(Debug, PartialEq)]
@@ -51,6 +54,8 @@ struct Header {
     add: Vec<Added>,
     #[serde(default)]
     remove: Vec<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bing_timer: Option<bool>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -62,7 +67,10 @@ struct Added {
 
 impl Request {
     pub fn is_empty(&self) -> bool {
-        self.settings.is_empty() && self.add.is_empty() && self.remove.is_empty()
+        self.settings.is_empty()
+            && self.add.is_empty()
+            && self.remove.is_empty()
+            && self.bing_timer.is_none()
     }
 
     pub fn write(&self, out: &mut impl Write) -> Result<()> {
@@ -81,6 +89,7 @@ impl Request {
                 })
                 .collect(),
             remove: self.remove.clone(),
+            bing_timer: self.bing_timer,
         };
         writeln!(out, "{MAGIC}")?;
         serde_json::to_writer(&mut *out, &header)?;
@@ -171,6 +180,7 @@ impl Request {
             settings,
             add,
             remove: header.remove,
+            bing_timer: header.bing_timer,
         })
     }
 }
@@ -265,6 +275,7 @@ mod tests {
                 },
             ],
             remove: vec!["Old Photo (1).JPG".into()],
+            bing_timer: Some(true),
         }
     }
 
@@ -304,6 +315,14 @@ mod tests {
                 "a key outside the set",
             ),
             (header("{\"run\":\"id\"}"), "an unknown field"),
+            (
+                header("{\"bing_timer\":\"on\"}"),
+                "a timer that is not on or off",
+            ),
+            (
+                header("{\"bing_timer\":{\"unit\":\"sshd.service\"}}"),
+                "another unit",
+            ),
             (
                 header("{\"add\":[{\"name\":\"../x.jpg\",\"size\":0}]}"),
                 "a path",

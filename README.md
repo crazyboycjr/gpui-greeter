@@ -126,30 +126,48 @@ It mirrors the folder: new pictures are added, changed ones replaced,
 removed ones removed, and a picture saved twice is copied once. Every picture
 in the folder is copied, so keep only wallpapers there.
 
-With `pick = "bing"`, Frost shows Bing's picture of the day: the greeter
-asks Bing's archive for it in the background, shows it as soon as it
-arrives and keeps the last week's in
-`/var/lib/gpui-greeter/.cache/gpui-greeter/bing`.
+With `pick = "bing"`, Frost shows Bing's picture of the day. Bing's
+pictures are kept at their full size, 3840×2160, in
+`/usr/local/share/gpui-greeter/bing4k`, which the package makes for the
+greeter's user and lets everyone read: each under its day,
+`2026-10-29.jpg`, beside `2026-10-29.json` with its title and copyright.
+The login screen asks Bing's archive for the picture of the day in the
+background and shows it as soon as it arrives; until the first one has,
+Frost shows one of the wallpapers. `gpui-greeter-bing.timer` does the same
+once a day as the greeter's user, so the pictures gather on days without a
+login screen too; the settings window turns it on when Bing is chosen and
+off otherwise, or by hand:
+
+    sudo systemctl enable --now gpui-greeter-bing.timer
+
+The lock screen shows the newest picture there. The settings window's
+Wallpaper section shows them all, by day and title, and a click on one
+shows it always, written as `pick = "bing4k/2026-10-29.jpg"`. Nothing is
+removed from the folder, which grows by about 3.5 MB a day; delete old
+pictures there by hand when it is large enough.
 
 ## Settings
 
 `gpui-greeter settings`, "gpui-greeter Settings" among the applications,
 is a window for the settings used day to day: the look the login screen
 and the lock screen start with, each look's background and accent, Frost's
-wallpapers, your avatar, the size and the language. It shows the look as
-the greeter draws it, small, and follows each change at once.
+wallpapers and Bing's pictures, your avatar, the size and the language. It
+shows the look as the greeter draws it, small, and follows each change at
+once.
 
     gpui-greeter settings --section wallpaper
 
 Nothing changes until Apply. The avatar goes to AccountsService, which
-lets everyone set their own. The settings file and the wallpaper folder
-are root's, so Apply runs `gpui-greeter apply-settings` once through
-pkexec, and polkit asks for the password. That helper reads the changes
-from its standard input, pictures included, and checks them all before it
-changes anything: only the settings the window offers, each value as the
-greeter reads it; new pictures that decode, under plain names, written
-into the configured wallpaper folder alone; removals of pictures that are
-there; and no folder that other users can write to. It keeps the settings
+lets everyone set their own. The settings file, the wallpaper folder and
+the daily Bing timer are root's, so Apply runs `gpui-greeter
+apply-settings` once through pkexec, and polkit asks for the password.
+That helper reads the changes from its standard input, pictures included,
+and checks them all before it changes anything: only the settings the
+window offers, each value as the greeter reads it; new pictures that
+decode, under plain names, written into the configured wallpaper folder
+alone; removals of pictures that are there; a pick of one of Bing's
+pictures that is there; the package's own Bing timer, only turned on or
+off; and no folder that other users can write to. It keeps the settings
 file's comments. Without polkit, the window gives the `sudo` command that
 does the same.
 
@@ -318,8 +336,10 @@ lock screen.
 
 `cargo test` covers the parts without a screen: the greetd conversation,
 the lock's PAM conversation (against libpam, with a fake service of the
-tests' own), desktop entries, users, the wallpaper copy, Bing's cache, the
-settings, the theme format and the example theme, and the backgrounds,
+tests' own), desktop entries, users, the wallpaper copy, Bing's folder
+(against a web server of the tests' own), the settings and the Bing timer
+(offline, with `systemctl --root`), the theme format and the example
+theme, and the backgrounds,
 whose skyline and circuit board must come out of the mockup's seeds
 exactly as the mockup grows them.
 

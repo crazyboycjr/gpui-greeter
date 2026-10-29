@@ -67,8 +67,8 @@ start() {
         theme=$(basename "$themes")
         themes=$(dirname "$themes")
     fi
-    printf 'theme = "%s"\nlanguage = "%s"\n[wallpaper]\ndir = "%s"\npick = "%s"\n' \
-        "$theme" "$lang" "$wallpapers" "$pick" >"$RUN/config.toml"
+    printf 'theme = "%s"\nlanguage = "%s"\n[wallpaper]\ndir = "%s"\npick = "%s"\nbing_dir = "%s"\n' \
+        "$theme" "$lang" "$wallpapers" "$pick" "$SCRATCH/bing4k" >"$RUN/config.toml"
     [[ -n $themes ]] && printf '[themes]\ndir = "%s"\n' "$themes" >>"$RUN/config.toml"
     if [[ -n $background || -n $accent ]]; then
         printf '[%s]\n' "${theme%-night}" >>"$RUN/config.toml"

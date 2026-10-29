@@ -79,7 +79,7 @@ pub fn choose(pictures: &[PathBuf], pick: &Pick, seed: u64, day: i64) -> Option<
             .cloned()
             .or_else(|| Some(at(seed))),
         Pick::Daily => Some(at(day.unsigned_abs())),
-        Pick::Random | Pick::Bing => Some(at(seed)),
+        Pick::Random | Pick::Bing | Pick::BingFile(_) => Some(at(seed)),
     }
 }
 

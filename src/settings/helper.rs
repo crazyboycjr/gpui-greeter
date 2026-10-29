@@ -1,14 +1,16 @@
 //! `gpui-greeter apply-settings`: the root side of the settings app. It
 //! reads one request from its standard input and makes the changes only
-//! root can: the settings in `/etc/gpui-greeter/config.toml`, and the
-//! pictures in the wallpaper folder those settings name.
+//! root can: the settings in `/etc/gpui-greeter/config.toml`, the pictures
+//! in the wallpaper folder those settings name, and whether the daily Bing
+//! timer runs.
 //!
 //! The request comes from the user, so it is checked whole before anything
 //! changes. Settings are those of a closed set, each checked; new pictures
 //! must decode as pictures and take plain names; removals must name
 //! pictures in the folder; the folders written to must be ones only root
-//! can change. The helper opens no path the request names: the pictures'
-//! bytes come in the request itself.
+//! can change; the timer is the package's own, and only turned on or off.
+//! The helper opens no path the request names: the pictures' bytes come in
+//! the request itself.
 
 use std::fs;
 use std::io::{Cursor, Write as _};
@@ -20,17 +22,18 @@ use image::{ImageReader, Limits};
 
 use super::request::{Request, is_new_name};
 use super::setting::{self, Setting, plain_picture_name};
+use super::timer::{TIMER, Units};
 use crate::config::{Config, Pick, Theme};
-use crate::themes;
 use crate::wallpaper::picture_format;
+use crate::{bing, themes};
 
 /// The settings a new file starts from: the shipped ones, every default
 /// written out with what it does.
 const SHIPPED: &str = include_str!("../../dist/config.toml");
 
-/// Makes the changes `request` asks for to the settings at `config`, and
-/// says what it did, a line for each change.
-pub fn apply(request: &Request, config: &Path) -> Result<Vec<String>> {
+/// Makes the changes `request` asks for to the settings at `config` and to
+/// the timer among `units`, and says what it did, a line for each change.
+pub fn apply(request: &Request, config: &Path, units: Units) -> Result<Vec<String>> {
     let text = match fs::symlink_metadata(config) {
         Ok(meta) if meta.file_type().is_symlink() => {
             bail!("{} is a link; edit what it points to", config.display())
@@ -102,10 +105,18 @@ pub fn apply(request: &Request, config: &Path) -> Result<Vec<String>> {
             "wallpaper.pick names {name}, which is not in {}",
             wallpapers.display()
         ),
+        (Some(Pick::BingFile(name)), _) => ensure!(
+            bing::named(&current.wallpaper.bing_dir, name).is_some(),
+            "wallpaper.pick names {name}, which is not among Bing's pictures in {}",
+            current.wallpaper.bing_dir.display()
+        ),
         (None, Pick::File(name)) if request.remove.contains(name) => {
             bail!("{name} is the wallpaper picked; pick another before removing it")
         }
         _ => {}
+    }
+    if request.bing_timer.is_some() {
+        ensure!(units.installed(), "{TIMER} is not installed");
     }
     let edited = if request.settings.is_empty() {
         None
@@ -152,6 +163,10 @@ pub fn apply(request: &Request, config: &Path) -> Result<Vec<String>> {
         for setting in &request.settings {
             done.push(format!("set      {} = {}", setting.key(), setting.json()));
         }
+    }
+    // The timer last, once the settings it follows are written.
+    if let Some(on) = request.bing_timer {
+        done.push(units.set(on)?);
     }
     Ok(done)
 }
@@ -231,7 +246,7 @@ mod tests {
     use crate::settings::request::NewPicture;
 
     /// A test folder with the shipped settings pointing at its own
-    /// wallpaper and themes folders.
+    /// wallpaper, themes and Bing folders.
     fn scratch(name: &str) -> (PathBuf, PathBuf) {
         let root =
             std::env::temp_dir().join(format!("gpui-greeter-helper-{name}-{}", std::process::id()));
@@ -248,9 +263,23 @@ mod tests {
             .replace(
                 "/usr/local/share/gpui-greeter/themes",
                 &root.join("themes").display().to_string(),
+            )
+            .replace(
+                "/usr/local/share/gpui-greeter/bing4k",
+                &root.join("bing4k").display().to_string(),
             );
         fs::write(&config, text).unwrap();
         (root, config)
+    }
+
+    /// Applies `request` to the settings at `config`, and to the units of
+    /// the test folder that holds them.
+    fn apply(request: &Request, config: &Path) -> Result<Vec<String>> {
+        let root = config
+            .ancestors()
+            .nth(3)
+            .expect("root/etc/gpui-greeter/config.toml");
+        super::apply(request, config, Units::Root(root))
     }
 
     fn png() -> Vec<u8> {
@@ -279,6 +308,7 @@ mod tests {
             ],
             add: vec![picture("dunes.png", png())],
             remove: vec![],
+            bing_timer: None,
         };
         let done = apply(&request, &config).unwrap();
         assert_eq!(done.len(), 4, "{done:?}");
@@ -435,6 +465,66 @@ mod tests {
         let text = fs::read_to_string(&config).unwrap();
         assert!(text.starts_with("# gpui-greeter's settings"), "{text}");
         assert_eq!(Config::load(&config).theme, Theme::Neon);
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn picks_one_of_bing_s_pictures_that_is_there() {
+        let (root, config) = scratch("bing");
+        fs::create_dir_all(root.join("bing4k")).unwrap();
+        fs::write(root.join("bing4k/2026-10-29.jpg"), png()).unwrap();
+        let pick = |name: &str| Request {
+            settings: vec![Setting::WallpaperPick(Pick::BingFile(name.into()))],
+            ..Request::default()
+        };
+        assert!(apply(&pick("2026-10-28.jpg"), &config).is_err());
+        apply(&pick("2026-10-29.jpg"), &config).unwrap();
+        assert_eq!(
+            Config::load(&config).wallpaper.pick,
+            Pick::BingFile("2026-10-29.jpg".into())
+        );
+        assert!(
+            fs::read_to_string(&config)
+                .unwrap()
+                .contains("pick = \"bing4k/2026-10-29.jpg\"\n")
+        );
+        let _ = fs::remove_dir_all(root);
+    }
+
+    #[test]
+    fn turns_the_package_s_timer_on_and_off() {
+        if !Path::new("/usr/bin/systemctl").exists() {
+            return;
+        }
+        let (root, config) = scratch("timer");
+        let before = fs::read(&config).unwrap();
+        let timer = |on| Request {
+            bing_timer: Some(on),
+            ..Request::default()
+        };
+        let refused = apply(&timer(true), &config).unwrap_err();
+        assert!(
+            format!("{refused:#}").contains("not installed"),
+            "{refused:#}"
+        );
+
+        let units = root.join("usr/lib/systemd/system");
+        fs::create_dir_all(&units).unwrap();
+        for unit in ["gpui-greeter-bing.timer", "gpui-greeter-bing.service"] {
+            let shipped = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("dist")
+                .join(unit);
+            fs::copy(shipped, units.join(unit)).unwrap();
+        }
+        let wanted = root.join("etc/systemd/system/timers.target.wants/gpui-greeter-bing.timer");
+        let done = apply(&timer(true), &config).unwrap();
+        assert_eq!(done, ["enabled  gpui-greeter-bing.timer"]);
+        assert!(fs::symlink_metadata(&wanted).is_ok(), "{wanted:?}");
+        assert_eq!(Units::Root(&root).enabled(), Some(true));
+        apply(&timer(false), &config).unwrap();
+        assert!(fs::symlink_metadata(&wanted).is_err());
+        assert_eq!(Units::Root(&root).enabled(), Some(false));
+        assert_eq!(fs::read(&config).unwrap(), before, "the settings stay");
         let _ = fs::remove_dir_all(root);
     }
 }

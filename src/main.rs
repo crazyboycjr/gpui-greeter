@@ -9,7 +9,7 @@ use gpui_greeter::lock::{self, link::ViewEnd};
 use gpui_greeter::remembered::{self, Remembered};
 use gpui_greeter::themes::{self, Chord, Folder, Severity, State};
 use gpui_greeter::ui::preview::{self, Preview};
-use gpui_greeter::{settings, sync, ui};
+use gpui_greeter::{bing, settings, sync, ui};
 
 const USAGE: &str = "\
 usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run]
@@ -50,6 +50,9 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
            avatar, the size and the language, each shown as the greeter
            draws it. SECTION is look, wallpaper, avatar or general. Apply
            asks for a password through polkit to change what root keeps
+       gpui-greeter fetch-bing [--config FILE]
+           keep Bing's picture of the day in the config's Bing folder, as
+           the daily gpui-greeter-bing.timer does as the greeter's user
 
   --config FILE    settings, /etc/gpui-greeter/config.toml by default
   --theme THEME    paper, paper-night, frost, neon or a theme folder's
@@ -76,6 +79,7 @@ fn main() -> ExitCode {
         Some("lock") => lock(&args[1..]),
         Some("settings") => settings(&args[1..]),
         Some("apply-settings") => apply_settings(&args[1..]),
+        Some("fetch-bing") => fetch_bing(&args[1..]),
         _ => greet(&args),
     };
     match outcome {
@@ -532,8 +536,52 @@ fn apply_settings(args: &[String]) -> anyhow::Result<()> {
     }
     let request = settings::request::Request::read(&mut std::io::stdin().lock())?;
     let config = settings::helper::config_path(root.as_deref());
-    for line in settings::helper::apply(&request, &config)? {
+    let units = match &root {
+        Some(root) => settings::timer::Units::Root(root),
+        None => settings::timer::Units::System,
+    };
+    for line in settings::helper::apply(&request, &config, units)? {
         println!("{line}");
+    }
+    Ok(())
+}
+
+/// What the daily timer runs as the greeter's user: Bing's picture of the
+/// day into the Bing folder, trying again a little while in case the
+/// network is not up yet.
+fn fetch_bing(args: &[String]) -> anyhow::Result<()> {
+    const ATTEMPTS: u32 = 3;
+    const PAUSE: Duration = Duration::from_secs(30);
+    let mut args = Args { rest: args.iter() };
+    let mut config_path = PathBuf::from(config::DEFAULT_PATH);
+    while let Some(arg) = args.rest.next() {
+        match arg.as_str() {
+            "--config" => config_path = args.value(arg)?.into(),
+            other => anyhow::bail!("unknown argument {other:?}\n{USAGE}"),
+        }
+    }
+    let wallpaper = Config::load(&config_path).wallpaper;
+    let today = jiff::Zoned::now().date().to_string();
+    let mut attempt = 1;
+    let added = loop {
+        match bing::fetch(&wallpaper.bing_url, &wallpaper.bing_dir, &today) {
+            Ok(added) => break added,
+            Err(error) if attempt < ATTEMPTS => {
+                eprintln!("gpui-greeter: attempt {attempt}: {error:#}");
+                attempt += 1;
+                std::thread::sleep(PAUSE);
+            }
+            Err(error) => return Err(error),
+        }
+    };
+    for path in &added {
+        println!("kept       {}", path.display());
+    }
+    if added.is_empty() {
+        println!(
+            "{}: Bing's picture of the day is kept already",
+            wallpaper.bing_dir.display()
+        );
     }
     Ok(())
 }

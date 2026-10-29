@@ -3,7 +3,7 @@
 
 use std::path::PathBuf;
 
-/// The cache folder for `name`, such as Bing's pictures.
+/// The cache folder for `name`, such as the drawn backgrounds'.
 pub fn dir(name: &str) -> Option<PathBuf> {
     let cache = std::env::var_os("XDG_CACHE_HOME")
         .map(PathBuf::from)

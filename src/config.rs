@@ -255,6 +255,8 @@ pub struct Wallpaper {
     /// Where Bing's picture of the day is found: Bing's archive, whose answer
     /// names it, or any address that answers with a picture itself.
     pub bing_url: String,
+    /// Where Bing's pictures are kept, each under its day.
+    pub bing_dir: PathBuf,
 }
 
 impl Default for Wallpaper {
@@ -263,6 +265,7 @@ impl Default for Wallpaper {
             dir: PathBuf::from("/usr/local/share/gpui-greeter/wallpapers"),
             pick: Pick::Random,
             bing_url: "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1".into(),
+            bing_dir: PathBuf::from("/usr/local/share/gpui-greeter/bing4k"),
         }
     }
 }
@@ -275,11 +278,15 @@ pub enum Pick {
     Random,
     /// The same one all day.
     Daily,
-    /// Bing's picture of the day, fetched in the background; a random one
-    /// until it arrives.
+    /// Bing's picture of the day: the newest kept in the Bing folder, which
+    /// the greeter fetches in the background; a random one until there is
+    /// one.
     Bing,
     /// This file in the wallpaper directory.
     File(String),
+    /// This picture of Bing's in the Bing folder, by its file's name; the
+    /// settings write it as `bing4k/` and the name.
+    BingFile(String),
 }
 
 impl From<String> for Pick {
@@ -288,20 +295,29 @@ impl From<String> for Pick {
             "random" => Pick::Random,
             "daily" => Pick::Daily,
             "bing" => Pick::Bing,
-            _ => Pick::File(text),
+            _ => match text.strip_prefix(crate::bing::PICK_PREFIX) {
+                Some(name) => Pick::BingFile(name.to_string()),
+                None => Pick::File(text),
+            },
         }
     }
 }
 
 impl Pick {
     /// The name the settings call it by.
-    pub fn name(&self) -> &str {
+    pub fn name(&self) -> std::borrow::Cow<'_, str> {
         match self {
-            Pick::Random => "random",
-            Pick::Daily => "daily",
-            Pick::Bing => "bing",
-            Pick::File(name) => name,
+            Pick::Random => "random".into(),
+            Pick::Daily => "daily".into(),
+            Pick::Bing => "bing".into(),
+            Pick::File(name) => name.into(),
+            Pick::BingFile(name) => format!("{}{name}", crate::bing::PICK_PREFIX).into(),
         }
+    }
+
+    /// Whether it shows one of Bing's pictures, whichever.
+    pub fn is_bing(&self) -> bool {
+        matches!(self, Pick::Bing | Pick::BingFile(_))
     }
 }
 
@@ -413,6 +429,29 @@ mod tests {
         assert!(!config.neon.scanlines);
         assert_eq!(config.wallpaper.pick, Pick::File("lake.jpg".into()));
         assert_eq!(config.sessions.wrapper, "startx /usr/bin/env");
+    }
+
+    #[test]
+    fn a_pick_names_a_wallpaper_or_one_of_bing_s_pictures() {
+        let pick = |text: &str| {
+            toml::from_str::<Config>(&format!("[wallpaper]\npick = \"{text}\""))
+                .unwrap()
+                .wallpaper
+                .pick
+        };
+        assert_eq!(pick("bing"), Pick::Bing);
+        assert_eq!(pick("lake.jpg"), Pick::File("lake.jpg".into()));
+        assert_eq!(
+            pick("bing4k/2026-10-29.jpg"),
+            Pick::BingFile("2026-10-29.jpg".into())
+        );
+        for text in ["daily", "lake.jpg", "bing4k/2026-10-29.jpg"] {
+            assert_eq!(pick(text).name(), text);
+        }
+        assert_eq!(
+            Config::default().wallpaper.bing_dir,
+            PathBuf::from("/usr/local/share/gpui-greeter/bing4k")
+        );
     }
 
     #[test]

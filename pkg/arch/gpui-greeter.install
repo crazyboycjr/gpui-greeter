@@ -3,6 +3,10 @@ post_install() {
 ==> greetd now runs gpui-greeter, set up in /etc/gpui-greeter/config.toml.
 ==> Copy the wallpapers for the Frost look:
       sudo gpui-greeter sync-wallpapers ~/Pictures/Wallpapers
+==> Or show Bing's picture of the day: gpui-greeter settings, Wallpaper,
+    Bing. Its pictures gather in /usr/local/share/gpui-greeter/bing4k,
+    fetched by the login screen and by gpui-greeter-bing.timer, which the
+    settings turn on with Bing.
 ==> Make greetd the display manager from the next boot, and go back:
       sudo gpui-greeter-switch greetd
       sudo gpui-greeter-switch lightdm

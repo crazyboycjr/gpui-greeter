@@ -37,7 +37,7 @@ use crate::themes::{FRAME, Folder};
 use crate::users::User;
 use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, Rect, X11};
-use crate::{bing, cache, scenery, vt};
+use crate::{bing, scenery, vt};
 use crate::{sessions, users};
 use looks::{Looks, ScreenAssets};
 use model::{Greeter, Setup};
@@ -227,7 +227,10 @@ pub fn run(options: Options) -> Result<()> {
                 requests: Cell::new(0),
                 shown: RefCell::new(None),
             });
-            follow_wallpaper(cx, greeter.clone(), screens, config);
+            // The login screen fetches Bing's pictures as the greeter's
+            // user; the lock screen and previews, run as anyone, show them.
+            let fetch = !lock_screen && preview.is_none();
+            follow_wallpaper(cx, greeter.clone(), screens, config, fetch);
             if preview.is_none() {
                 follow_vt(cx, greeter.clone());
             }
@@ -290,8 +293,8 @@ fn set_scale(monitor: &Monitor) -> f32 {
 }
 
 /// The wallpaper: the picture to show now, and, when the pick is Bing's
-/// picture of the day and today's is not fetched yet, where to fetch it
-/// from, to show once it arrives.
+/// picture of the day and today's is not kept yet, where to fetch it from,
+/// to show once it arrives.
 struct Wallpaper {
     now: Option<PathBuf>,
     bing: Option<BingFetch>,
@@ -301,12 +304,14 @@ struct Wallpaper {
 struct BingFetch {
     url: String,
     dir: PathBuf,
-    day: String,
+    today: String,
 }
 
 impl Wallpaper {
-    fn pick(config: &Config) -> Self {
-        let today = jiff::Zoned::now().date();
+    /// The picture `config` picks; with `fetch`, Bing's picture of the day
+    /// is fetched into the Bing folder, which only the greeter's user may
+    /// write.
+    fn pick(config: &Config, fetch: bool) -> Self {
         let local = || {
             let pictures = wallpaper::candidates(&config.wallpaper.dir);
             let picked = wallpaper::picked(&pictures, &config.wallpaper.pick);
@@ -315,27 +320,35 @@ impl Wallpaper {
             }
             picked
         };
-        let bing_dir = cache::dir("bing").filter(|_| config.wallpaper.pick == Pick::Bing);
-        let Some(dir) = bing_dir else {
-            return Self {
+        let dir = &config.wallpaper.bing_dir;
+        match &config.wallpaper.pick {
+            Pick::Bing => {
+                let today = jiff::Zoned::now().date().to_string();
+                let latest = bing::latest(dir);
+                // Bing's day can begin before the one here.
+                let current = latest
+                    .as_deref()
+                    .and_then(bing::day_of)
+                    .is_some_and(|day| day >= today.as_str());
+                Self {
+                    now: latest.or_else(local),
+                    bing: (fetch && !current).then(|| BingFetch {
+                        url: config.wallpaper.bing_url.clone(),
+                        dir: dir.clone(),
+                        today,
+                    }),
+                }
+            }
+            Pick::BingFile(name) => Self {
+                now: bing::named(dir, name)
+                    .or_else(|| bing::latest(dir))
+                    .or_else(local),
+                bing: None,
+            },
+            _ => Self {
                 now: local(),
                 bing: None,
-            };
-        };
-        let day = today.to_string();
-        if let Some(fetched) = bing::of_day(&dir, &day) {
-            return Self {
-                now: Some(fetched),
-                bing: None,
-            };
-        }
-        Self {
-            now: bing::latest(&dir).or_else(local),
-            bing: Some(BingFetch {
-                url: config.wallpaper.bing_url.clone(),
-                dir,
-                day,
-            }),
+            },
         }
     }
 
@@ -386,8 +399,14 @@ fn wallpaper_blur(theme: &Theme, folder: Option<&Folder>, config: &Config) -> Op
 }
 
 /// Shows the wallpaper behind every look that draws one, picked once and
-/// blurred as each look asks.
-fn follow_wallpaper(cx: &mut App, greeter: Entity<Greeter>, screens: Rc<Screens>, config: Config) {
+/// blurred as each look asks; `fetch` as [`Wallpaper::pick`] takes it.
+fn follow_wallpaper(
+    cx: &mut App,
+    greeter: Entity<Greeter>,
+    screens: Rc<Screens>,
+    config: Config,
+    fetch: bool,
+) {
     let picked = Cell::new(false);
     let update = move |greeter: Entity<Greeter>, cx: &mut App| {
         let blur = {
@@ -403,7 +422,7 @@ fn follow_wallpaper(cx: &mut App, greeter: Entity<Greeter>, screens: Rc<Screens>
             Some((path, _)) => load_backdrops(cx, path, screens.clone(), blur),
             None if !picked.get() => {
                 picked.set(true);
-                Wallpaper::pick(&config).show(cx, screens.clone(), blur);
+                Wallpaper::pick(&config, fetch).show(cx, screens.clone(), blur);
             }
             None => {}
         }
@@ -514,7 +533,7 @@ fn follow_supervisor(
 }
 
 /// Fetches today's picture, trying again for a while in case the network
-/// comes up after the greeter.
+/// comes up after the greeter, and shows the newest kept if it is new.
 fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: Blur) {
     const ATTEMPTS: u32 = 6;
     const PAUSE: Duration = Duration::from_secs(20);
@@ -523,16 +542,21 @@ fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: Blur) 
             let job = fetch.clone();
             let fetched = cx
                 .background_executor()
-                .spawn(async move { bing::fetch(&job.url, &job.dir, &job.day) })
+                .spawn(async move { bing::fetch(&job.url, &job.dir, &job.today) })
                 .await;
             match fetched {
-                Ok(path) => {
-                    let blur = screens
-                        .shown
-                        .borrow()
-                        .as_ref()
-                        .map_or(blur, |(_, blur)| *blur);
-                    cx.update(|cx| load_backdrops(cx, path, screens, blur));
+                Ok(added) => {
+                    for path in &added {
+                        log::info!("kept Bing's picture {}", path.display());
+                    }
+                    let shown = screens.shown.borrow().clone();
+                    let latest = bing::latest(&fetch.dir);
+                    if let Some(latest) = latest
+                        && shown.as_ref().is_none_or(|(path, _)| *path != latest)
+                    {
+                        let blur = shown.map_or(blur, |(_, blur)| blur);
+                        cx.update(|cx| load_backdrops(cx, latest, screens, blur));
+                    }
                     return;
                 }
                 Err(error) => log::warn!("Bing's picture, attempt {attempt}: {error:#}"),

@@ -77,6 +77,8 @@ package() {
     install -Dm644 dist/lock.pam "$pkgdir/etc/pam.d/$_name-lock"
     install -Dm644 dist/greetd-service.conf \
         "$pkgdir/usr/lib/systemd/system/greetd.service.d/$_name.conf"
+    install -Dm644 -t "$pkgdir/usr/lib/systemd/system" \
+        "dist/$_name-bing.service" "dist/$_name-bing.timer"
     install -Dm644 dist/tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$_name.conf"
     install -Dm644 "dist/$_name-settings.desktop" \
         "$pkgdir/usr/share/applications/$_name-settings.desktop"

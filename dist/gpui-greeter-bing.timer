@@ -1,0 +1,16 @@
+# Installed as /usr/lib/systemd/system/gpui-greeter-bing.timer. The settings
+# window turns it on when the wallpaper is Bing's and off otherwise, or by
+# hand: systemctl enable --now gpui-greeter-bing.timer
+[Unit]
+Description=Keep Bing's picture of the day for gpui-greeter, daily
+
+[Timer]
+OnCalendar=daily
+# Bing's picture changes once a day; one fetch a day, a day apart, finds
+# each. When the machine was off at the time, it runs at the next boot.
+RandomizedDelaySec=2h
+FixedRandomDelay=yes
+Persistent=yes
+
+[Install]
+WantedBy=timers.target

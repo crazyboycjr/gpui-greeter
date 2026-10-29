@@ -46,12 +46,21 @@ background = "skyline"
 [wallpaper]
 # Frost's pictures: `gpui-greeter sync-wallpapers` copies them here.
 dir = "/usr/local/share/gpui-greeter/wallpapers"
-# "random" (each start), "daily", "bing" (Bing's picture of the day, a
-# random one until it has been fetched) or the name of a file in dir.
+# "random" (each start), "daily", "bing" (Bing's picture of the day: the
+# newest in bing_dir, a random one from dir until there is one), the name of
+# a file in dir, or one of Bing's pictures in bing_dir, written as "bing4k/"
+# and its name, such as "bing4k/2026-10-29.jpg".
 pick = "random"
 # Where "bing" finds the picture of the day: Bing's archive, whose answer
 # names the picture, or any address that answers with a picture itself.
 bing_url = "https://www.bing.com/HPImageArchive.aspx?format=js&idx=0&n=1"
+# Where Bing's pictures are kept, at their full size, each under its day
+# beside a .json file of that day with its title and copyright. With "bing"
+# the login screen fetches the picture of the day, and so does the daily
+# gpui-greeter-bing.timer, which the settings window turns on with "bing"
+# and off with any other pick; both write as the greeter's user, who owns
+# this folder. The lock screen and the settings window show what is here.
+bing_dir = "/usr/local/share/gpui-greeter/bing4k"
 
 [sessions]
 dir = "/usr/share/xsessions"

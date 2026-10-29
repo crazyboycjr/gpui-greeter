@@ -1,0 +1,26 @@
+# Installed as /usr/lib/systemd/system/gpui-greeter-bing.service, which
+# gpui-greeter-bing.timer starts every day: Bing's picture of the day into
+# the Bing folder, /usr/local/share/gpui-greeter/bing4k, which the greeter's
+# user owns, so that the pictures gather on days without a login screen too.
+[Unit]
+Description=Keep Bing's picture of the day for gpui-greeter
+Documentation=file:///usr/share/doc/gpui-greeter/README.md
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=greeter
+ExecStart=/usr/bin/gpui-greeter fetch-bing
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectHome=yes
+ProtectSystem=strict
+# The Bing folder alone is written; another bing_dir in the settings needs
+# its own line here, in a drop-in.
+ReadWritePaths=-/usr/local/share/gpui-greeter/bing4k
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
