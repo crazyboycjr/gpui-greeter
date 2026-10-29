@@ -1,6 +1,6 @@
 ---
 name: gpui-greeter-theme
-description: Design, check, preview and install a theme for gpui-greeter, the greetd login screen for X11. A theme is a folder of theme.toml, pictures, SVGs and fonts laid out on a 3840x2160 frame, kept on the user's own machine. Use when someone wants a new look for their gpui-greeter login screen, wants to turn a mockup or an idea into one, or wants to change, preview, install or undo one.
+description: Design, check, preview and install a theme for gpui-greeter, the greetd login screen and lock screen for X11. A theme is a folder of theme.toml, pictures, SVGs and fonts laid out on a 3840x2160 frame, kept on the user's own machine. Use when someone wants a new look for their gpui-greeter login screen or lock screen, wants to turn a mockup or an idea into one, or wants to change, preview, install or undo one.
 ---
 
 # Designing a gpui-greeter theme
@@ -32,6 +32,13 @@ choices the user can react to:
   status bar). Show a rough sketch in words or ASCII before the details.
 - Which states should look different: a rest screen before the first key
   (`rest = true`), typing, checking, a refused password.
+- The lock screen: every installed theme is also the lock screen of a
+  running session (`gpui-greeter lock`), which starts at rest and stays
+  there while its user is away, so the rest screen is the face people
+  see most and deserves the most care. There the session is the one
+  running and cannot change, so the session row should go
+  (`[layer.on.locked] visible = false`), and words like "log in" become
+  "unlock".
 - Motion: what moves, and when. Less is usually better on a login screen.
   The session starts the moment the password is accepted: the greeter
   never holds a welcome, so there is no welcome to design or animate, and
@@ -182,6 +189,16 @@ transitions run before the screenshot; to catch the middle of one, use
 `--at MS`. Iterate until it matches. Drop `--user` and `--host` to see the
 user's own names.
 
+Then the same theme as the lock screen, at rest and with its form, and
+check that it looks right without the session row:
+
+```sh
+for state in rest idle error; do
+  gpui-greeter preview "$dir" --lock --state $state \
+    --user alice --host example-host --shot "$out/lock-$state.png"
+done
+```
+
 The looks that answer to input need it in the screenshot too: `--press
 f12` (keys written as in `[keys]`) shoots the armed power action, `--press
 mod-j --at 200` the fired look of what mod-j runs while it lasts (700 ms),
@@ -234,6 +251,10 @@ them draws theme folders at all: if `gpui-greeter --help` lists no
   and the installed themes, and the greeter starts with the one picked
   until the settings' `theme` changes. A theme can offer the same with a
   control: `{theme}` names the look, and `action = "next-theme"` switches.
+- The lock screen shows an installed theme the moment it is installed:
+  `gpui-greeter lock`, then F9 to it, is the real thing in the user's own
+  session, with no display manager involved. Only do that when the user
+  asks; their password unlocks it.
 - Never start or restart greetd while another display manager's session
   is running. Its X server can lose the GPU to the greeter's and end,
   taking the whole session with it; on NVIDIA it did. To see a theme on

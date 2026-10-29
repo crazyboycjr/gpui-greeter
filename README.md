@@ -176,6 +176,86 @@ Claude Code with
 
 and ask it for a new login screen.
 
+## Lock screen
+
+`gpui-greeter lock` locks a running X session with the same looks: Paper,
+Paper Night, Frost, Neon and the installed theme folders, over every
+monitor. It runs as the user, in their own session, under greetd or any
+other display manager.
+
+    gpui-greeter lock
+
+It starts at rest, the look's clock and art without the form, for a screen
+to leave behind while away. Any key brings the form and Escape takes it
+away again; F9 and Shift+F9 switch looks there too, and the lock keeps the
+look picked for next time in `~/.local/state/gpui-greeter/lock.toml`,
+until the settings' `theme` changes. F10 to F12 and the power buttons act
+as at the login screen, a second press confirming. The user is the one who
+locked, and the session the one running, shown but not chosen; a theme
+folder can hide its session row there (`locked` in
+[the format](skills/gpui-greeter-theme/reference.md)). Once the password
+is accepted the lock is gone at once, and every window is as it was. Its
+drawn backgrounds are kept in the user's own `~/.cache/gpui-greeter`.
+
+To lock with a key, have the window manager run it. In xmonad's keys:
+
+    , ((modm .|. shiftMask, xK_l), spawn "gpui-greeter lock")
+
+In i3's config:
+
+    bindsym $mod+Shift+l exec --no-startup-id gpui-greeter lock
+
+Any other window manager's key bindings, or a key daemon such as sxhkd,
+run the same command.
+
+To lock before a suspend and after a while idle, run xss-lock in the
+session, say from `~/.xinitrc` or the window manager's startup:
+
+    xss-lock --transfer-sleep-lock -- gpui-greeter lock &
+
+xss-lock then locks when the X screen saver starts (`xset s 600` starts it
+after ten minutes), before a suspend, which waits until the lock is
+showing, and on `loginctl lock-session`; `loginctl unlock-session` ends the
+lock. A second lock started while one runs waits for that one and ends
+with it.
+
+The password is checked by PAM as the service `gpui-greeter-lock`, which
+the package installs as `/etc/pam.d/gpui-greeter-lock`:
+
+    auth       include      system-auth
+
+so as at a login: pam_unix checks it through its setuid helper, PAM waits
+a moment after a wrong one, and faillock counts the refusals and says
+when the account is locked. Without that file the lock refuses to start,
+since no password could end it.
+
+### How it holds the screen
+
+The process the command starts is the supervisor. It covers the screen
+with a plain black window, out of the window manager's hands, above every
+other window, docks and fullscreen ones included; it raises it again
+whenever another window is mapped or raised, and covers the screen again
+when the monitors change. It holds the keyboard and the pointer for as
+long as the screen is locked: a window manager's key bindings do nothing,
+and no other window gets a key or a click. When another program holds
+them for more than two seconds, as an open menu may, the lock says so and
+ends, rather than seem to lock. The supervisor checks the password with
+PAM and draws nothing else.
+
+The looks are drawn by its view, a second process, which it starts and
+hands the keys and the pointer to, and which hands it back what was
+typed; both wipe the password from memory once it is sent. Should the
+view crash, hang or fail to start, the cover and the grabs stay, the view
+starts again, and meanwhile the cover takes the password itself: a line
+where it goes, a square for each character, Enter to unlock.
+
+What it cannot do: the supervisor is what holds the screen, so if it ends,
+by a bug or a signal, the X server lets go of its grabs and its cover and
+the session shows, as with any X screen locker; it is kept small for that.
+Programs running as the user can end it, as they can any of the user's
+programs. And the X server switches to another VT on Ctrl+Alt+F2 whatever
+holds the keyboard, so a text console logged in there stays usable.
+
 ## Trying it out
 
 `scripts/try` runs the greeter in an invisible X server (Xvfb, drawn by
@@ -195,11 +275,20 @@ prints the session it would start. Power buttons only log.
 switched to another and back, and
 `cargo run --example scenery -- paper-night-desk desk.png` draws one alone.
 
+Try the lock screen the same way, in an X server of its own (Xvfb, with
+`xrandr --setmonitor` for monitors), never on the display you work on: a
+build with `--features fake-pam`, which exists for tests alone and which
+packages leave out, takes `gpui-greeter lock --pam-dir DIR`, where DIR
+holds a fake `gpui-greeter-lock` service, so that no real password is
+involved. `gpui-greeter preview DIR --lock` shows a theme folder as the
+lock screen.
+
 `cargo test` covers the parts without a screen: the greetd conversation,
-desktop entries, users, the wallpaper copy, Bing's cache, the settings, the
-theme format and the example theme, and the backgrounds, whose skyline and
-circuit board must come out of the mockup's seeds exactly as the mockup
-grows them.
+the lock's PAM conversation (against libpam, with a fake service of the
+tests' own), desktop entries, users, the wallpaper copy, Bing's cache, the
+settings, the theme format and the example theme, and the backgrounds,
+whose skyline and circuit board must come out of the mockup's seeds
+exactly as the mockup grows them.
 
 ## Fonts
 
