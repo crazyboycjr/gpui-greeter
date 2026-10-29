@@ -585,16 +585,13 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(ink),
         )
     };
-    // The lock screen's session is the one running, shown but not chosen.
     let session = cell(1., s.session.to_string())
         .id("session")
         .border_r(u(1.))
-        .when(!greeter.lock_screen, |cell| {
-            cell.cursor_pointer()
-                .hover(|cell| cell.bg(hover))
-                .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-                .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
-        })
+        .cursor_pointer()
+        .hover(|cell| cell.bg(hover))
+        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
+        .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)))
         .child(
             label(greeter.session_name().to_string())
                 .size(13.)
@@ -602,9 +599,16 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
                 .color(ink),
         );
     let keys = greeter.power_keys();
+    // The lock screen's session is the one running, not chosen there: the
+    // power actions take its cell's room.
+    let columns = if greeter.lock_screen {
+        4. / keys.len().max(1) as f32
+    } else {
+        1.
+    };
     let actions = keys.iter().enumerate().map(|(index, &(key, action))| {
         let armed = greeter.status() == Status::Confirm(action);
-        cell(1., key.to_uppercase())
+        cell(columns, key.to_uppercase())
             .id(key)
             .when(index + 1 < keys.len(), |cell| cell.border_r(u(1.)))
             .cursor_pointer()
@@ -653,19 +657,21 @@ fn title_block(view: &View, palette: &Palette) -> impl IntoElement {
         .child(
             div()
                 .flex()
-                .child(
-                    div()
-                        .relative()
-                        .flex()
-                        .when_some(greeter.menu, |anchor, highlighted| {
-                            anchor.child(deferred(
-                                menu(view, &MenuLook::sheet(palette), highlighted, accent)
-                                    .left(u(-1.))
-                                    .bottom(relative(1.)),
-                            ))
-                        })
-                        .child(session),
-                )
+                .when(!greeter.lock_screen, |row| {
+                    row.child(
+                        div()
+                            .relative()
+                            .flex()
+                            .when_some(greeter.menu, |anchor, highlighted| {
+                                anchor.child(deferred(
+                                    menu(view, &MenuLook::sheet(palette), highlighted, accent)
+                                        .left(u(-1.))
+                                        .bottom(relative(1.)),
+                                ))
+                            })
+                            .child(session),
+                    )
+                })
                 .children(actions),
         )
 }
