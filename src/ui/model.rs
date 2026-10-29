@@ -503,12 +503,14 @@ impl Greeter {
 
     /// The name of an action in the theme's words.
     pub fn action_name(&self, action: Action) -> &'static str {
-        let (s, neon) = (self.strings, *self.theme() == Theme::Neon);
+        let s = self.strings;
+        let (neon, frost) = (*self.theme() == Theme::Neon, *self.theme() == Theme::Frost);
         match action {
             Action::Suspend => s.sleep,
             Action::Reboot if neon => s.neon.reboot,
             Action::Reboot => s.restart,
             Action::PowerOff if neon => s.neon.poweroff,
+            Action::PowerOff if frost => s.shut_down_button,
             Action::PowerOff => s.shut_down,
         }
     }

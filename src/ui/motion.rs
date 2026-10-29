@@ -74,23 +74,6 @@ impl Pulse {
     }
 }
 
-/// Frost's "Click anywhere to log in" bobs up and brightens, and back.
-pub struct Nudge;
-
-impl Nudge {
-    pub fn animation() -> Animation {
-        Animation::new(Duration::from_millis(2400))
-            .repeat()
-            .with_max_fps(30.0)
-    }
-
-    /// The lift in points and the opacity at `t`.
-    pub fn at(t: f32) -> (f32, f32) {
-        let wave = keyframes(&[(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)], Easing::EaseInOut).sample(t);
-        (-6.0 * wave, 0.55 + 0.35 * wave)
-    }
-}
-
 /// The skyline's antenna tips fade up and down together.
 pub struct Beacon;
 
@@ -121,12 +104,6 @@ pub fn blink(period_ms: u64) -> Animation {
 
 pub fn blink_opacity(t: f32) -> f32 {
     if t < 0.5 { 1.0 } else { 0.0 }
-}
-
-pub fn spin() -> Animation {
-    Animation::new(Duration::from_millis(900))
-        .repeat()
-        .with_max_fps(60.0)
 }
 
 /// Frost's wallpaper blurs and dims, and clears again.

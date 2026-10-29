@@ -17,11 +17,12 @@ macro_rules! assets {
     };
 }
 
-const FONTS: [(&str, &[u8]); 11] = assets![
+const FONTS: [(&str, &[u8]); 12] = assets![
     "fonts/Inter-ExtraLight.ttf",
     "fonts/Inter-Light.ttf",
     "fonts/Inter-Regular.ttf",
     "fonts/Inter-Medium.ttf",
+    "fonts/Inter-SemiBold.otf",
     "fonts/Fraunces144pt-Light.ttf",
     "fonts/Fraunces44pt-Regular.ttf",
     "fonts/Fraunces17pt-Regular.ttf",
@@ -31,18 +32,12 @@ const FONTS: [(&str, &[u8]); 11] = assets![
     "fonts/JetBrainsMono-ExtraBold.ttf",
 ];
 
-const ICONS: [(&str, &[u8]); 11] = assets![
-    "icons/arrow-right.svg",
+const ICONS: [(&str, &[u8]); 5] = assets![
     "icons/caret-up.svg",
-    "icons/chevron-left.svg",
-    "icons/chevron-up.svg",
     "icons/corner.svg",
-    "icons/monitor.svg",
     "icons/moon.svg",
     "icons/power.svg",
     "icons/restart.svg",
-    "icons/spinner.svg",
-    "icons/theme.svg",
 ];
 
 pub fn register_fonts(cx: &mut App, folder: Option<&Folder>) {
@@ -152,7 +147,7 @@ mod tests {
         assert!(bottom < 0.0 && top > cap, "{bottom} {top} {cap}");
         assert!(0.0 < left && left < right && right < advance);
         assert_eq!(outline("Inter", 200.0, 'C', c + 1), None);
-        assert_eq!(outline("Inter", 600.0, 'C', c), None);
+        assert_eq!(outline("Inter", 900.0, 'C', c), None);
         assert_eq!(outline("Fraunces 17pt", 200.0, 'C', c), None);
     }
 }

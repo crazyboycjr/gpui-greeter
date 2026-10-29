@@ -174,7 +174,7 @@ The greeter has these built in, all upright:
 
 | family | weights |
 | --- | --- |
-| `Inter` | 200, 300, 400, 500 |
+| `Inter` | 200, 300, 400, 500, 600 |
 | `JetBrains Mono` | 400, 500, 700, 800 |
 | `Fraunces 144pt` | 300 |
 | `Fraunces 44pt`, `Fraunces 17pt` | 400 |
@@ -187,7 +187,7 @@ A face is found by its family, then its weight and whether it is italic:
 the family's face nearest the weight asked for is drawn, an italic one if
 `italic = true`, and the system's faces of the same family are candidates
 too. So a weight or an italic the family lacks draws in its nearest face:
-Inter at 600 draws at 500, and Inter in italic draws upright. check-theme
+Inter at 800 draws at 600, and Inter in italic draws upright. check-theme
 warns of each. Weights are 100 to 900 or `thin`, `extralight`, `light`,
 `regular`, `medium`, `semibold`, `bold`, `extrabold`, `black`.
 

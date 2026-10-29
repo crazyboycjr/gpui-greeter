@@ -12,9 +12,12 @@ chosen in its settings:
   of coffee and a succulent; ledger paper; a drafting sheet, whose title
   block holds the session and the power actions on F10, F11 and F12; or
   plain. Paper Night is the same on a walnut desk or a dark ground.
-- **Frost**: a wallpaper, sharp, with a big clock. A click or a key blurs
-  and dims it behind a round avatar, a frosted password pill, frosted power
-  buttons and a session chip.
+- **Frost**: macOS's lock screen and login window: a wallpaper, sharp,
+  with a big clock and the date. A click or a key blurs and dims it behind
+  a round avatar, the name and a password field, as macOS sizes them, with
+  Sleep, Restart and Shut Down at the bottom, the time in the top right
+  corner and the session in the bottom left. As on a Mac, nothing is said
+  until there is something to say: a refused password, PAM's word.
 - **Neon**: a terminal over a city at night, a circuit board with light
   running along its traces, a synthwave sunset over a moving grid floor, or
   a faint grid, all with scanlines and a slow scan beam; a status line that
@@ -209,8 +212,8 @@ and `journalctl -t gpui-greeter` says why.
 
 At the login screen, F9 switches to the next look and Shift+F9 back: the
 built-in looks, then the installed theme folders by name, or the list in
-`[themes] cycle`. Each look also shows a quiet control for it beside its
-session. The greeter keeps the choice in its own state, under
+`[themes] cycle`. Paper and Neon also show a quiet control for it beside
+their session. The greeter keeps the choice in its own state, under
 `/var/lib/gpui-greeter`, and starts with it next time, until the settings'
 `theme` changes.
 

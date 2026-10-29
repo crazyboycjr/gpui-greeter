@@ -1,18 +1,21 @@
-//! Frost: the wallpaper, sharp, with a large clock; a click or a key blurs
-//! and dims it behind a round avatar, a frosted password pill, frosted
-//! power buttons and a session chip at the bottom left.
+//! Frost: macOS's lock screen and login window. At rest, the wallpaper,
+//! sharp, with a large clock and the date; a click or a key blurs and dims
+//! it behind a round avatar, the name and a password field, with Sleep,
+//! Restart and Shut Down at the bottom and the time in a corner. Nothing
+//! is said until there is something to say: no hints, no buttons in the
+//! field, the session chosen with Tab and the look with F9.
 
 use gpui_kit::prelude::*;
 use gpui_kit::{
-    AnimationExt as _, AnyElement, BoxShadow, FontWeight, Hsla, MouseButton, ObjectFit,
-    Transformation, div, img, linear_color_stop, linear_gradient, point, radians, relative, svg,
+    AnimationExt as _, AnyElement, BoxShadow, FontWeight, ObjectFit, div, img, linear_color_stop,
+    linear_gradient, point, relative, svg,
 };
 
 use super::{FieldLook, View, color, field_text, u};
 use crate::i18n;
 use crate::power::Action;
-use crate::ui::model::{Phase, Status};
-use crate::ui::motion::{Nudge, Shake, fade, rise, spin, veil};
+use crate::ui::model::Status;
+use crate::ui::motion::{Shake, fade, rise, veil};
 use crate::ui::text::{Label, label};
 use crate::wallpaper::Backdrop;
 
@@ -30,13 +33,11 @@ pub fn render(view: &View) -> AnyElement {
     if !view.has_form {
         return root.into_any_element();
     }
-    let content = if greeter.resting {
-        clock_screen(view).into_any_element()
-    } else {
-        login(view).into_any_element()
-    };
-    root.child(content)
-        .child(top_right(view))
+    if greeter.resting {
+        return root.child(clock_screen(view)).into_any_element();
+    }
+    root.child(login(view))
+        .child(corner(view))
         .into_any_element()
 }
 
@@ -121,38 +122,38 @@ fn shadowed(text: Label, blur: f32, alpha: f32) -> Label {
     text.shadow(0., blur / 9., blur, color(0, alpha))
 }
 
-fn top_right(view: &View) -> impl IntoElement {
+/// The keyboard layout and the time while signing in, quiet in the top
+/// right corner, as far in from both edges.
+fn corner(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
     let layout = greeter
         .layouts
         .get(greeter.layout)
         .map(|layout| layout.to_uppercase())
         .unwrap_or_default();
-    // A menu bar's right end: 13-point items in a 24-point band.
+    let words = |text: String, opacity: f32| {
+        div().opacity(opacity).child(shadowed(
+            label(text).font("Inter", FontWeight::SEMIBOLD).size(15.),
+            6.,
+            0.45,
+        ))
+    };
     div()
         .absolute()
-        .top(u(4.))
-        .right(u(16.))
+        .top(u(20.))
+        .right(u(20.))
         .flex()
         .items_center()
-        .gap(u(14.))
-        .child(
-            div()
-                .opacity(0.85)
-                .child(shadowed(label(layout).size(13.), 6., 0.45)),
-        )
-        .when(!greeter.resting, |row| {
-            row.child(shadowed(
-                label(i18n::clock(&greeter.now, false)).size(13.),
-                6.,
-                0.45,
-            ))
+        .gap(u(12.))
+        .when(!layout.is_empty(), |corner| {
+            corner.child(words(layout, 0.6))
         })
+        .child(words(i18n::clock(&greeter.now, false), 0.92))
 }
 
+/// At rest: the date and the clock, and nothing else.
 fn clock_screen(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
-    let s = greeter.strings;
     // As macOS sets its lock screen on a 1440-point screen: the date's
     // capitals from 139 points down, the clock's figures from 207 to 329.
     let clock = div()
@@ -181,51 +182,17 @@ fn clock_screen(view: &View) -> impl IntoElement {
             rise(550),
             |clock, t| clock.opacity(t).top(u(10. * (1. - t))),
         );
-    let nudge = div()
-        .absolute()
-        .left_0()
-        .right_0()
-        .flex()
-        .flex_col()
-        .items_center()
-        .gap(u(6.))
-        .child(
-            svg()
-                .path("icons/chevron-up.svg")
-                .size(u(14.))
-                .text_color(color(WHITE, 1.0)),
-        )
-        .child(shadowed(
-            label(s.click_to_log_in)
-                .font("Inter", FontWeight::MEDIUM)
-                .size(12.),
-            8.,
-            0.45,
-        ))
-        .with_animation("nudge", Nudge::animation(), |nudge, t| {
-            let (lift, opacity) = Nudge::at(t);
-            nudge.bottom(u(78. - lift)).opacity(opacity)
-        });
     div()
-        .id("clock-screen")
         .absolute()
         .inset_0()
         .flex()
         .flex_col()
         .items_center()
-        .cursor_pointer()
-        .on_mouse_down(
-            MouseButton::Left,
-            view.on(|greeter, cx| {
-                greeter.wake();
-                cx.notify();
-            }),
-        )
         .child(clock)
-        .child(nudge)
 }
 
 fn login(view: &View) -> impl IntoElement {
+    let greeter = view.greeter;
     div()
         .absolute()
         .inset_0()
@@ -233,28 +200,19 @@ fn login(view: &View) -> impl IntoElement {
         .flex_col()
         .items_center()
         .justify_center()
-        .on_mouse_down(
-            MouseButton::Left,
-            view.on(|greeter, cx| greeter.close_menu(cx)),
-        )
         .child(form(view))
         .child(power_buttons(view))
-        .child(session_chip(view))
-}
-
-fn frosted(element: gpui_kit::Div, alpha: f32, border: f32) -> gpui_kit::Div {
-    element
-        .bg(color(WHITE, alpha))
-        .border(u(1.))
-        .border_color(color(WHITE, border))
+        // The lock screen's session is the one running.
+        .when(!greeter.lock_screen, |login| login.child(session(view)))
 }
 
 fn form(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
     let s = greeter.strings;
     let user = greeter.user();
-    // macOS's sizes: a 72-point avatar on a 1440-point screen, the name
-    // 18.5 points under it, and the field 18.5 under the name's baseline.
+    // macOS's sizes: a 72-point avatar on a 1440-point screen, the name's
+    // capitals 18.5 points under it, the field 18.4 under the name's
+    // baseline and what it says 11 under the field.
     let avatar = div()
         .size(u(72.))
         .rounded_full()
@@ -301,108 +259,45 @@ fn form(view: &View) -> impl IntoElement {
                 .unwrap_or_default(),
         )
         .size(15.)
-        .font("Inter", FontWeight::MEDIUM)
-        .tracking_em(0.02),
+        .font("Inter", FontWeight::SEMIBOLD)
+        .tracking(-0.23),
         8.,
         0.4,
     ));
-    let round_button = |id: &'static str, icon: &'static str| {
-        frosted(div(), 0.12, 0.28)
-            .size(u(22.))
-            .rounded_full()
-            .flex()
-            .items_center()
-            .justify_center()
-            .child(svg().path(icon).size(u(10.)).text_color(color(WHITE, 1.0)))
-            .id(id)
-            .cursor_pointer()
-            .opacity(0.8)
-            .hover(|button| button.opacity(1.0))
-    };
-    let back = round_button("back", "icons/chevron-left.svg")
-        .on_click(view.on(|greeter, cx| greeter.rest(cx)));
+    // macOS's placeholder starts 13 to 15 points in, after the caret,
+    // in Medium; the dots follow it from the same place.
     let look = FieldLook {
         family: "Inter",
-        weight: FontWeight::LIGHT,
+        weight: FontWeight::MEDIUM,
         size: 13.,
         color: color(WHITE, 1.0),
         tracking: 0.32,
-        placeholder: color(WHITE, 0.58),
-        placeholder_tracking: 0.06,
-        caret: color(WHITE, 0.75),
-        centered: true,
+        placeholder: color(WHITE, 0.6),
+        placeholder_tracking: -0.08 / 13.,
+        caret: color(WHITE, 0.9),
+        centered: false,
     };
-    let checking = greeter.phase == Phase::Checking;
-    let submit = div()
-        .id("submit")
-        .size(u(20.))
-        .flex_shrink_0()
-        .rounded_full()
-        .bg(color(WHITE, 0.88))
-        .flex()
-        .items_center()
-        .justify_center()
-        .cursor_pointer()
-        .on_click(view.on(|greeter, cx| greeter.submit(cx)))
-        .child(if checking {
-            svg()
-                .path("icons/spinner.svg")
-                .size(u(10.))
-                .text_color(color(0x3A1F24, 1.0))
-                .with_animation("spin", spin(), |icon, t| {
-                    icon.with_transformation(Transformation::rotate(radians(
-                        t * std::f32::consts::TAU,
-                    )))
-                })
-                .into_any_element()
-        } else {
-            svg()
-                .path("icons/arrow-right.svg")
-                .size(u(10.))
-                .text_color(color(0x3A1F24, 1.0))
-                .into_any_element()
-        });
-    // The field has the keyboard unless the session menu has taken it.
-    let focused = greeter.menu.is_none();
-    // The left padding balances the button on the right, so the text sits
-    // in the middle of the pill.
-    let pill = frosted(div(), 0.12, if focused { 0.46 } else { 0.22 })
+    let field = div()
         .relative()
+        .mt(u(15.))
         .w(u(160.))
         .h(u(28.))
         .rounded(u(14.))
-        .pl(u(24.))
-        .pr(u(4.))
+        .pl(u(13.))
+        .pr(u(13.))
         .flex()
         .items_center()
-        .when(focused, |pill| {
-            pill.shadow(vec![BoxShadow {
-                color: color(WHITE, 0.18),
-                offset: point(view.px(0.), view.px(1.)),
-                blur_radius: view.px(0.),
-                spread_radius: view.px(0.),
-                inset: true,
-            }])
-        })
+        .bg(color(WHITE, 0.3))
         .child(
             div()
                 .flex_1()
                 .min_w_0()
-                .child(field_text(view, &look, s.password)),
+                .child(field_text(view, &look, s.enter_password)),
         )
-        .child(submit)
         .with_animation(("shake", greeter.denials as usize), Shake::animation(), {
             let frames = Shake::frames();
-            move |pill, t| pill.left(u(frames.sample(t)))
+            move |field, t| field.left(u(frames.sample(t)))
         });
-    let row = div()
-        .mt(u(15.))
-        .flex()
-        .items_center()
-        .gap(u(9.))
-        .child(back)
-        .child(pill)
-        .child(div().w(u(22.)));
     div()
         .relative()
         .mt(u(-24.))
@@ -411,8 +306,8 @@ fn form(view: &View) -> impl IntoElement {
         .items_center()
         .child(avatar)
         .child(name)
-        .child(row)
-        .child(div().mt(u(8.)).h(u(15.)).child(status(view)))
+        .child(field)
+        .child(div().mt(u(8.)).h(u(15.)).child(message(view)))
         .with_animation(
             ("form-rise", greeter.rest_changes as usize),
             rise(550),
@@ -420,35 +315,33 @@ fn form(view: &View) -> impl IntoElement {
         )
 }
 
-fn status(view: &View) -> AnyElement {
+/// What the line under the field says: nothing, as on macOS, but for a
+/// refused password, PAM's word, or a power action that waits for its
+/// second press.
+fn message(view: &View) -> AnyElement {
     let greeter = view.greeter;
     let s = greeter.strings;
-    let text = |text: &str, color: Hsla, opacity: f32| {
+    let text = |text: &str| {
         let line = label(text.to_string())
+            .font("Inter", FontWeight::SEMIBOLD)
             .size(12.)
-            .tracking_em(0.02)
-            .color(color);
-        div()
-            .opacity(opacity)
-            .child(shadowed(line, 8., 0.45))
-            .into_any_element()
+            .color(color(WHITE, 1.0));
+        shadowed(line, 8., 0.45).into_any_element()
     };
-    let (white, error) = (color(WHITE, 1.0), color(0xFFC4B8, 1.0));
     match greeter.status() {
-        Status::Hint => text(s.press_enter, white, 0.7),
-        Status::Notice(notice) => text(notice, white, 0.8),
-        Status::Denied(notice) => text(notice.unwrap_or(s.wrong_password), error, 1.0),
-        Status::Failed(message) => text(message, error, 1.0),
-        Status::Confirm(action) => text(&s.confirm(greeter.action_name(action)), white, 0.9),
-        Status::Checking | Status::Welcome => div().into_any_element(),
+        Status::Notice(notice) => text(notice),
+        Status::Denied(notice) => text(notice.unwrap_or(s.wrong_password)),
+        Status::Failed(message) => text(message),
+        Status::Confirm(action) => text(&s.confirm(greeter.action_name(action))),
+        Status::Hint | Status::Checking | Status::Welcome => div().into_any_element(),
     }
 }
 
+/// Sleep, Restart and Shut Down as macOS draws its startup's buttons: line
+/// icons 26 points across, their 13-point labels 13 under them, 103 points
+/// apart centre to centre, the labels' baselines 64 points from the bottom.
 fn power_buttons(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
-    // macOS's power buttons stand 103 points apart, centre to centre,
-    // whatever their labels' widths: each sits in the middle of a slot
-    // that wide.
     let button = |action: Action, id: &'static str, icon: &'static str| {
         let armed = greeter.status() == Status::Confirm(action);
         let button = div()
@@ -457,20 +350,12 @@ fn power_buttons(view: &View) -> impl IntoElement {
             .flex()
             .flex_col()
             .items_center()
-            .gap(u(8.))
+            .gap(u(9.9))
             .cursor_pointer()
-            .opacity(if armed { 1.0 } else { 0.8 })
+            .opacity(if armed { 1.0 } else { 0.85 })
             .hover(|button| button.opacity(1.0))
             .on_click(view.on(move |greeter, cx| greeter.power(action, cx)))
-            .child(
-                frosted(div(), if armed { 0.3 } else { 0.12 }, 0.3)
-                    .size(u(28.))
-                    .rounded_full()
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .child(svg().path(icon).size(u(13.)).text_color(color(WHITE, 1.0))),
-            )
+            .child(svg().path(icon).size(u(26.)).text_color(color(WHITE, 1.0)))
             .child(shadowed(
                 label(greeter.action_name(action)).size(13.),
                 8.,
@@ -482,7 +367,7 @@ fn power_buttons(view: &View) -> impl IntoElement {
         .absolute()
         .left_0()
         .right_0()
-        .bottom(u(36.))
+        .bottom(u(64. - 13. * DESCENT))
         .flex()
         .justify_center()
         .child(button(Action::Suspend, "sleep", "icons/moon.svg"))
@@ -490,97 +375,21 @@ fn power_buttons(view: &View) -> impl IntoElement {
         .child(button(Action::PowerOff, "shutdown", "icons/power.svg"))
 }
 
-fn session_chip(view: &View) -> impl IntoElement {
-    let greeter = view.greeter;
-    let chip = frosted(div(), 0.12, 0.28)
-        .h(u(28.))
-        .px(u(10.))
-        .rounded(u(14.))
-        .flex()
-        .items_center()
-        .gap(u(6.))
-        .child(
-            svg()
-                .path("icons/monitor.svg")
-                .size(u(13.))
-                .text_color(color(WHITE, 1.0)),
-        )
-        .child(label(greeter.session_name().to_string()).size(13.))
-        .id("session")
-        .cursor_pointer()
-        .opacity(if greeter.menu.is_some() { 1.0 } else { 0.8 })
-        .hover(|chip| chip.opacity(1.0))
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_click(view.on(|greeter, cx| greeter.toggle_menu(cx)));
-    let theme = frosted(div(), 0.12, 0.28)
-        .h(u(28.))
-        .px(u(10.))
-        .rounded(u(14.))
-        .flex()
-        .items_center()
-        .gap(u(6.))
-        .child(
-            svg()
-                .path("icons/theme.svg")
-                .size(u(13.))
-                .text_color(color(WHITE, 1.0)),
-        )
-        .child(label(greeter.theme_title()).size(13.))
-        .id("theme")
-        .cursor_pointer()
-        .opacity(0.8)
-        .hover(|chip| chip.opacity(1.0))
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .on_click(view.on(|greeter, cx| greeter.switch_theme(1, cx)));
-    div()
-        .absolute()
-        .left(u(24.))
-        .bottom(u(36.))
-        .flex()
-        .gap(u(8.))
-        .when_some(greeter.menu, |anchor, highlighted| {
-            anchor.child(menu(view, highlighted))
-        })
-        // The lock screen's session is the one running.
-        .when(!greeter.lock_screen, |row| row.child(chip))
-        .when(greeter.looks.cycle.len() > 1, |row| row.child(theme))
-}
+/// Inter's descent, in ems, which a label's box holds under its baseline.
+const DESCENT: f32 = 0.2421875;
 
-fn menu(view: &View, highlighted: usize) -> impl IntoElement {
+/// The session that starts, quiet in the bottom left corner; Tab and F2
+/// choose another.
+fn session(view: &View) -> impl IntoElement {
     let greeter = view.greeter;
-    let hover = color(WHITE, 0.14);
     div()
         .absolute()
-        .left_0()
-        .bottom(u(36.))
-        .min_w(u(160.))
-        .p(u(5.))
-        .rounded(u(10.))
-        .border(u(1.))
-        .border_color(color(WHITE, 0.25))
-        .bg(color(0x28161C, 0.72))
-        .flex()
-        .flex_col()
-        .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
-        .children(greeter.sessions.iter().enumerate().map(|(index, session)| {
-            let current = index == greeter.session;
-            div()
-                .id(("session-option", index))
-                .flex()
-                .justify_between()
-                .gap(u(16.))
-                .px(u(10.))
-                .py(u(6.))
-                .rounded(u(6.))
-                .cursor_pointer()
-                .when(index == highlighted, |option| option.bg(hover))
-                .hover(|option| option.bg(hover))
-                .on_click(view.on(move |greeter, cx| greeter.pick_session(index, cx)))
-                .child(label(session.name.clone()).size(13.))
-                .child(
-                    div()
-                        .opacity(0.7)
-                        .child(label(if current { greeter.strings.current } else { "" }).size(11.)),
-                )
-        }))
+        .left(u(20.))
+        .bottom(u(20.))
+        .opacity(0.55)
+        .child(shadowed(
+            label(greeter.session_name().to_string()).size(12.),
+            6.,
+            0.4,
+        ))
 }

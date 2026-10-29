@@ -9,6 +9,8 @@ use crate::config::Language;
 
 pub struct Strings {
     pub password: &'static str,
+    /// The field's placeholder as macOS words it, for Frost.
+    pub enter_password: &'static str,
     pub press_enter: &'static str,
     pub checking: &'static str,
     pub wrong_password: &'static str,
@@ -21,6 +23,8 @@ pub struct Strings {
     pub sleep: &'static str,
     pub restart: &'static str,
     pub shut_down: &'static str,
+    /// Shut down as macOS's button says it, for Frost.
+    pub shut_down_button: &'static str,
     /// The control that switches between looks.
     pub theme: &'static str,
     pub click_to_log_in: &'static str,
@@ -54,6 +58,7 @@ pub struct NeonStrings {
 
 const ENGLISH: Strings = Strings {
     password: "Password",
+    enter_password: "Enter Password",
     press_enter: "Press Enter to log in",
     checking: "Checking",
     wrong_password: "Wrong password, try again",
@@ -65,6 +70,7 @@ const ENGLISH: Strings = Strings {
     sleep: "Sleep",
     restart: "Restart",
     shut_down: "Shut down",
+    shut_down_button: "Shut Down",
     theme: "Theme",
     click_to_log_in: "Click anywhere to log in",
     project: "Project",
@@ -92,6 +98,7 @@ const ENGLISH: Strings = Strings {
 
 const CHINESE: Strings = Strings {
     password: "密码",
+    enter_password: "输入密码",
     press_enter: "按回车登录",
     checking: "验证中",
     wrong_password: "密码不对，再试一次",
@@ -103,6 +110,7 @@ const CHINESE: Strings = Strings {
     sleep: "睡眠",
     restart: "重启",
     shut_down: "关机",
+    shut_down_button: "关机",
     theme: "主题",
     click_to_log_in: "点击任意处登录",
     project: "项目",

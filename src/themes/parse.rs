@@ -1970,11 +1970,12 @@ fn check_strings(
 }
 
 /// The faces built into the greeter, by family and weight; none italic.
-const BUILT_IN_FACES: [(&str, u16); 11] = [
+const BUILT_IN_FACES: [(&str, u16); 12] = [
     ("Inter", 200),
     ("Inter", 300),
     ("Inter", 400),
     ("Inter", 500),
+    ("Inter", 600),
     ("Fraunces 144pt", 300),
     ("Fraunces 44pt", 400),
     ("Fraunces 17pt", 400),
@@ -2558,7 +2559,7 @@ font = "Inter"
 id = "heavy"
 kind = "text"
 text = "{time}"
-weight = 600
+weight = 800
 [[layer]]
 id = "slanted"
 kind = "text"
@@ -2587,7 +2588,7 @@ weight = 500
         let warnings: Vec<String> = problems.iter().map(ToString::to_string).collect();
         let has = |needle: &str| warnings.iter().any(|w| w.contains(needle));
         assert!(
-            has("layer \"heavy\": Inter has no weight 600, only 200, 300, 400, 500"),
+            has("layer \"heavy\": Inter has no weight 800, only 200, 300, 400, 500, 600"),
             "{warnings:#?}"
         );
         assert!(
