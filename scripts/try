@@ -5,7 +5,8 @@
 #
 #   scripts/try start THEME [--lang zh-CN] [--size 3840x2160] [--dpi 163]
 #                           [--monitors 2] [--wallpapers DIR] [--pick FILE]
-#                           [--background NAME] [--release | --profile NAME]
+#                           [--background NAME] [--accent '#RRGGBB']
+#                           [--release | --profile NAME]
 #                 THEME is a built-in look's name or a theme folder's path
 #   scripts/try shot NAME         screenshot of the whole X screen
 #   scripts/try type TEXT         type into the greeter
@@ -28,7 +29,7 @@ x() { DISPLAY=$(display) "$@"; }
 start() {
     local theme=${1:?theme}; shift
     local lang=en size=3840x2160 dpi=163 monitors=1 wallpapers=$SCRATCH/wallpapers pick=random
-    local profile=debug background=
+    local profile=debug background= accent=
     while (($#)); do
         case $1 in
             --lang) lang=$2; shift 2 ;;
@@ -38,6 +39,7 @@ start() {
             --wallpapers) wallpapers=$2; shift 2 ;;
             --pick) pick=$2; shift 2 ;;
             --background) background=$2; shift 2 ;;
+            --accent) accent=$2; shift 2 ;;
             --release) profile=release; shift ;;
             --profile) profile=$2; shift 2 ;;
             *) die "unknown option $1" ;;
@@ -68,7 +70,11 @@ start() {
     printf 'theme = "%s"\nlanguage = "%s"\n[wallpaper]\ndir = "%s"\npick = "%s"\n' \
         "$theme" "$lang" "$wallpapers" "$pick" >"$RUN/config.toml"
     [[ -n $themes ]] && printf '[themes]\ndir = "%s"\n' "$themes" >>"$RUN/config.toml"
-    [[ -n $background ]] && printf '[%s]\nbackground = "%s"\n' "${theme%-night}" "$background" >>"$RUN/config.toml"
+    if [[ -n $background || -n $accent ]]; then
+        printf '[%s]\n' "${theme%-night}" >>"$RUN/config.toml"
+        if [[ -n $background ]]; then printf 'background = "%s"\n' "$background" >>"$RUN/config.toml"; fi
+        if [[ -n $accent ]]; then printf 'accent = "%s"\n' "$accent" >>"$RUN/config.toml"; fi
+    fi
     local greetd=$TARGET/$profile/examples/fake_greetd
     [[ -x $greetd ]] || greetd=$TARGET/debug/examples/fake_greetd
     "$greetd" "$RUN/greetd.sock" >"$RUN/greetd.log" 2>&1 &
