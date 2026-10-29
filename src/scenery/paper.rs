@@ -209,7 +209,7 @@ enum Axis {
     Columns,
 }
 
-/// A sheet ruled in CSS pixels and drawn in the window's own, with each
+/// A sheet ruled in points and drawn in the window's pixels, with each
 /// line on whole pixels.
 struct Sheet {
     svg: String,
@@ -255,7 +255,7 @@ impl Sheet {
         self.fill(&path, color);
     }
 
-    /// A box 4 CSS pixels wide with one-pixel borders on two opposite sides,
+    /// A box 4 points wide with one-point borders on two opposite sides,
     /// from `at` across the sheet and running its full length. A browser
     /// lays the borders out at their whole-pixel width.
     fn double_rule(&mut self, axis: Axis, at: f64, color: (u32, f64)) {

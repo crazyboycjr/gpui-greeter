@@ -13,7 +13,7 @@ use gpui_kit::{
 
 use super::model::Greeter;
 use super::theme::folder::{self, MonitorPictures, Pace, Timeline};
-use super::theme::{self, DESIGN_REM, design_unit};
+use super::theme::{self, DESIGN_REM};
 use crate::wallpaper::Backdrop;
 use crate::x11::Monitor;
 
@@ -170,7 +170,7 @@ impl Render for Screen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let viewport = window.viewport_size();
         let scale = self.greeter.read(cx).scale();
-        let unit = design_unit(viewport.width.as_f32(), viewport.height.as_f32()) * scale;
+        let unit = self.monitor.pixels_per_point() * scale / window.scale_factor();
         window.set_rem_size(px(DESIGN_REM * unit));
         let now = Instant::now();
         let screen = cx.entity();

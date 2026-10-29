@@ -14,8 +14,7 @@ const STRENGTH: f64 = 0.09;
 /// The tile's side, in the window's pixels.
 const TILE: u32 = 256;
 
-/// Lays the grain over `canvas`, drawn at `scale` window pixels per mockup
-/// pixel.
+/// Lays the grain over `canvas`, drawn at `scale` window pixels per point.
 pub fn spread(canvas: &mut Pixmap, scale: f64) -> Result<()> {
     let tile = tile(scale)?;
     let paint = Paint {
@@ -63,7 +62,7 @@ const LATTICE: usize = 0x100;
 const PERLIN_N: i32 = 0x1000;
 
 /// The noise of SVG's `feTurbulence`, as its specification gives it with
-/// seed 0, made to repeat every `tile` mockup pixels across and down.
+/// seed 0, made to repeat every `tile` points across and down.
 struct Turbulence {
     selector: [usize; LATTICE * 2 + 2],
     gradients: [[[f64; 2]; LATTICE * 2 + 2]; 4],

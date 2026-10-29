@@ -18,19 +18,24 @@ and names each problem by file and line.
 
 ## The frame
 
-Every length is in pixels of a **3840 by 2160 frame**. Each monitor's window
-scales the frame by min(width / 3840, height / 2160): on a 1920 by 1080
-monitor one frame pixel is half a pixel, on a 2560 by 1440 one two thirds.
-On a monitor of another shape the window is wider or taller than the scaled
-frame, so place layers against the screen's edges or its centre (see
-`anchor`) rather than at fixed distances from the top left, and they keep
-their places on 16:10, 21:9 and 4:3 too.
+Every length is in pixels of a **3840 by 2160 frame**: a 27-inch 4K
+screen, which a Mac lays out as 2560 by 1440 points, so a frame pixel is
+two thirds of a point. The greeter lays every monitor out in points as a
+Mac would (the README says how): a frame pixel is a pixel on a 27-inch
+3840 by 2160 monitor, and two thirds of one on a 27-inch 2560 by 1440 or a
+24-inch 1920 by 1080 monitor, where a point is a pixel. So the window is
+the frame's size only on a 27-inch monitor; on a 24-inch 1920 by 1080 one
+it is 2880 by 1620 frame pixels, and on other shapes wider or taller.
+Place layers against the screen's edges or its centre (see `anchor`)
+rather than at fixed distances from the top left, and they keep their
+places on any size, and on 16:10, 21:9 and 4:3 too.
 
 On a 4K monitor a frame pixel is a pixel, so a theme should be as dense as
 a native interface there: body text about 24 to 28 pixels, labels 20 to
-24, a clock 200 to 320. A mockup drawn on a 1600 by 900 frame converts by
-multiplying every length by 1.75, each part anchored to the edge, the
-corner or the centre the mockup keeps it to.
+24, a clock 200 to 320. A mockup drawn in CSS pixels converts at 1.5 frame
+pixels to a CSS pixel, which a browser on a Mac draws as a point, each
+part anchored to the edge, the corner or the centre the mockup keeps it
+to.
 
 `scale` multiplies every length of the theme around its anchor: sizes,
 offsets, gaps, paddings, borders, radii, text and its tracking. A layer
@@ -307,7 +312,7 @@ frame pixels and scaled to fit the pane less its `pane_border` and its
 `padding` on every side, between `min_scale` (0.3) and `max_scale` (1);
 `max_scale_full` is the largest scale in the Full layout. The padding does
 not include the border: where a mockup insets content 28 CSS pixels from
-the pane's outer edge, 2 of them its border, `padding` is 26 × 1.75 = 45.5.
+the pane's outer edge, 2 of them its border, `padding` is 26 × 1.5 = 39.
 `content = "fill"` lays the content out on the whole pane instead,
 unscaled. `title` is the pane's title, a template, shown by
 `{tiles.title}`. Typing focuses the pane holding the field. A theme has one

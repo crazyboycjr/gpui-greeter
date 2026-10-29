@@ -1,6 +1,7 @@
 //! The three looks, each drawn from the shared model for one monitor's
-//! window. Lengths are the mockups' CSS pixels, written with `u`, so that
-//! each window's rem size carries its monitor's pixel density.
+//! window. Lengths are points, as a Mac lays out its screen, written with
+//! `u`, so that each window's rem size carries its monitor's pixels per
+//! point.
 
 pub mod folder;
 mod frost;
@@ -20,32 +21,14 @@ use super::screen::Backdrops;
 use super::text::label;
 use crate::config::Theme;
 use crate::scenery::Scenery;
-use crate::themes::FRAME;
 use crate::x11::Monitor;
 
-/// The rem size the mockups' pixels are measured against.
+/// The rem size points are measured against.
 pub const DESIGN_REM: f32 = 16.0;
 
-/// How many pixels of a 3840 by 2160 screen make one of the mockups' CSS
-/// pixels: the density a desktop gives native interfaces there.
-pub const NATIVE: f32 = 1.75;
-
-/// The frame the looks are laid out on, in CSS pixels: a 3840 by 2160
-/// screen at the native density. Each window fits it to its monitor, so a
-/// look is as dense on any monitor, in proportion to its size; the looks
-/// keep their parts against the window's edges and its middle, as the
-/// mockups do, on any shape.
-pub const DESIGN_FRAME: (f32, f32) = (FRAME.0 / NATIVE, FRAME.1 / NATIVE);
-
-/// How many of a window's pixels make one of the mockups' CSS pixels,
-/// for a window of `width` by `height`, before any scale.
-pub fn design_unit(width: f32, height: f32) -> f32 {
-    (width / DESIGN_FRAME.0).min(height / DESIGN_FRAME.1)
-}
-
-/// A length in the mockups' CSS pixels.
-pub fn u(css_px: f32) -> Rems {
-    rems(css_px / DESIGN_REM)
+/// A length in points.
+pub fn u(points: f32) -> Rems {
+    rems(points / DESIGN_REM)
 }
 
 pub fn color(hex: u32, alpha: f32) -> Hsla {
@@ -64,11 +47,11 @@ pub struct View<'a> {
     /// Paper's and Neon's drawn background, once drawn for this monitor.
     pub scenery: Option<&'a Arc<Scenery>>,
     pub backdrops: &'a Backdrops,
-    /// Window pixels per CSS pixel.
+    /// Window pixels per point.
     pub unit: f32,
     /// Device pixels per window pixel.
     pub scale_factor: f32,
-    /// The window's size in CSS pixels.
+    /// The window's size in points.
     pub size: (f32, f32),
 }
 
@@ -82,8 +65,8 @@ impl View<'_> {
         move |_, _, cx| handle.update(cx, |greeter, cx| act(greeter, cx))
     }
 
-    pub fn px(&self, css_px: f32) -> gpui_kit::Pixels {
-        gpui_kit::px(css_px * self.unit)
+    pub fn px(&self, points: f32) -> gpui_kit::Pixels {
+        gpui_kit::px(points * self.unit)
     }
 }
 

@@ -19,7 +19,7 @@ fn css_ease() -> Easing {
     Easing::Ease
 }
 
-/// A wrong password: the field shakes sideways, in CSS pixels.
+/// A wrong password: the field shakes sideways, in points.
 pub struct Shake;
 
 impl Shake {
@@ -84,7 +84,7 @@ impl Nudge {
             .with_max_fps(30.0)
     }
 
-    /// The lift in CSS pixels and the opacity at `t`.
+    /// The lift in points and the opacity at `t`.
     pub fn at(t: f32) -> (f32, f32) {
         let wave = keyframes(&[(0.0, 0.0), (0.5, 1.0), (1.0, 0.0)], Easing::EaseInOut).sample(t);
         (-6.0 * wave, 0.55 + 0.35 * wave)
@@ -153,7 +153,7 @@ pub fn beam() -> Animation {
 
 /// Neon's hostname glitches on a refusal: two half-second bursts of
 /// jumps, each pose a sideways offset, a vertical one and a colour split,
-/// in CSS pixels.
+/// in points.
 pub struct Glitch;
 
 impl Glitch {

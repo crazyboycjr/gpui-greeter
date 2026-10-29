@@ -48,8 +48,9 @@ choices the user can react to:
 - Languages: English, Chinese, or both (`[strings.en]`, `[strings.zh-CN]`).
 
 Agree on the design with the user before writing much theme.toml. If they
-bring a mockup drawn for a 1600 by 900 frame, every length becomes 1.75
-times as large.
+bring a mockup drawn in CSS pixels, every length becomes 1.5 times as
+large: a CSS pixel is a point, as a Mac's browser draws it, and a frame
+pixel two thirds of one.
 
 ## 2. Gather the files lawfully
 
@@ -115,7 +116,9 @@ cp -r /usr/share/gpui-greeter/skills/gpui-greeter-theme/dial ~/.local/share/gpui
 ```
 
 Place layers against the screen's edges or its centre (`anchor`), so the
-design holds on 16:10, 21:9 and 1080p monitors as well as on 16:9. Group
+design holds on 16:10, 21:9 and on smaller monitors as well as on a
+27-inch 16:9 one: a 24-inch 1920 by 1080 monitor shows 2880 by 1620 of
+the frame's pixels. Group
 what belongs together in row and column boxes, so text of any length or
 language lines up, and set a row of text on one line with `align =
 "baseline"`. Give each state its look with `[layer.on.<state>]` tables, and
@@ -125,15 +128,15 @@ Size everything as a native interface on a 4K monitor would be, where one
 frame pixel is one pixel: body text about 24 to 28 pixels, labels 20 to
 24, a clock 200 to 320. Larger looks clumsy, as if the screen were small.
 
-A mockup drawn on a 1600 by 900 frame carries over at 1.75 times its
-lengths, each part anchored where the mockup anchors it:
+A mockup drawn in CSS pixels carries over at 1.5 times its lengths, each
+part anchored where the mockup anchors it:
 
 - What sits at a margin from an edge or a corner, such as a logo, a clock
   at the top right, a column of text at the left or a footer, anchors to
   that edge or corner of the screen, at the mockup's distance from it
-  times 1.75.
+  times 1.5.
 - What the mockup centres, such as a panel or a dial, anchors to the
-  centre, moved by its offset from the middle times 1.75. Keep what goes
+  centre, moved by its offset from the middle times 1.5. Keep what goes
   together, such as a clock over a form, in one column so it stays whole.
 - What spans the screen, such as a bar or a band, takes `width = "100%"`
   or `anchor = "fill"` with an `inset`.
@@ -143,8 +146,8 @@ lengths, each part anchored where the mockup anchors it:
 kind = "text"
 text = "{time}"
 anchor = "top-left"
-x = 196                 # 112 by 64 in the mockup
-y = 112
+x = 168                 # 112 by 64 in the mockup
+y = 96
 ```
 
 Never put the whole composition in one 3840 by 2160 box in the middle:
@@ -153,8 +156,8 @@ edges as one block, while the mockup's parts keep to theirs.
 
 `scale` at the top of theme.toml multiplies every length around its
 anchor, so a theme drawn too large or too small is resized without
-rewriting its numbers: one whose lengths are 2.4 times a 1600 by 900
-mockup's takes `scale = 0.73`. The settings' own `scale` applies on top.
+rewriting its numbers: one whose lengths are 2.4 times a mockup's takes
+`scale = 0.625`. The settings' own `scale` applies on top.
 
 ## 4. Check it
 
@@ -213,9 +216,9 @@ control's hover look.
 To lay a screenshot over a mockup, make what changes match it: preview a
 copy of the theme whose clock and date say what the mockup's do, such as
 `text = "22:41"` in place of `{time}`, with the mockup's names for
-`--user` and `--host`, and its `scale` 1.37 times as large (2.4 / 1.75):
-the mockup's frame then fills a 3840 by 2160 screenshot, and the mockup,
-enlarged 2.4 times, lies over it part for part.
+`--user` and `--host`, and its `scale` 1.6 times as large (2.4 / 1.5): a
+1600 by 900 mockup's frame then fills a 3840 by 2160 screenshot, and the
+mockup, enlarged 2.4 times, lies over it part for part.
 
 Previews keep the SVGs they draw in `~/.cache/gpui-greeter/themes/<name>/`,
 33 MB for each full-screen SVG and screen size; remove the folder when the

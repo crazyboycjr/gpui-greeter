@@ -25,14 +25,14 @@ pub use look::{Pace, Timeline};
 pub use pictures::{MonitorPictures, Pictures};
 pub use slides::Slides;
 
-use super::{DESIGN_FRAME, View, u};
+use super::{View, u};
 use crate::config::Language;
 use crate::i18n;
 use crate::system;
 use crate::themes::{
-    Action, Align, Anchor, Binding, Caret, Case, Color, FRAME, Fill, Fit, Flow, Folder, Justify,
-    Kind, Layer, Length, Picture, Props, Repeat, State, TextAlign, Tiles, format_time, tiles,
-    uptime,
+    Action, Align, Anchor, Binding, Caret, Case, Color, FRAME_PIXELS_PER_POINT, Fill, Fit, Flow,
+    Folder, Justify, Kind, Layer, Length, Picture, Props, Repeat, State, TextAlign, Tiles,
+    format_time, tiles, uptime,
 };
 use crate::ui::model::{Phase, Status};
 use crate::ui::motion::fade;
@@ -42,8 +42,8 @@ use crate::wallpaper::Backdrop;
 use look::{Flags, Look};
 use slides::Made;
 
-/// The CSS pixels of the built-in looks' frame that make one frame pixel.
-const CSS: f32 = DESIGN_FRAME.0 / FRAME.0;
+/// The points that make one frame pixel.
+const POINT: f32 = 1.0 / FRAME_PIXELS_PER_POINT;
 /// Text is this size, in frame pixels, unless a theme says otherwise.
 const TEXT_SIZE: f32 = 38.4;
 
@@ -238,7 +238,7 @@ struct Builder<'a> {
 impl Builder<'_> {
     /// A length in frame pixels, scaled by `zoom`.
     fn len(&self, frame_px: f32, zoom: f32) -> Rems {
-        u(frame_px * zoom * CSS)
+        u(frame_px * zoom * POINT)
     }
 
     fn length(&self, length: Length, zoom: f32) -> gpui_kit::DefiniteLength {
@@ -593,7 +593,7 @@ impl Builder<'_> {
                 .rounded_bl(len(bl));
         }
         if let Some(Some(shadow)) = props.box_shadow {
-            let px = |frame_px: f32| self.view.px(frame_px * zoom * CSS);
+            let px = |frame_px: f32| self.view.px(frame_px * zoom * POINT);
             element = element.shadow(vec![BoxShadow {
                 color: hsla(shadow.color),
                 offset: point(px(shadow.x), px(shadow.y)),
@@ -621,18 +621,18 @@ impl Builder<'_> {
         let mut label = label(text)
             .family(family, FontWeight(props.weight.unwrap_or(400.0)))
             .italic(props.italic == Some(true))
-            .size(size * zoom * CSS)
+            .size(size * zoom * POINT)
             .color(hsla(color))
-            .tracking(props.tracking.unwrap_or(0.0) * zoom * CSS);
+            .tracking(props.tracking.unwrap_or(0.0) * zoom * POINT);
         if let Some(factor) = props.line_height {
             label = label.line_height(factor);
         }
         if let Some(Some(shadow)) = props.shadow {
-            let css = |frame_px: f32| frame_px * zoom * CSS;
+            let points = |frame_px: f32| frame_px * zoom * POINT;
             label = label.shadow(
-                css(shadow.x),
-                css(shadow.y),
-                css(shadow.blur),
+                points(shadow.x),
+                points(shadow.y),
+                points(shadow.blur),
                 hsla(shadow.color),
             );
         }
@@ -796,7 +796,7 @@ impl Builder<'_> {
 
     fn corners(&self, props: &Props, zoom: f32) -> Corners<gpui_kit::Pixels> {
         let [tl, tr, br, bl] = props.radius.unwrap_or([0.0; 4]);
-        let px = |frame_px: f32| self.view.px(frame_px * zoom * CSS);
+        let px = |frame_px: f32| self.view.px(frame_px * zoom * POINT);
         Corners {
             top_left: px(tl),
             top_right: px(tr),
@@ -840,7 +840,7 @@ impl Builder<'_> {
             let unit = self.view.unit * self.view.scale_factor;
             let aspect = asset.aspect();
             let span = |length: Option<Length>| match length {
-                Some(Length::Px(px)) => Some(px * zoom * CSS * unit),
+                Some(Length::Px(px)) => Some(px * zoom * POINT * unit),
                 _ => None,
             };
             let pixels = match (span(look.width), span(look.height)) {
@@ -924,7 +924,7 @@ impl Builder<'_> {
         match (px(layer.base.width), px(layer.base.height)) {
             (Some(width), Some(height)) if layer.anchor != Anchor::Fill => (width, height),
             _ => {
-                let (width, height) = (self.view.size.0 / CSS, self.view.size.1 / CSS);
+                let (width, height) = (self.view.size.0 / POINT, self.view.size.1 / POINT);
                 let [top, right, bottom, left] = layer.inset;
                 (width - left - right, height - top - bottom)
             }

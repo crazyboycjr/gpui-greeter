@@ -305,7 +305,7 @@ fn paint_pulse(
     }
 }
 
-/// One straight part of a dash, `length` mockup pixels long, centred on
+/// One straight part of a dash, `length` points long, centred on
 /// `middle` and turned by `angle`.
 fn paint_glow(
     length: f64,
@@ -337,7 +337,7 @@ fn paint_glow(
     let _ = window.paint_svg(bounds, key.clone(), Some(svg.as_bytes()), turn, accent, cx);
 }
 
-/// How far a dash's glow reaches past its stroke, in mockup pixels: its
+/// How far a dash's glow reaches past its stroke, in points: its
 /// round cap and three deviations of its blur.
 const GLOW_MARGIN: f32 = 11.0;
 /// The longest part of a dash, in half pixels.

@@ -45,8 +45,8 @@ pub fn label(text: impl Into<SharedString>) -> Label {
     }
 }
 
-/// A single line of text. Every length is in the mockups' CSS pixels,
-/// which follow the window's rem size.
+/// A single line of text. Every length is in points, which follow the
+/// window's rem size.
 pub struct Label {
     text: SharedString,
     family: SharedString,
@@ -180,7 +180,7 @@ impl Label {
 
 pub struct Layout {
     line: ShapedLine,
-    /// Window pixels per CSS pixel.
+    /// Window pixels per point.
     unit: f32,
     ascent: Pixels,
     descent: Pixels,

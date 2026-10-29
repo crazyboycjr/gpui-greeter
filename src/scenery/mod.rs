@@ -22,22 +22,23 @@ use stored::Stored;
 
 pub use neon::{Band, Floor, Pulse};
 
-/// The mockups' frame, in their CSS pixels, which their drawings fill.
+/// The mockups' frame, in their CSS pixels, which their drawings fill. The
+/// drawings take a CSS pixel for a point.
 pub const MOCKUP: (f64, f64) = (1600.0, 900.0);
 
-/// A window measured in the mockups' pixels.
+/// A window measured in points.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Frame {
     pub width: f64,
     pub height: f64,
-    /// The window's pixels per mockup pixel.
+    /// The window's pixels per point.
     pub scale: f64,
     /// The window's size in its own pixels.
     pub pixels: (u32, u32),
 }
 
 impl Frame {
-    /// A window of `pixels`, `scale` of them to a mockup pixel.
+    /// A window of `pixels`, `scale` of them to a point.
     pub fn new(pixels: (u32, u32), scale: f64) -> Self {
         Self {
             width: f64::from(pixels.0) / scale,
@@ -52,7 +53,7 @@ impl Frame {
         (self.width - MOCKUP.0, self.height - MOCKUP.1)
     }
 
-    /// The opening of an SVG document drawn in the mockups' pixels.
+    /// The opening of an SVG document drawn in points.
     fn svg(&self) -> String {
         format!(
             r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}" viewBox="0 0 {} {}">"#,
@@ -100,7 +101,7 @@ pub struct Scenery {
     pub motion: Motion,
 }
 
-/// What moves over the picture, in the mockups' pixels of its frame.
+/// What moves over the picture, in the points of its frame.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Motion {
     Still,
@@ -112,7 +113,7 @@ pub enum Motion {
     Floor(Floor),
 }
 
-/// Draws `look` for a window of `pixels`, `unit` of them to a mockup pixel,
+/// Draws `look` for a window of `pixels`, `unit` of them to a point,
 /// or reads it back from the `cache` folder, where the pictures drawn
 /// before are kept.
 pub fn draw(look: Look, pixels: (u32, u32), unit: f64, cache: Option<&Path>) -> Result<Scenery> {

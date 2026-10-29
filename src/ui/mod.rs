@@ -39,7 +39,6 @@ use crate::{sessions, users};
 use looks::{Looks, ScreenAssets, SvgAssets};
 use model::{Greeter, Setup};
 use screen::Screen;
-pub use theme::design_unit;
 
 /// Frost's blurred wallpaper is darkened this much, as the mockup's
 /// `brightness(.86)`.
@@ -97,13 +96,9 @@ pub fn run(options: Options) -> Result<()> {
             x11.monitors()
         }
     };
-    let sizes: Vec<(u32, u32)> = monitors
-        .iter()
-        .map(|monitor| (monitor.rect.width, monitor.rect.height))
-        .collect();
     let form = form_monitor(&monitors, x11.pointer());
     let scale = set_scale(&monitors[form]);
-    let preparing = looks::start(&config, folder.as_ref(), &sizes);
+    let preparing = looks::start(&config, folder.as_ref(), &monitors);
     let link = lock.map(link::ViewEnd::listen).transpose()?;
     let users = match preview.as_ref().and_then(|preview| preview.user.clone()) {
         Some(name) => vec![User {

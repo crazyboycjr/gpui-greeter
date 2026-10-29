@@ -32,14 +32,18 @@ designed with an agent; see [Theme folders](#theme-folders).
 
 greetd runs the greeter as its `greeter` user through `startx`, in an X
 server of its own on VT 1. The greeter opens a window over every monitor
-and lays each one out as densely as a native interface: one of the
-mockups' pixels is 1.75 pixels of a 3840×2160 monitor, and in proportion
-on others, 0.875 on 1920×1080. Each look keeps its parts against the
-window's edges and its middle, as its mockup does, so it holds on any
-shape, and `scale` in the settings makes every look larger or denser. The
-login form is on the primary monitor (or the one under the pointer) and
-follows the pointer to another one. Nothing in it names a monitor, a port
-or a mode.
+and lays each one out in points, as a Mac lays out its display: a Mac
+draws a 27-inch display at about 109 points to the inch, so a point is a
+monitor's pixels per inch over 109, from the size it reports, and never
+less than a pixel. On a 27-inch 3840×2160 monitor a point is 1.5 pixels
+and the screen 2560×1440 points; on a 27-inch 2560×1440 or a 24-inch
+1920×1080 monitor, a point is a pixel. A monitor that reports no size
+counts as 2560×1440 points fitted to its pixels. Each look keeps its
+parts against the window's edges and its middle, so it holds on any size
+and shape, and `scale` in the settings makes every look larger or denser.
+The login form is on the primary monitor (or the one under the pointer)
+and follows the pointer to another one. Nothing in it names a monitor, a
+port or a mode.
 
 On Enter it asks greetd to log the user in, and once PAM accepts, to start
 the chosen X session the way tuigreet does, `startx /usr/bin/env <Exec>`,

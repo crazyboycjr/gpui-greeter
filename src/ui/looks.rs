@@ -12,12 +12,11 @@ use std::time::{Duration, Instant};
 use gpui_kit::Context;
 
 use super::model::Greeter;
-use super::theme::design_unit;
 use super::theme::folder::{MonitorPictures, Pictures, asset_key, pictures};
 use crate::cache;
 use crate::config::{Config, Theme};
 use crate::scenery::{self, Look, Scenery};
-use crate::themes::{self, AssetKind, Folder, valid_name};
+use crate::themes::{self, AssetKind, FRAME_PIXELS_PER_POINT, Folder, valid_name};
 use crate::x11::Monitor;
 
 /// The SVGs GPUI's asset source serves, which grows as theme folders load.
@@ -48,7 +47,7 @@ pub struct Looks {
     themes_dir: PathBuf,
     /// The settings, for each look's backgrounds.
     config: Config,
-    monitors: Vec<(u32, u32)>,
+    monitors: Vec<Monitor>,
     ready: HashMap<Theme, Prepared>,
     loading: HashSet<Theme>,
     failed: HashSet<Theme>,
@@ -74,10 +73,7 @@ impl Looks {
             wanted: None,
             themes_dir: config.themes.dir.clone(),
             config: config.clone(),
-            monitors: monitors
-                .iter()
-                .map(|monitor| (monitor.rect.width, monitor.rect.height))
-                .collect(),
+            monitors: monitors.to_vec(),
             ready: HashMap::from([(first, prepared)]),
             loading: HashSet::new(),
             failed: HashSet::new(),
@@ -248,9 +244,9 @@ fn installed(dir: &Path) -> Vec<String> {
     names
 }
 
-/// Draws what `config.theme` needs for monitors of these sizes; `None`
-/// when it is a theme folder that cannot be loaded.
-fn make_ready(config: &Config, themes_dir: &Path, monitors: &[(u32, u32)]) -> Option<Prepared> {
+/// Draws what `config.theme` needs for these monitors; `None` when it is a
+/// theme folder that cannot be loaded.
+fn make_ready(config: &Config, themes_dir: &Path, monitors: &[Monitor]) -> Option<Prepared> {
     let folder = match &config.theme {
         Theme::Folder(name) => Some(Arc::new(themes::load_configured(themes_dir, name)?)),
         _ => None,
@@ -268,10 +264,10 @@ pub struct Preparing {
 
 /// Starts drawing a look: a built-in look's backgrounds, or a theme
 /// folder's pictures.
-pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[(u32, u32)]) -> Preparing {
+pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[Monitor]) -> Preparing {
     let look = Look::of(config);
-    let largest = monitors.iter().fold((1, 1), |(w, h), &(width, height)| {
-        (w.max(width), h.max(height))
+    let largest = monitors.iter().fold((1, 1), |(w, h), monitor| {
+        (w.max(monitor.rect.width), h.max(monitor.rect.height))
     });
     let pictures = folder
         .cloned()
@@ -279,14 +275,15 @@ pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[(u32, u3
     let scale = config.scale;
     let screens = monitors
         .iter()
-        .map(|&pixels| {
+        .map(|monitor| {
             let folder = folder.cloned();
+            let pixels = (monitor.rect.width, monitor.rect.height);
+            let per_point = monitor.pixels_per_point() * scale;
             std::thread::spawn(move || {
                 let started = Instant::now();
-                let unit = design_unit(pixels.0 as f32, pixels.1 as f32) * scale;
                 let scenery = look.and_then(|look| {
                     let cache = cache::dir("scenery");
-                    match scenery::draw(look, pixels, unit.into(), cache.as_deref()) {
+                    match scenery::draw(look, pixels, per_point.into(), cache.as_deref()) {
                         Ok(scenery) => Some(Arc::new(scenery)),
                         Err(error) => {
                             log::error!("cannot draw the scenery for {pixels:?}: {error:#}");
@@ -296,8 +293,8 @@ pub fn start(config: &Config, folder: Option<&Arc<Folder>>, monitors: &[(u32, u3
                 });
                 let drawn = folder.map(|folder| {
                     let cache = cache::dir("themes").map(|dir| dir.join(&folder.name));
-                    let scale = scale * folder.scale;
-                    Arc::new(pictures::draw(&folder, pixels, scale, cache.as_deref()))
+                    let unit = per_point * folder.scale / FRAME_PIXELS_PER_POINT;
+                    Arc::new(pictures::draw(&folder, pixels, unit, cache.as_deref()))
                 });
                 if scenery.is_some() || drawn.is_some() {
                     log::info!("look for {pixels:?} drawn in {:?}", started.elapsed());

@@ -14,7 +14,7 @@ use image::RgbaImage;
 
 use crate::scenery::stored::Stored;
 use crate::themes::{
-    Animated, AssetId, AssetKind, FRAME, Folder, Kind, Layer, Picture, render_svg, sized,
+    Animated, AssetId, AssetKind, Folder, Kind, Layer, Picture, render_svg, sized,
 };
 use crate::wallpaper::render_image;
 
@@ -86,15 +86,14 @@ pub(super) fn shrink(image: &RgbaImage, (width, height): (u32, u32)) -> Result<R
     Ok(out)
 }
 
-/// Draws the SVGs shown in their own colours for a monitor of `pixels`, the
-/// theme's lengths multiplied by `scale`, or reads them back from `cache`.
+/// Draws the SVGs shown in their own colours for a monitor of `pixels`,
+/// `unit` of them to a frame pixel, or reads them back from `cache`.
 pub fn draw(
     folder: &Folder,
     pixels: (u32, u32),
-    scale: f32,
+    unit: f32,
     cache: Option<&Path>,
 ) -> MonitorPictures {
-    let unit = (pixels.0 as f32 / FRAME.0).min(pixels.1 as f32 / FRAME.1) * scale;
     let mut wanted: Vec<(AssetId, (u32, u32), Picture)> = Vec::new();
     for (index, layer) in folder.layers.iter().enumerate() {
         let Kind::Svg {

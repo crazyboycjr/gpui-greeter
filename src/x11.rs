@@ -48,19 +48,40 @@ pub struct Monitor {
     pub refresh: Option<f32>,
 }
 
+/// The points to an inch a Mac lays a 27-inch display out at: a Studio
+/// Display at twice its pixels, or a 4K one that looks like 2560 by 1440.
+const POINTS_PER_INCH: f64 = 109.0;
+
 impl Monitor {
     /// The scale its pixel density asks for, 1 at 96 dpi, in twelfths as
     /// GPUI rounds it. A monitor that reports no believable size gets one
     /// from its height in pixels instead.
     pub fn scale(&self) -> f32 {
+        match self.dpi() {
+            Some(dpi) => ((dpi / 96.0 * 12.0).round() / 12.0).max(1.0) as f32,
+            None => (f64::from(self.rect.height) / 1080.0).round().max(1.0) as f32,
+        }
+    }
+
+    /// How many of its pixels make a point, the looks' unit of length: as
+    /// many as a Mac gives a point on a display this dense, rounded to
+    /// twelfths against the slack in a reported size, and never fewer than
+    /// one. A monitor that reports no believable size is laid out as 2560
+    /// by 1440 points fitted to its pixels.
+    pub fn pixels_per_point(&self) -> f32 {
+        let per_point = match self.dpi() {
+            Some(dpi) => (dpi / POINTS_PER_INCH * 12.0).round() / 12.0,
+            None => (f64::from(self.rect.width) / 2560.0).min(f64::from(self.rect.height) / 1440.0),
+        };
+        per_point.max(1.0) as f32
+    }
+
+    /// Its pixel density, from the size it reports, if that is believable.
+    fn dpi(&self) -> Option<f64> {
         let (width_mm, height_mm) = self.size_mm;
         let (width, height) = (f64::from(self.rect.width), f64::from(self.rect.height));
         let dpi = 25.4 * (width * height / (f64::from(width_mm) * f64::from(height_mm))).sqrt();
-        let believable = width_mm >= 100 && height_mm >= 60 && (72.0..=400.0).contains(&dpi);
-        if !believable {
-            return (height / 1080.0).round().max(1.0) as f32;
-        }
-        ((dpi / 96.0 * 12.0).round() / 12.0).max(1.0) as f32
+        (width_mm >= 100 && height_mm >= 60 && (72.0..=400.0).contains(&dpi)).then_some(dpi)
     }
 }
 
@@ -413,6 +434,26 @@ mod tests {
         assert_eq!(monitor(0, 3840, 2160, (0, 0)).scale(), 2.0);
         assert_eq!(monitor(0, 3840, 2160, (160, 90)).scale(), 2.0);
         assert_eq!(monitor(0, 1920, 1080, (16, 9)).scale(), 1.0);
+    }
+
+    #[test]
+    fn gives_a_point_the_pixels_a_mac_would() {
+        // A 27-inch 4K monitor looks like 2560 by 1440, as on a Mac.
+        assert_eq!(monitor(0, 3840, 2160, (590, 330)).pixels_per_point(), 1.5);
+        assert_eq!(monitor(0, 3840, 2160, (597, 336)).pixels_per_point(), 1.5);
+        assert_eq!(monitor(0, 5120, 2880, (597, 336)).pixels_per_point(), 2.0);
+        assert_eq!(monitor(0, 2560, 1440, (597, 336)).pixels_per_point(), 1.0);
+        assert_eq!(monitor(0, 3840, 2160, (697, 392)).pixels_per_point(), 1.25);
+        // Never fewer than one, as a Mac never draws below its own size.
+        assert_eq!(monitor(0, 1920, 1080, (527, 296)).pixels_per_point(), 1.0);
+    }
+
+    #[test]
+    fn takes_a_point_from_the_pixels_when_the_size_is_missing() {
+        assert_eq!(monitor(0, 3840, 2160, (0, 0)).pixels_per_point(), 1.5);
+        assert_eq!(monitor(0, 3840, 2160, (160, 90)).pixels_per_point(), 1.5);
+        assert_eq!(monitor(0, 2880, 1800, (0, 0)).pixels_per_point(), 1.125);
+        assert_eq!(monitor(0, 1920, 1080, (16, 9)).pixels_per_point(), 1.0);
     }
 
     #[test]

@@ -35,10 +35,13 @@ pub use template::{Binding, Fill, Piece, Template, format_time, uptime};
 
 use crate::config::Language;
 
-/// The frame layers are laid out on: a 4K screen. A window scales it by
-/// min(width / 3840, height / 2160), and layers anchor to its edges or its
+/// The frame layers are laid out on: a 27-inch 4K screen, which a Mac lays
+/// out as 2560 by 1440 points. Layers anchor to the window's edges or its
 /// centre, so other shapes and sizes keep the layout.
 pub const FRAME: (f32, f32) = (3840.0, 2160.0);
+/// The frame's pixels to a point: a window draws a frame pixel at two
+/// thirds of its monitor's pixels per point, as dense as the built-in looks.
+pub const FRAME_PIXELS_PER_POINT: f32 = 1.5;
 pub const MANIFEST: &str = "theme.toml";
 /// The `format` this greeter reads.
 pub const FORMAT: i64 = 1;

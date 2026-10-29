@@ -7,7 +7,7 @@
 
 use gpui_greeter::config::{NeonBackground, PaperBackground, Rgb};
 use gpui_greeter::scenery::{self, Look};
-use gpui_greeter::ui;
+use gpui_greeter::x11::{Monitor, Rect};
 
 fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
@@ -22,8 +22,24 @@ fn main() -> anyhow::Result<()> {
         .unwrap_or((3840, 2160));
     let look = parse(look).ok_or_else(|| anyhow::anyhow!("no look {look:?}"))?;
     let started = std::time::Instant::now();
-    let unit = ui::design_unit(width as f32, height as f32);
-    let scenery = scenery::draw(look, (width, height), unit.into(), None)?;
+    // A monitor that reports no size, as a preview's does.
+    let monitor = Monitor {
+        rect: Rect {
+            x: 0,
+            y: 0,
+            width,
+            height,
+        },
+        size_mm: (0, 0),
+        primary: true,
+        refresh: None,
+    };
+    let scenery = scenery::draw(
+        look,
+        (width, height),
+        monitor.pixels_per_point().into(),
+        None,
+    )?;
     eprintln!("drawn in {:?}", started.elapsed());
     let mut pixels = scenery.picture.as_bytes(0).unwrap().to_vec();
     for pixel in pixels.chunks_mut(4) {
