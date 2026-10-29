@@ -45,6 +45,11 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
            the user's password is typed, which PAM checks as the service
            gpui-greeter-lock. F9 switches looks there too; the theme is
            the config's until one is picked there
+       gpui-greeter settings [--section SECTION]
+           a window for the settings: the look, Frost's wallpapers, your
+           avatar, the size and the language, each shown as the greeter
+           draws it. SECTION is look, wallpaper, avatar or general. Apply
+           asks for a password through polkit to change what root keeps
 
   --config FILE    settings, /etc/gpui-greeter/config.toml by default
   --theme THEME    paper, paper-night, frost, neon or a theme folder's
@@ -69,6 +74,7 @@ fn main() -> ExitCode {
         Some("install-theme") => install_theme(&args[1..]),
         Some("preview") => run_preview(&args[1..]),
         Some("lock") => lock(&args[1..]),
+        Some("settings") => settings(&args[1..]),
         Some("apply-settings") => apply_settings(&args[1..]),
         _ => greet(&args),
     };
@@ -482,6 +488,29 @@ fn install_theme(args: &[String]) -> anyhow::Result<()> {
         );
     }
     Ok(())
+}
+
+fn settings(args: &[String]) -> anyhow::Result<()> {
+    let mut args = Args { rest: args.iter() };
+    let mut options = settings::Options::default();
+    while let Some(arg) = args.rest.next() {
+        match arg.as_str() {
+            "--section" => {
+                let name = args.value(arg)?;
+                options.section = Some(settings::Section::parse(name).ok_or_else(|| {
+                    anyhow::anyhow!("no section {name:?}: look, wallpaper, avatar or general")
+                })?);
+            }
+            #[cfg(debug_assertions)]
+            "--root" => options.root = Some(PathBuf::from(args.value(arg)?)),
+            #[cfg(debug_assertions)]
+            "--no-polkit" => options.no_polkit = true,
+            #[cfg(debug_assertions)]
+            "--answer" => options.answers.push(PathBuf::from(args.value(arg)?)),
+            other => anyhow::bail!("unknown argument {other:?}\n{USAGE}"),
+        }
+    }
+    settings::run(options)
 }
 
 /// The root side of the settings app, which pkexec runs: one request on

@@ -243,8 +243,20 @@ pub fn run(options: Options) -> Result<()> {
     Ok(())
 }
 
+/// What another app of this binary needs to draw the looks, as the
+/// settings app's preview does: an asset source with the looks' icons and
+/// theme folders' SVGs, which `svgs` collects.
+pub fn asset_source(svgs: SvgAssets) -> impl gpui_kit::AssetSource {
+    assets::Assets { svgs }
+}
+
+/// Hands GPUI the looks' fonts.
+pub fn register_fonts(cx: &mut App) {
+    assets::register_fonts(cx, None);
+}
+
 /// The primary monitor, else the one under the pointer, else the largest.
-fn form_monitor(monitors: &[Monitor], pointer: Option<(i32, i32)>) -> usize {
+pub fn form_monitor(monitors: &[Monitor], pointer: Option<(i32, i32)>) -> usize {
     let under_pointer = pointer.and_then(|at| {
         monitors
             .iter()

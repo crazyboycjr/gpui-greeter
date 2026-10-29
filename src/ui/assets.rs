@@ -1,6 +1,6 @@
 //! The fonts and icons, built into the binary: the greeter runs before
-//! anyone's fonts or icon themes are at hand; and a theme folder's own
-//! fonts and SVGs.
+//! anyone's fonts or icon themes are at hand; a theme folder's own fonts
+//! and SVGs; and gpui-kit's icons, which its components draw.
 
 use std::borrow::Cow;
 use std::sync::PoisonError;
@@ -101,21 +101,27 @@ impl AssetSource for Assets {
         if let Some(bytes) = svgs.get(path) {
             return Ok(Some(Cow::Owned(bytes.to_vec())));
         }
-        Ok(ICONS
-            .iter()
-            .find(|(name, _)| *name == path)
-            .map(|(_, bytes)| Cow::Borrowed(*bytes)))
+        match ICONS.iter().find(|(name, _)| *name == path) {
+            Some((_, bytes)) => Ok(Some(Cow::Borrowed(*bytes))),
+            None => gpui_kit::assets::Assets.load(path),
+        }
     }
 
     fn list(&self, path: &str) -> Result<Vec<SharedString>> {
         let svgs = self.svgs.read().unwrap_or_else(PoisonError::into_inner);
-        Ok(ICONS
+        let mut names: Vec<SharedString> = ICONS
             .iter()
             .map(|(name, _)| (*name).to_string())
             .chain(svgs.keys().cloned())
             .filter(|name| name.starts_with(path))
             .map(SharedString::from)
-            .collect())
+            .collect();
+        for name in gpui_kit::assets::Assets.list(path)? {
+            if !names.contains(&name) {
+                names.push(name);
+            }
+        }
+        Ok(names)
     }
 }
 
