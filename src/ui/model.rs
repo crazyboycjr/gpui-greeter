@@ -558,8 +558,9 @@ impl Greeter {
             return;
         }
         match keystroke.key.as_str() {
-            // Keys that only wake the clock screen, rather than type.
-            "enter" | "space" if self.resting => self.wake(),
+            // Keys that only wake the clock screen, rather than type or
+            // choose a session out of sight.
+            "enter" | "space" | "tab" | "f2" if self.resting => self.wake(),
             "enter" => self.submit(cx),
             "escape" => self.escape(cx),
             "backspace" if modifiers.control => self.clear_typed(),
@@ -567,7 +568,8 @@ impl Greeter {
             "u" if modifiers.control => self.clear_typed(),
             "f9" if modifiers.shift => self.switch_theme(-1, cx),
             "f9" => self.switch_theme(1, cx),
-            "f2" => self.next_session(),
+            "tab" if modifiers.shift => self.previous_session(),
+            "tab" | "f2" => self.next_session(),
             "f3" => self.next_layout(),
             "up" => self.next_user(-1, cx),
             "down" => self.next_user(1, cx),

@@ -20,7 +20,9 @@ chosen in its settings:
   a faint grid, all with scanlines and a slow scan beam; a status line that
   goes READY, AUTH, then GRANTED or DENIED, and F-key buttons.
 
-F9 switches between them at the login screen.
+F9 switches between them at the login screen. Tab and F2 step to the next
+session, Shift+Tab to the one before, in every look, as a click on the
+session does.
 
 It speaks English and Chinese (`language = "zh-CN"`); another language is
 one more table in `src/i18n.rs`.
