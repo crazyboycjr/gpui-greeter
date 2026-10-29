@@ -43,7 +43,11 @@ const PAD: f32 = 24.0;
 const BAR: f32 = 52.0;
 const ROW: f32 = 40.0;
 const LABEL: f32 = 132.0;
-const THUMB: (f32, f32) = (152.0, 86.0);
+/// Wallpapers to a row, as wide as the column together, and the size they
+/// are made at.
+const PER_ROW: f32 = 4.0;
+const GAP: f32 = 14.0;
+const THUMB_PIXELS: (u32, u32) = (320, 180);
 
 /// The accents the mockups offered.
 const PAPER_ACCENTS: [u32; 4] = [0xB0612E, 0x3E6E8E, 0x5B7F4F, 0x8A5BA6];
@@ -392,8 +396,7 @@ impl Settings {
                         let path = path.clone();
                         async move {
                             let picture = Picture::open(&path)?;
-                            let small =
-                                picture.cover(((THUMB.0 * 2.0) as u32, (THUMB.1 * 2.0) as u32))?;
+                            let small = picture.cover(THUMB_PIXELS)?;
                             anyhow::Ok(render_image(small))
                         }
                     })
@@ -839,7 +842,7 @@ impl Render for Settings {
                                                 .w(px(column))
                                                 .mx_auto()
                                                 .pb(px(PAD))
-                                                .child(self.section_body(cx)),
+                                                .child(self.section_body(column, aspect, cx)),
                                         ),
                                 ),
                             ),
@@ -948,10 +951,14 @@ impl Settings {
             .child(preview)
     }
 
-    fn section_body(&mut self, cx: &mut Context<Self>) -> AnyElement {
+    fn section_body(&mut self, column: f32, aspect: f32, cx: &mut Context<Self>) -> AnyElement {
         match self.section {
             Section::Look => self.look_section(cx).into_any_element(),
-            Section::Wallpaper => self.wallpaper_section(cx).into_any_element(),
+            Section::Wallpaper => {
+                let width = ((column - GAP * (PER_ROW - 1.0)) / PER_ROW).floor();
+                let thumb = (width, (width * aspect).round());
+                self.wallpaper_section(thumb, cx).into_any_element()
+            }
             Section::Avatar => self.avatar_section(cx).into_any_element(),
             Section::General => self.general_section(cx).into_any_element(),
         }
@@ -1136,7 +1143,11 @@ impl Settings {
             .child(options)
     }
 
-    fn wallpaper_section(&mut self, cx: &mut Context<Self>) -> impl IntoElement + use<> {
+    fn wallpaper_section(
+        &mut self,
+        thumb: (f32, f32),
+        cx: &mut Context<Self>,
+    ) -> impl IntoElement + use<> {
         let p = self.palette;
         let w = self.words;
         let pick = self.draft.config.wallpaper.pick.clone();
@@ -1186,14 +1197,14 @@ impl Settings {
         } else {
             h_flex()
                 .flex_wrap()
-                .gap(px(14.0))
+                .gap(px(GAP))
                 .pt(px(12.0))
                 .children(
                     pictures
                         .into_iter()
                         .enumerate()
                         .map(|(index, (name, path, new))| {
-                            self.thumbnail(index, name, &path, new, &pick, cx)
+                            self.thumbnail(index, name, &path, new, &pick, thumb, cx)
                         }),
                 )
                 .into_any_element()
@@ -1233,6 +1244,7 @@ impl Settings {
             ))
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn thumbnail(
         &self,
         index: usize,
@@ -1240,6 +1252,7 @@ impl Settings {
         path: &Path,
         new: bool,
         pick: &Pick,
+        (width, height): (f32, f32),
         cx: &mut Context<Self>,
     ) -> impl IntoElement + use<> {
         let p = self.palette;
@@ -1267,7 +1280,7 @@ impl Settings {
         v_flex()
             .id(("thumbnail", index))
             .group(group.clone())
-            .w(px(THUMB.0))
+            .w(px(width))
             .gap(px(5.0))
             .cursor_pointer()
             .on_click(cx.listener(move |this, _, _, cx| {
@@ -1277,8 +1290,8 @@ impl Settings {
             .child(
                 div()
                     .relative()
-                    .w(px(THUMB.0))
-                    .h(px(THUMB.1))
+                    .w(px(width))
+                    .h(px(height))
                     .rounded(px(4.0))
                     .overflow_hidden()
                     .border_2()
