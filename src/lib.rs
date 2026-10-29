@@ -5,6 +5,7 @@ pub mod cache;
 pub mod config;
 pub mod greetd;
 pub mod i18n;
+pub mod lock;
 pub mod login;
 pub mod power;
 pub mod remembered;

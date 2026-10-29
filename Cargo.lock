@@ -2215,6 +2215,7 @@ dependencies = [
  "greetd_ipc",
  "image",
  "jiff",
+ "libc",
  "log",
  "raw-window-handle",
  "resvg 0.46.0",

@@ -15,6 +15,7 @@ gpui-kit = { version = "=0.8.0", default-features = false, features = ["componen
 greetd_ipc = "0.10.3"
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 jiff = "0.2"
+libc = "0.2"
 log = "0.4"
 raw-window-handle = "0.6"
 # The same as GPUI's, which draws SVG with it.
@@ -32,6 +33,11 @@ ureq = { version = "3", default-features = false, features = ["rustls"] }
 x11rb = { version = "0.14", features = ["dpms", "randr", "xkb"] }
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 zeroize = "1"
+
+[features]
+# For tests only: `lock --pam-dir DIR` checks passwords with a fake PAM
+# service read from DIR, never the system's.
+fake-pam = []
 
 # Pictures decode, scale and draw at their release speed in debug builds too.
 [profile.dev.package]
