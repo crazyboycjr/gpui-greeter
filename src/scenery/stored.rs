@@ -16,9 +16,16 @@ pub struct Stored {
 }
 
 impl Stored {
-    pub fn new(dir: &Path, svg: &str, (width, height): (u32, u32), grain: bool) -> Self {
+    /// The drawing kept for the scenery called `name`, at this size.
+    pub fn new(
+        dir: &Path,
+        name: &str,
+        svg: &str,
+        (width, height): (u32, u32),
+        grain: bool,
+    ) -> Self {
         Self::at(
-            dir.join(format!("{width}x{height}.rgba")),
+            dir.join(format!("{name}-{width}x{height}.rgba")),
             &[svg.as_bytes(), &[u8::from(grain)]],
             (width, height),
         )
@@ -104,18 +111,23 @@ mod tests {
     fn reads_back_only_the_same_picture() {
         let dir = std::env::temp_dir().join(format!("gpui-greeter-stored-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
-        let desk = Stored::new(&dir, "<svg>desk</svg>", (2, 1), true);
+        let desk = Stored::new(&dir, "paper-desk", "<svg>desk</svg>", (2, 1), true);
         assert_eq!(desk.load(), None);
         desk.save(&[1, 2, 3, 4, 5, 6, 7, 8]);
         assert_eq!(desk.load(), Some(vec![1, 2, 3, 4, 5, 6, 7, 8]));
         assert_eq!(
-            Stored::new(&dir, "<svg>ledger</svg>", (2, 1), true).load(),
+            Stored::new(&dir, "paper-desk", "<svg>ledger</svg>", (2, 1), true).load(),
             None
         );
         assert_eq!(
-            Stored::new(&dir, "<svg>desk</svg>", (2, 1), false).load(),
+            Stored::new(&dir, "paper-desk", "<svg>desk</svg>", (2, 1), false).load(),
             None
         );
+        // Another look's drawing, kept beside it, leaves it be.
+        let night = Stored::new(&dir, "paper-night-desk", "<svg>night</svg>", (2, 1), true);
+        night.save(&[8, 7, 6, 5, 4, 3, 2, 1]);
+        assert_eq!(desk.load(), Some(vec![1, 2, 3, 4, 5, 6, 7, 8]));
+        assert_eq!(night.load(), Some(vec![8, 7, 6, 5, 4, 3, 2, 1]));
         let _ = fs::remove_dir_all(dir);
     }
 }

@@ -31,6 +31,10 @@ pub struct MonitorPictures {
 }
 
 impl MonitorPictures {
+    pub fn images(&self) -> impl Iterator<Item = &Arc<RenderImage>> {
+        self.drawn.iter().map(|(_, _, image)| image)
+    }
+
     /// The drawing of `asset` closest to `pixels`.
     pub fn svg(&self, asset: AssetId, pixels: (f32, f32)) -> Option<&Arc<RenderImage>> {
         self.drawn

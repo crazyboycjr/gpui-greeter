@@ -94,6 +94,18 @@ impl Look {
             Theme::Neon | Theme::Frost | Theme::Folder(_) => None,
         }
     }
+
+    /// The name its drawing is kept under: one for each look and
+    /// background, so that switching between them reads each back.
+    fn key(&self) -> String {
+        match self {
+            Look::Paper { background, night } => {
+                let night = if *night { "-night" } else { "" };
+                format!("paper{night}-{}", background.name())
+            }
+            Look::Neon { background, .. } => format!("neon-{}", background.name()),
+        }
+    }
 }
 
 pub struct Scenery {
@@ -123,7 +135,12 @@ pub fn draw(look: Look, pixels: (u32, u32), unit: f64, cache: Option<&Path>) -> 
         Look::Neon { background, accent } => neon::svg(background, accent.0, &frame),
     };
     let grain = matches!(look, Look::Paper { .. });
-    let stored = cache.map(|dir| Stored::new(dir, &svg, pixels, grain));
+    let stored = cache.map(|dir| {
+        // Before each look had a name of its own, every look kept its
+        // drawing under the size alone, and they overwrote one another.
+        let _ = std::fs::remove_file(dir.join(format!("{}x{}.rgba", pixels.0, pixels.1)));
+        Stored::new(dir, &look.key(), &svg, pixels, grain)
+    });
     let rgba = match stored.as_ref().and_then(Stored::load) {
         Some(rgba) => rgba,
         None => {

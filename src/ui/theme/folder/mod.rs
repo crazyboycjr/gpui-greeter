@@ -852,7 +852,18 @@ impl Builder<'_> {
             };
             let image = self.frame.drawn.svg(file, pixels)?.clone();
             let corners = self.corners(&look.props, zoom);
-            div().child(paint::picture(image, Fit::Stretch, picture.focus, corners))
+            let id = image.id.0;
+            let drawn = paint::picture(image, Fit::Stretch, picture.focus, corners);
+            if self.view.late {
+                // Drawn after the look first showed: it fades in.
+                div().child(div().size_full().child(drawn).with_animation(
+                    ("drawn", id),
+                    fade(),
+                    |drawn, t| drawn.opacity(t),
+                ))
+            } else {
+                div().child(drawn)
+            }
         };
         Some(self.sized(element, layer, look, zoom, Some(natural)))
     }

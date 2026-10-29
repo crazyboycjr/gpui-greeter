@@ -210,6 +210,9 @@ pub struct Greeter {
     /// Counts the switches of look, so each window starts the new one
     /// afresh.
     pub theme_changes: u32,
+    /// When the theme key last asked for another look, for the log of how
+    /// long it took to show.
+    pub look_asked: Option<Instant>,
     pub tiles: Option<TilesState>,
     /// The theme folder's slideshows.
     pub slides: Slides,
@@ -317,6 +320,7 @@ impl Greeter {
             folder,
             looks,
             theme_changes: 0,
+            look_asked: None,
             setting,
             facts_read: uses,
             fired: None,
@@ -1055,6 +1059,7 @@ impl Greeter {
             return;
         };
         self.last_input = Instant::now();
+        self.look_asked = Some(self.last_input);
         if self.looks.is_ready(&target) {
             self.apply_theme(target, cx);
         } else {
@@ -1105,18 +1110,15 @@ impl Greeter {
             self.resting = false;
         }
         self.remember_theme();
-        self.prepare_neighbours(cx);
+        self.prepare_looks(cx);
         cx.notify();
     }
 
-    /// Makes the looks either side of this one ready, so the theme key
-    /// shows them at once.
-    pub fn prepare_neighbours(&mut self, cx: &mut Context<Self>) {
-        for step in [1, -1] {
-            if let Some(theme) = self.looks.neighbour(self.theme(), step) {
-                self.looks.prepare(&theme, cx);
-            }
-        }
+    /// Makes the other looks ready, nearest to this one first, so the theme
+    /// key shows them at once.
+    pub fn prepare_looks(&mut self, cx: &mut Context<Self>) {
+        let shown = self.theme().clone();
+        self.looks.prepare_all(&shown, cx);
     }
 
     /// Leaves a question PAM asked, for a fresh start with the password.

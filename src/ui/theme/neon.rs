@@ -69,7 +69,7 @@ pub fn render(view: &View) -> AnyElement {
         (_, Some(scenery)) => div()
             .absolute()
             .inset_0()
-            .child(picture(scenery))
+            .child(picture(view, scenery))
             .child(motion(view, scenery))
             .into_any_element(),
         (_, None) => div().into_any_element(),

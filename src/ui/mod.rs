@@ -19,7 +19,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, RwLock};
-use std::thread::JoinHandle;
 use std::time::Duration;
 
 use anyhow::Result;
@@ -40,7 +39,7 @@ use crate::wallpaper::{self, Backdrop, Picture};
 use crate::x11::{Monitor, Rect, X11};
 use crate::{bing, scenery, vt};
 use crate::{sessions, users};
-use looks::{Looks, ScreenAssets};
+use looks::Looks;
 use model::{Greeter, Setup};
 use screen::Screen;
 
@@ -169,9 +168,11 @@ pub fn run(options: Options) -> Result<()> {
                 supervisor: link.as_ref().map(|(sender, _)| sender.clone()),
             };
             let greeter = cx.new(|cx| Greeter::new(setup, cx));
-            for (output, thread) in later {
-                deliver(cx, greeter.clone(), first.clone(), output, thread);
-            }
+            greeter.update(cx, |_, cx| {
+                for (output, thread) in later {
+                    looks::deliver(first.clone(), output, thread, cx);
+                }
+            });
             let mut screens = Vec::new();
             let mut windows = Vec::new();
             for (output, monitor) in monitors.iter().enumerate() {
@@ -236,10 +237,10 @@ pub fn run(options: Options) -> Result<()> {
                 follow_vt(cx, greeter.clone());
             }
             if switching {
-                // The looks either side, once the first frames are out.
+                // The other looks, once the first frames are out.
                 cx.spawn(async move |cx| {
                     cx.background_executor().timer(Duration::from_secs(2)).await;
-                    greeter.update(cx, |greeter, cx| greeter.prepare_neighbours(cx));
+                    greeter.update(cx, |greeter, cx| greeter.prepare_looks(cx));
                 })
                 .detach();
             }
@@ -564,27 +565,6 @@ fn fetch_bing(cx: &mut App, fetch: BingFetch, screens: Rc<Screens>, blur: Blur) 
             }
             cx.background_executor().timer(PAUSE).await;
         }
-    })
-    .detach();
-}
-
-/// Hands the greeter what the first look draws on a monitor, once drawn.
-fn deliver(
-    cx: &mut App,
-    greeter: Entity<Greeter>,
-    theme: Theme,
-    output: usize,
-    thread: JoinHandle<ScreenAssets>,
-) {
-    cx.spawn(async move |cx| {
-        let assets = cx
-            .background_executor()
-            .spawn(async move { thread.join().unwrap_or_default() })
-            .await;
-        greeter.update(cx, |greeter, cx| {
-            greeter.looks.set_screen(&theme, output, assets);
-            cx.notify();
-        });
     })
     .detach();
 }

@@ -103,7 +103,9 @@ pub fn render(view: &View, night: bool) -> AnyElement {
         .relative()
         .overflow_hidden()
         .bg(color(if desk { SHEET } else { palette.ground }, 1.0))
-        .when_some(view.scenery, |root, scenery| root.child(picture(scenery)))
+        .when_some(view.scenery, |root, scenery| {
+            root.child(picture(view, scenery))
+        })
         .when(drafting, |root| root.child(zones(view, palette)));
     if !view.has_form {
         return root.into_any_element();

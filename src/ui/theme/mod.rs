@@ -10,8 +10,8 @@ mod paper;
 
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::{
-    AnyElement, App, Context, Entity, Hsla, IntoElement, ObjectFit, ParentElement, Rems, Styled,
-    StyledImage as _, Window, div, img, relative, rems, rgb,
+    AnimationExt as _, AnyElement, App, Context, Entity, Hsla, IntoElement, ObjectFit,
+    ParentElement, Rems, Styled, StyledImage as _, Window, div, img, relative, rems, rgb,
 };
 
 use std::sync::Arc;
@@ -46,6 +46,9 @@ pub struct View<'a> {
     pub monitor: &'a Monitor,
     /// Paper's and Neon's drawn background, once drawn for this monitor.
     pub scenery: Option<&'a Arc<Scenery>>,
+    /// Whether the look first showed here before what this monitor draws
+    /// for it was done, which then fades in over the plain ground.
+    pub late: bool,
     pub backdrops: &'a Backdrops,
     /// Window pixels per point.
     pub unit: f32,
@@ -70,13 +73,27 @@ impl View<'_> {
     }
 }
 
-/// The scenery's picture, filling the window under everything else.
-fn picture(scenery: &Scenery) -> impl IntoElement {
-    img(scenery.picture.clone())
+/// The scenery's picture, filling the window under everything else; one
+/// drawn after its look first showed fades in.
+fn picture(view: &View, scenery: &Scenery) -> AnyElement {
+    let picture = img(scenery.picture.clone())
         .absolute()
         .inset_0()
         .size_full()
-        .object_fit(ObjectFit::Fill)
+        .object_fit(ObjectFit::Fill);
+    if !view.late {
+        return picture.into_any_element();
+    }
+    div()
+        .absolute()
+        .inset_0()
+        .child(picture)
+        .with_animation(
+            ("scenery", scenery.picture.id.0),
+            super::motion::fade(),
+            |layer, t| layer.opacity(t),
+        )
+        .into_any_element()
 }
 
 pub fn render(view: &View) -> AnyElement {

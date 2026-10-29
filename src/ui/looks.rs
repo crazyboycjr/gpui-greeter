@@ -1,7 +1,10 @@
 //! The looks the theme key switches between at the login screen, each with
 //! what it draws: a built-in look's backgrounds, a theme folder and its
-//! pictures, for every monitor. A look is made ready in the background
-//! before it is needed, and kept once ready.
+//! pictures, for every monitor. Every look is made ready in the background,
+//! one at a time and nearest first, before it is needed, and kept while
+//! the pictures of the looks not shown fit in `BUDGET`. A look is ready to
+//! show as soon as it can be drawn at all: what each monitor draws for it
+//! follows when done, and fades in.
 
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
@@ -9,7 +12,7 @@ use std::sync::{Arc, PoisonError, RwLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
-use gpui_kit::Context;
+use gpui_kit::{Context, RenderImage};
 
 use super::model::Greeter;
 use super::theme::folder::{MonitorPictures, Pictures, asset_key, pictures};
@@ -21,6 +24,10 @@ use crate::x11::Monitor;
 
 /// The SVGs GPUI's asset source serves, which grows as theme folders load.
 pub type SvgAssets = Arc<RwLock<HashMap<String, Arc<[u8]>>>>;
+
+/// How many bytes of pictures the looks not shown may keep: a 4K picture
+/// is 33 MB, and a look one to four of them.
+const BUDGET: usize = 512 << 20;
 
 /// What a look draws on one monitor.
 #[derive(Clone, Default)]
@@ -39,6 +46,41 @@ pub struct Prepared {
     pub screens: Vec<ScreenAssets>,
 }
 
+impl Prepared {
+    /// The pictures it keeps in memory, for GPUI to draw.
+    pub fn images(&self) -> impl Iterator<Item = &Arc<RenderImage>> {
+        let pictures = self
+            .pictures
+            .iter()
+            .flat_map(|pictures| pictures.images.values());
+        let screens = self.screens.iter().flat_map(|screen| {
+            let scenery = screen.scenery.iter().map(|scenery| &scenery.picture);
+            scenery.chain(screen.drawn.iter().flat_map(|drawn| drawn.images()))
+        });
+        pictures.chain(screens)
+    }
+
+    /// The bytes of its pictures: those GPUI draws, and a theme folder's
+    /// own, decoded.
+    fn bytes(&self) -> usize {
+        let images: usize = self
+            .images()
+            .filter_map(|image| image.as_bytes(0))
+            .map(<[u8]>::len)
+            .sum();
+        let own: usize = self
+            .folder
+            .iter()
+            .flat_map(|folder| folder.assets.iter())
+            .map(|asset| match &asset.kind {
+                AssetKind::Raster(image) => image.as_raw().len(),
+                _ => 0,
+            })
+            .sum();
+        images + own
+    }
+}
+
 pub struct Looks {
     /// What the theme key cycles through.
     pub cycle: Vec<Theme>,
@@ -51,6 +93,11 @@ pub struct Looks {
     ready: HashMap<Theme, Prepared>,
     loading: HashSet<Theme>,
     failed: HashSet<Theme>,
+    /// The looks still to make ready, nearest to the one shown first.
+    queue: Vec<Theme>,
+    /// Counts the looks let go, so that windows know when to let go of
+    /// their pictures on the GPU.
+    pub released: u64,
     svgs: SvgAssets,
 }
 
@@ -77,8 +124,18 @@ impl Looks {
             ready: HashMap::from([(first, prepared)]),
             loading: HashSet::new(),
             failed: HashSet::new(),
+            queue: Vec::new(),
+            released: 0,
             svgs,
         }
+    }
+
+    /// Whether a look that is ready keeps `image`, which a window may then
+    /// keep on the GPU.
+    pub fn holds(&self, image: &Arc<RenderImage>) -> bool {
+        self.ready
+            .values()
+            .any(|prepared| prepared.images().any(|kept| Arc::ptr_eq(kept, image)))
     }
 
     pub fn get(&self, theme: &Theme) -> Option<&Prepared> {
@@ -127,8 +184,10 @@ impl Looks {
         }
     }
 
-    /// Makes `theme` ready in the background, unless it is or is on its way;
-    /// the greeter hears when it is.
+    /// Makes `theme` ready in the background, unless it is or is on its way.
+    /// The greeter hears as soon as it can be drawn: at once for a built-in
+    /// look, once loaded for a theme folder; what each monitor draws for it
+    /// follows when done.
     pub fn prepare(&mut self, theme: &Theme, cx: &mut Context<Greeter>) {
         if self.ready.contains_key(theme)
             || self.loading.contains(theme)
@@ -148,32 +207,126 @@ impl Looks {
             let started = Instant::now();
             let made = cx
                 .background_executor()
-                .spawn(async move { make_ready(&config, &dir, &monitors) })
+                .spawn(async move { begin(&config, &dir, &monitors) })
                 .await;
             let _ = this.update(cx, |greeter, cx| {
-                {
-                    let looks = &mut greeter.looks;
-                    looks.loading.remove(&theme);
-                    match made {
-                        Some(prepared) => {
-                            log::info!("look {} ready in {:?}", theme.name(), started.elapsed());
-                            if let Some(folder) = &prepared.folder {
-                                looks.register(folder, cx);
-                            }
-                            looks.ready.insert(theme.clone(), prepared);
+                let looks = &mut greeter.looks;
+                looks.loading.remove(&theme);
+                match made {
+                    Some((prepared, later)) => {
+                        log::info!("look {} ready in {:?}", theme.name(), started.elapsed());
+                        if let Some(folder) = &prepared.folder {
+                            looks.register(folder, cx);
                         }
-                        None => {
-                            looks.failed.insert(theme.clone());
-                            if looks.wanted.as_ref() == Some(&theme) {
-                                looks.wanted = None;
-                            }
+                        looks.ready.insert(theme.clone(), prepared);
+                        for (output, thread) in later {
+                            deliver(theme.clone(), output, thread, cx);
+                        }
+                    }
+                    None => {
+                        looks.failed.insert(theme.clone());
+                        if looks.wanted.as_ref() == Some(&theme) {
+                            looks.wanted = None;
                         }
                     }
                 }
                 greeter.look_ready(&theme, cx);
+                let shown = greeter.theme().clone();
+                let looks = &mut greeter.looks;
+                looks.fit(&shown);
+                looks.prepare_next(cx);
             });
         })
         .detach();
+    }
+
+    /// Makes every look in the cycle ready, one at a time, nearest to
+    /// `shown` first, for as long as the budget keeps them.
+    pub fn prepare_all(&mut self, shown: &Theme, cx: &mut Context<Greeter>) {
+        let count = self.cycle.len();
+        let at = self
+            .cycle
+            .iter()
+            .position(|theme| theme == shown)
+            .unwrap_or(0);
+        let mut queue: Vec<Theme> = Vec::new();
+        for distance in 1..count {
+            for index in [at + distance, at + count - distance] {
+                let theme = &self.cycle[index % count];
+                if theme != shown && !queue.contains(theme) {
+                    queue.push(theme.clone());
+                }
+            }
+        }
+        self.queue = queue;
+        self.fit(shown);
+        self.prepare_next(cx);
+    }
+
+    /// Makes the next look in the queue ready, unless one already is being.
+    fn prepare_next(&mut self, cx: &mut Context<Greeter>) {
+        if !self.loading.is_empty() {
+            return;
+        }
+        while !self.queue.is_empty() {
+            let theme = self.queue.remove(0);
+            if !self.ready.contains_key(&theme) && !self.failed.contains(&theme) {
+                self.prepare(&theme, cx);
+                return;
+            }
+        }
+    }
+
+    /// The bytes of pictures the ready looks other than `shown` keep.
+    fn kept(&self, shown: &Theme) -> usize {
+        self.ready
+            .iter()
+            .filter(|&(theme, _)| theme != shown)
+            .map(|(_, prepared)| prepared.bytes())
+            .sum()
+    }
+
+    /// Lets go of the ready looks farthest from `shown` while those not
+    /// shown keep more than the budget, and makes no more ready then.
+    fn fit(&mut self, shown: &Theme) {
+        self.fit_within(shown, BUDGET);
+    }
+
+    fn fit_within(&mut self, shown: &Theme, budget: usize) {
+        let count = self.cycle.len().max(1);
+        let at = self.cycle.iter().position(|theme| theme == shown);
+        let distance =
+            |theme: &Theme| match (at, self.cycle.iter().position(|other| other == theme)) {
+                (Some(at), Some(other)) => {
+                    let ahead = other.abs_diff(at);
+                    ahead.min(count - ahead)
+                }
+                _ => count,
+            };
+        loop {
+            let kept = self.kept(shown);
+            if kept <= budget {
+                log::debug!("the looks not shown keep {} MB of pictures", kept >> 20);
+                return;
+            }
+            let farthest = self
+                .ready
+                .keys()
+                .filter(|&theme| theme != shown && Some(theme) != self.wanted.as_ref())
+                .max_by_key(|&theme| distance(theme))
+                .cloned();
+            let Some(farthest) = farthest else {
+                return;
+            };
+            log::info!(
+                "look {} let go: the looks not shown keep {} MB",
+                farthest.name(),
+                kept >> 20
+            );
+            self.ready.remove(&farthest);
+            self.queue.clear();
+            self.released += 1;
+        }
     }
 
     /// Hands GPUI a theme folder's fonts and the SVGs it tints.
@@ -244,15 +397,41 @@ fn installed(dir: &Path) -> Vec<String> {
     names
 }
 
-/// Draws what `config.theme` needs for these monitors; `None` when it is a
-/// theme folder that cannot be loaded.
-fn make_ready(config: &Config, themes_dir: &Path, monitors: &[Monitor]) -> Option<Prepared> {
+/// What each monitor draws for a look, still drawing, by monitor.
+pub type Later = Vec<(usize, JoinHandle<ScreenAssets>)>;
+
+/// Starts drawing what `config.theme` needs for these monitors, and hands
+/// the look back as soon as it can be drawn: a theme folder loaded and its
+/// pictures decoded, with what each monitor draws still drawing. `None`
+/// for a theme folder that cannot be loaded.
+fn begin(config: &Config, themes_dir: &Path, monitors: &[Monitor]) -> Option<(Prepared, Later)> {
     let folder = match &config.theme {
         Theme::Folder(name) => Some(Arc::new(themes::load_configured(themes_dir, name)?)),
         _ => None,
     };
-    let preparing = start(config, folder.as_ref(), monitors);
-    Some(preparing.finish(None).0)
+    Some(start(config, folder.as_ref(), monitors).finish(Some(Duration::ZERO)))
+}
+
+/// Hands the greeter what `theme` draws on monitor `output`, once drawn.
+pub fn deliver(
+    theme: Theme,
+    output: usize,
+    thread: JoinHandle<ScreenAssets>,
+    cx: &mut Context<Greeter>,
+) {
+    cx.spawn(async move |this, cx| {
+        let assets = cx
+            .background_executor()
+            .spawn(async move { thread.join().unwrap_or_default() })
+            .await;
+        let _ = this.update(cx, |greeter, cx| {
+            greeter.looks.set_screen(&theme, output, assets);
+            let shown = greeter.theme().clone();
+            greeter.looks.fit(&shown);
+            cx.notify();
+        });
+    })
+    .detach();
 }
 
 /// A look being drawn on threads of its own, one for each monitor.
@@ -405,6 +584,55 @@ mod tests {
             [Theme::Neon, folder("zebra"), Theme::Frost]
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn lets_go_of_the_farthest_looks_beyond_the_budget() {
+        // Each look keeps one picture of 10 by 10 pixels: 400 bytes.
+        let prepared = || Prepared {
+            pictures: Some(Arc::new(Pictures {
+                images: HashMap::from([(
+                    0,
+                    crate::wallpaper::render_image(image::RgbaImage::new(10, 10)),
+                )]),
+            })),
+            ..Prepared::default()
+        };
+        let mut looks = Looks::new(
+            &Config::default(),
+            &[],
+            Theme::Paper,
+            prepared(),
+            SvgAssets::default(),
+            false,
+        );
+        looks.cycle = vec![
+            Theme::Paper,
+            Theme::PaperNight,
+            Theme::Frost,
+            Theme::Neon,
+            folder("console"),
+        ];
+        for theme in looks.cycle.clone() {
+            looks.ready.insert(theme, prepared());
+        }
+        let image = looks
+            .get(&Theme::Neon)
+            .unwrap()
+            .images()
+            .next()
+            .unwrap()
+            .clone();
+        assert!(looks.holds(&image));
+        // Room for two looks besides the one shown: the two either side.
+        looks.fit_within(&Theme::Paper, 1000);
+        assert!(looks.is_ready(&Theme::Paper));
+        assert!(looks.is_ready(&Theme::PaperNight));
+        assert!(looks.is_ready(&folder("console")));
+        assert!(!looks.is_ready(&Theme::Frost));
+        assert!(!looks.is_ready(&Theme::Neon));
+        assert_eq!(looks.released, 2);
+        assert!(!looks.holds(&image));
     }
 
     #[test]

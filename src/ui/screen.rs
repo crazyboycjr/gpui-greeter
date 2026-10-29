@@ -16,6 +16,7 @@ use gpui_kit::{
 };
 
 use super::frames::{self, FrameLog, Timed};
+use super::looks::ScreenAssets;
 use super::model::Greeter;
 use super::theme::folder::{self, MonitorPictures, Pace, Timeline};
 use super::theme::{self, DESIGN_REM};
@@ -37,6 +38,17 @@ pub struct Screen {
     inset: Option<Size<Pixels>>,
     /// How its frames go, when that is asked for.
     frames: Option<Rc<RefCell<FrameLog>>>,
+    /// The greeter's count of look switches this last drew.
+    look_shown: u32,
+    /// The look switch this window last drew a frame of, and whether its
+    /// first frame here lacked what this monitor draws for it, which then
+    /// fades in as it arrives.
+    drawn_look: Option<(u32, bool)>,
+    /// The looks' pictures this window has drawn, which GPUI keeps as
+    /// textures until they are dropped.
+    look_images: Vec<Arc<RenderImage>>,
+    /// The greeter's count of looks let go, when this last dropped theirs.
+    released_seen: u64,
     _observing: Subscription,
 }
 
@@ -97,6 +109,10 @@ impl Screen {
             focus,
             inset: None,
             frames: frames::enabled().then(|| FrameLog::new(output)),
+            look_shown: 0,
+            drawn_look: None,
+            look_images: Vec::new(),
+            released_seen: 0,
             _observing: observing,
         }
     }
@@ -120,6 +136,10 @@ impl Screen {
             focus: cx.focus_handle(),
             inset: Some(size),
             frames: None,
+            look_shown: 0,
+            drawn_look: None,
+            look_images: Vec::new(),
+            released_seen: 0,
             _observing: observing,
         }
     }
@@ -196,6 +216,26 @@ impl Screen {
         }
     }
 
+    /// Once the first frame of a look the theme key asked for is drawn and
+    /// shown, tells the log how long after the key that was.
+    fn log_look_shown(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let greeter = self.greeter.read(cx);
+        if greeter.theme_changes == self.look_shown {
+            return;
+        }
+        self.look_shown = greeter.theme_changes;
+        let Some(asked) = greeter.look_asked else {
+            return;
+        };
+        let (name, output) = (greeter.theme().name().to_string(), self.output);
+        window.on_next_frame(move |_, _| {
+            log::info!(
+                "look {name} shown on monitor {output} {} ms after the theme key",
+                asked.elapsed().as_millis()
+            );
+        });
+    }
+
     /// Draws the window again at `at`, unless an earlier redraw is due.
     fn wake_at(&mut self, at: Instant, cx: &mut Context<Self>) {
         let folder = &mut self.folder;
@@ -220,6 +260,7 @@ impl Screen {
 impl Render for Screen {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let start = Instant::now();
+        self.log_look_shown(window, cx);
         let scale = self.greeter.read(cx).scale();
         let (viewport, unit) = match self.inset {
             // The monitor's points, shrunk to the box.
@@ -244,12 +285,20 @@ impl Render for Screen {
         let content = {
             let greeter = self.greeter.read(cx);
             let assets = greeter.looks.screen(greeter.theme(), self.output);
+            let changes = greeter.theme_changes;
+            if self.drawn_look.is_none_or(|(drawn, _)| drawn != changes) {
+                let bare = assets.scenery.is_none() && assets.drawn.is_none();
+                self.drawn_look = Some((changes, bare));
+            }
+            let late = self.drawn_look.is_some_and(|(_, bare)| bare);
+            keep_images(&mut self.look_images, greeter, &assets);
             let view = theme::View {
                 greeter,
                 handle: &self.greeter,
                 has_form: greeter.form == self.output,
                 monitor: &self.monitor,
                 scenery: assets.scenery.as_ref(),
+                late,
                 backdrops: &self.backdrops,
                 unit,
                 scale_factor: window.scale_factor(),
@@ -301,6 +350,17 @@ impl Render for Screen {
                 }
                 kept
             });
+            // The pictures of a look let go leave the GPU too.
+            if greeter.looks.released != self.released_seen {
+                self.released_seen = greeter.looks.released;
+                self.look_images.retain(|image| {
+                    let kept = greeter.looks.holds(image);
+                    if !kept {
+                        let _ = window.drop_image(image.clone());
+                    }
+                    kept
+                });
+            }
         }
         {
             let state = &mut self.folder;
@@ -346,6 +406,30 @@ impl Render for Screen {
             }
             .into_any_element(),
             None => screen,
+        }
+    }
+}
+
+/// Notes the pictures the look shown makes this window draw, so that they
+/// leave the GPU once their look is let go.
+fn keep_images(kept: &mut Vec<Arc<RenderImage>>, greeter: &Greeter, assets: &ScreenAssets) {
+    let pictures = greeter
+        .looks
+        .get(greeter.theme())
+        .and_then(|prepared| prepared.pictures.clone());
+    let images = assets
+        .scenery
+        .iter()
+        .map(|scenery| &scenery.picture)
+        .chain(assets.drawn.iter().flat_map(|drawn| drawn.images()))
+        .chain(
+            pictures
+                .iter()
+                .flat_map(|pictures| pictures.images.values()),
+        );
+    for image in images {
+        if !kept.iter().any(|known| Arc::ptr_eq(known, image)) {
+            kept.push(image.clone());
         }
     }
 }
