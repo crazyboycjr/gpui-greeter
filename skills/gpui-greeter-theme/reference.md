@@ -217,6 +217,12 @@ mask of what was sent. When empty it shows `placeholder`, a template, in
 `placeholder_color` (the text colour at half strength by default). Text
 style keys set its look.
 
+What is typed is drawn a glyph for each character: a field's text, and what
+`{typed}` and `{sent}` write, go without ligatures and contextual
+alternates, whatever `features` says, so the glyphs shown never change as
+more are typed. JetBrains Mono, for one, would join `***` and raise the
+middle asterisk.
+
 A field is one line of its font tall (its `line_height`, if set), or as
 tall as its caret where that is taller, empty or not, and a `height` larger
 than that centres the line in it. Its baseline is its text's, the same
@@ -521,10 +527,10 @@ screenshot. `--user` and `--host` stand in for the real names, and
 screen: `locked` holds, and the greeter's words are the lock screen's.
 
 Once the state shows, each `--press` presses a key, written as in `[keys]`
-(`f10`, `mod-j`, `shift-tab`), and `--hover X,Y` puts the pointer at that
-point of the screenshot; `--at` then counts from the last of them. So
-`--press f12` shoots the armed look, `--press mod-j --at 200` the fired one
-while it lasts, and `--hover` a control's hover look.
+(`f10`, `mod-j`, `shift-tab`, or `a`, which types), and `--hover X,Y` puts
+the pointer at that point of the screenshot; `--at` then counts from the
+last of them. So `--press f12` shoots the armed look, `--press mod-j --at
+200` the fired one while it lasts, and `--hover` a control's hover look.
 
 The SVGs a preview draws in their own colours are kept, as the greeter
 keeps them, in `~/.cache/gpui-greeter/themes/<name>/`: raw pixels, so a

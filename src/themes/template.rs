@@ -1,6 +1,7 @@
 //! Text with bindings, such as `{time}`, `{user}@{host}` or `{t.hint}`,
 //! filled in from the greeter and the system each time a layer is drawn.
 
+use std::ops::Range;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -175,12 +176,25 @@ impl Template {
     }
 
     pub fn render(&self, fill: &impl Fill) -> String {
-        let mut out = String::new();
-        self.render_into(fill, &mut out, 0);
-        out
+        self.render_typed(fill).0
     }
 
-    fn render_into(&self, fill: &impl Fill, out: &mut String, depth: usize) {
+    /// The text, and the byte ranges of it that `{typed}` and `{sent}`
+    /// filled in, in order.
+    pub fn render_typed(&self, fill: &impl Fill) -> (String, Vec<Range<usize>>) {
+        let mut out = String::new();
+        let mut typed = Vec::new();
+        self.render_into(fill, &mut out, &mut typed, 0);
+        (out, typed)
+    }
+
+    fn render_into(
+        &self,
+        fill: &impl Fill,
+        out: &mut String,
+        typed: &mut Vec<Range<usize>>,
+        depth: usize,
+    ) {
         for piece in &self.pieces {
             match piece {
                 Piece::Text(text) => out.push_str(text),
@@ -188,12 +202,20 @@ impl Template {
                     binding: binding @ Binding::String(key),
                     ..
                 } => match fill.string(key) {
-                    Some(string) if depth < DEPTH => string.render_into(fill, out, depth + 1),
+                    Some(string) if depth < DEPTH => {
+                        string.render_into(fill, out, typed, depth + 1)
+                    }
                     Some(_) => {}
                     // Not the theme's: one of the greeter's own words.
                     None => fill.binding(binding, None, out),
                 },
-                Piece::Binding { binding, arg } => fill.binding(binding, arg.as_deref(), out),
+                Piece::Binding { binding, arg } => {
+                    let start = out.len();
+                    fill.binding(binding, arg.as_deref(), out);
+                    if matches!(binding, Binding::Typed | Binding::Sent) && out.len() > start {
+                        typed.push(start..out.len());
+                    }
+                }
             }
         }
     }
@@ -418,6 +440,16 @@ mod tests {
         );
         let looping = Template::parse("{t.loop}").unwrap().render(&Sample);
         assert_eq!(looping.matches("again").count(), DEPTH);
+    }
+
+    #[test]
+    fn says_where_typed_characters_stand() {
+        let (text, typed) = Template::parse("{t.hint}: {typed:*} {user} {typed}")
+            .unwrap()
+            .render_typed(&Sample);
+        assert_eq!(text, "Log in to example-host: *** alice •••");
+        let pieces: Vec<&str> = typed.iter().map(|range| &text[range.clone()]).collect();
+        assert_eq!(pieces, ["***", "•••"]);
     }
 
     #[test]

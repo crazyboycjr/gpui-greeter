@@ -150,15 +150,19 @@ fn field_text(view: &View, look: &FieldLook, placeholder: &str) -> impl IntoElem
             |caret, t| caret.opacity(super::motion::blink_opacity(t)),
         );
     let caret_after = typed.is_some();
-    let (text, color, tracking) = match typed {
-        Some(text) => (text, look.color, look.tracking),
-        None => (placeholder, look.placeholder, look.placeholder_tracking),
+    let text = match typed {
+        Some(text) => {
+            let len = text.len();
+            label(text)
+                .typed(0..len)
+                .color(look.color)
+                .tracking_em(look.tracking)
+        }
+        None => label(placeholder)
+            .color(look.placeholder)
+            .tracking_em(look.placeholder_tracking),
     };
-    let text = label(text)
-        .font(look.family, look.weight)
-        .size(look.size)
-        .color(color)
-        .tracking_em(tracking);
+    let text = text.font(look.family, look.weight).size(look.size);
     let line = if look.centered {
         // The text alone is centred, as an input centres it; the caret
         // hangs beside it.

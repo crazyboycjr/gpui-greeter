@@ -7,6 +7,7 @@ mod paint;
 pub mod pictures;
 
 use std::collections::HashSet;
+use std::ops::Range;
 use std::rc::Rc;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -116,6 +117,48 @@ fn hsla(color: Color) -> Hsla {
         a: color.a,
     }
     .into()
+}
+
+fn cased(text: &str, case: Option<Case>) -> String {
+    match case {
+        Some(Case::Upper) => text.to_uppercase(),
+        Some(Case::Lower) => text.to_lowercase(),
+        _ => text.to_string(),
+    }
+}
+
+/// `text` in its lines, each in `case` and with the ranges of it that typed
+/// characters fill, of those `typed` gives for the whole. Each piece takes
+/// its case on its own, so the ranges hold where a case changes a length.
+fn lines(
+    text: &str,
+    typed: &[Range<usize>],
+    case: Option<Case>,
+) -> Vec<(String, Vec<Range<usize>>)> {
+    let mut pieces = Vec::new();
+    let mut at = 0;
+    for range in typed {
+        pieces.push((at..range.start, false));
+        pieces.push((range.clone(), true));
+        at = range.end;
+    }
+    pieces.push((at..text.len(), false));
+    let mut lines = Vec::new();
+    let (mut line, mut ranges) = (String::new(), Vec::new());
+    for (range, is_typed) in pieces {
+        for (number, part) in text.get(range).unwrap_or_default().split('\n').enumerate() {
+            if number > 0 {
+                lines.push((std::mem::take(&mut line), std::mem::take(&mut ranges)));
+            }
+            let start = line.len();
+            line.push_str(&cased(part, case));
+            if is_typed && line.len() > start {
+                ranges.push(start..line.len());
+            }
+        }
+    }
+    lines.push((line, ranges));
+    lines
 }
 
 /// What a layer takes from the one it sits in.
@@ -530,11 +573,6 @@ impl Builder<'_> {
     }
 
     fn label(&self, text: String, props: &Props, color: Color, zoom: f32) -> Label {
-        let text = match props.case {
-            Some(Case::Upper) => text.to_uppercase(),
-            Some(Case::Lower) => text.to_lowercase(),
-            _ => text,
-        };
         let size = props.size.unwrap_or(TEXT_SIZE);
         let family = props.font.as_deref().unwrap_or("Inter").to_string();
         let mut label = label(text)
@@ -566,15 +604,18 @@ impl Builder<'_> {
 
     fn text(&self, look: &Look, zoom: f32, item: Option<usize>) -> Div {
         let props = &look.props;
-        let text = props
+        let (text, typed) = props
             .text
             .as_ref()
-            .map(|template| template.render(&self.filler(item)))
+            .map(|template| template.render_typed(&self.filler(item)))
             .unwrap_or_default();
         let align = props.text_align.unwrap_or(TextAlign::Start);
-        let lines: Vec<Label> = text
-            .split('\n')
-            .map(|line| self.label(line.to_string(), props, look.color, zoom))
+        let lines: Vec<Label> = lines(&text, &typed, props.case)
+            .into_iter()
+            .map(|(line, typed)| {
+                let label = self.label(line, props, look.color, zoom);
+                typed.into_iter().fold(label, Label::typed)
+            })
             .collect();
         let element = if lines.len() == 1 {
             let element = div().flex();
@@ -663,13 +704,18 @@ impl Builder<'_> {
             (width, bar)
         });
         let shown = match &typed {
-            Some(text) => self.label(text.clone(), props, look.color, zoom),
+            Some(text) => {
+                let text = cased(text, props.case);
+                let len = text.len();
+                self.label(text, props, look.color, zoom).typed(0..len)
+            }
             None => {
                 let placeholder = props
                     .placeholder
                     .as_ref()
                     .map(|template| template.render(&self.filler(None)))
                     .unwrap_or_default();
+                let placeholder = cased(&placeholder, props.case);
                 self.label(placeholder, props, look.placeholder_color, zoom)
             }
         };
@@ -1173,5 +1219,35 @@ fn built_in(s: &i18n::Strings, key: &str) -> &'static str {
         "shut_down" => s.shut_down,
         "click_to_log_in" => s.click_to_log_in,
         _ => "",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn lines_keep_where_typed_characters_stand() {
+        // "ﬁle: " is 7 bytes and "FILE: " 6.
+        let text = "ﬁle: ***\nend •";
+        let shown: Vec<(String, Vec<String>)> = lines(text, &[7..10, 15..18], Some(Case::Upper))
+            .into_iter()
+            .map(|(line, typed)| {
+                let typed = typed
+                    .into_iter()
+                    .map(|range| line[range].to_string())
+                    .collect();
+                (line, typed)
+            })
+            .collect();
+        let typed = |text: &str| vec![text.to_string()];
+        assert_eq!(
+            shown,
+            [
+                ("FILE: ***".to_string(), typed("***")),
+                ("END •".to_string(), typed("•")),
+            ]
+        );
+        assert_eq!(lines("", &[], None), [(String::new(), vec![])]);
     }
 }

@@ -2209,6 +2209,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-channel",
+ "cosmic-text",
  "env_logger",
  "fast_image_resize",
  "gpui-kit",

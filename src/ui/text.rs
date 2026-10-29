@@ -2,6 +2,7 @@
 //! GPUI's text has no notion of, and with soft text shadows, drawn as faint
 //! copies of the glyphs around them.
 
+use std::ops::Range;
 use std::sync::Arc;
 
 use gpui_kit::{
@@ -35,6 +36,7 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         features: FontFeatures::default(),
         fallback: None,
         strut: false,
+        typed: SmallVec::new(),
         size: 16.0,
         color: gpui_kit::white(),
         tracking: Tracking::Px(0.0),
@@ -53,6 +55,8 @@ pub struct Label {
     features: FontFeatures,
     fallback: Option<Arc<[Arc<str>]>>,
     strut: bool,
+    /// Byte ranges of typed characters, in order.
+    typed: SmallVec<[Range<usize>; 1]>,
     size: f32,
     color: Hsla,
     tracking: Tracking,
@@ -108,6 +112,22 @@ impl Label {
     /// as a field does, so that what is typed never moves it.
     pub fn strut(mut self) -> Self {
         self.strut = true;
+        self
+    }
+
+    /// Draws the bytes in `range`, typed characters or their masks, a glyph
+    /// for each character, without the ligatures and contextual alternates
+    /// that change a glyph by what follows it: those shown never change as
+    /// more are typed.
+    pub fn typed(mut self, range: Range<usize>) -> Self {
+        let follows = self.typed.last().is_none_or(|last| last.end <= range.start);
+        if follows
+            && range.start < range.end
+            && self.text.is_char_boundary(range.start)
+            && self.text.is_char_boundary(range.end)
+        {
+            self.typed.push(range);
+        }
         self
     }
 
@@ -206,16 +226,23 @@ impl Element for Label {
             fallbacks: Some(fallbacks(self.fallback.as_deref().unwrap_or_default())),
             ..font(self.family.clone())
         };
-        let run = TextRun {
-            len: self.text.len(),
-            font: font.clone(),
-            color: self.color,
-            background_color: None,
-            underline: None,
-            strikethrough: None,
+        let typed_font = gpui_kit::Font {
+            features: unjoined(&self.features),
+            ..font.clone()
         };
+        let runs: SmallVec<[TextRun; 3]> = pieces(self.text.len(), &self.typed)
+            .into_iter()
+            .map(|(len, typed)| TextRun {
+                len,
+                font: if typed { &typed_font } else { &font }.clone(),
+                color: self.color,
+                background_color: None,
+                underline: None,
+                strikethrough: None,
+            })
+            .collect();
         let text_system = window.text_system();
-        let line = text_system.shape_line(self.text.clone(), font_size, &[run], None);
+        let line = text_system.shape_line(self.text.clone(), font_size, &runs, None);
         let (ascent, descent) = if self.strut {
             let id = text_system.resolve_font(&font);
             (
@@ -323,6 +350,39 @@ impl Element for Label {
     }
 }
 
+/// The pieces that cover text of `len` bytes: each one's length, and
+/// whether it is typed.
+fn pieces(len: usize, typed: &[Range<usize>]) -> SmallVec<[(usize, bool); 3]> {
+    let mut pieces = SmallVec::new();
+    let mut at = 0;
+    for range in typed {
+        if range.start > at {
+            pieces.push((range.start - at, false));
+        }
+        pieces.push((range.len(), true));
+        at = range.end;
+    }
+    if at < len || pieces.is_empty() {
+        pieces.push((len - at, false));
+    }
+    pieces
+}
+
+/// `features` without the ones that join glyphs or change them by their
+/// neighbours, which are turned off, whatever a theme asks: JetBrains Mono,
+/// for one, joins `***` and raises the middle asterisk.
+fn unjoined(features: &FontFeatures) -> FontFeatures {
+    const JOINING: [&str; 5] = ["calt", "clig", "dlig", "hlig", "liga"];
+    let mut kept: Vec<(String, u32)> = features
+        .tag_value_list()
+        .iter()
+        .filter(|(tag, _)| !JOINING.contains(&tag.as_str()))
+        .cloned()
+        .collect();
+    kept.extend(["calt", "clig", "liga"].map(|tag| (tag.to_string(), 0)));
+    FontFeatures(Arc::new(kept))
+}
+
 /// Offsets and weights that spread copies of a glyph like a Gaussian blur
 /// of CSS radius `blur` (a standard deviation of half of it), weighing in
 /// at about the shadow's full opacity in all.
@@ -349,4 +409,79 @@ fn blur_samples(blur: f32) -> SmallVec<[(Point<Pixels>, f32); 25]> {
         *weight /= total;
     }
     samples
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cosmic_text::{Attrs, AttrsList, Family, FeatureTag, FontSystem, ShapeLine, Shaping};
+
+    /// The glyphs JetBrains Mono shapes `text` into with `features`, as
+    /// GPUI's text system shapes a run.
+    fn glyphs(text: &str, features: &FontFeatures) -> Vec<u16> {
+        let font = std::fs::read(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/assets/fonts/JetBrainsMono-Regular.ttf"
+        ))
+        .unwrap();
+        let mut db = cosmic_text::fontdb::Database::new();
+        db.load_font_data(font);
+        let mut system = FontSystem::new_with_locale_and_db("en-US".into(), db);
+        let mut set = cosmic_text::FontFeatures::new();
+        for (tag, value) in features.tag_value_list() {
+            let tag: [u8; 4] = tag.as_bytes().try_into().unwrap();
+            set.set(FeatureTag::new(&tag), *value);
+        }
+        let attrs = Attrs::new()
+            .family(Family::Name("JetBrains Mono"))
+            .font_features(set);
+        let line = ShapeLine::new(
+            &mut system,
+            text,
+            &AttrsList::new(&attrs),
+            Shaping::Advanced,
+            4,
+        );
+        line.spans
+            .iter()
+            .flat_map(|span| &span.words)
+            .flat_map(|word| &word.glyphs)
+            .map(|glyph| glyph.glyph_id)
+            .collect()
+    }
+
+    #[test]
+    fn typed_characters_keep_their_glyphs_as_more_are_typed() {
+        let star = glyphs("*", &FontFeatures::default())[0];
+        assert_ne!(
+            glyphs("***", &FontFeatures::default()),
+            [star; 3],
+            "JetBrains Mono joins three asterisks"
+        );
+        let theme = FontFeatures(Arc::new(vec![("calt".into(), 1), ("zero".into(), 1)]));
+        for features in [FontFeatures::default(), theme.clone()] {
+            for count in 1..=5 {
+                assert_eq!(
+                    glyphs(&"*".repeat(count), &unjoined(&features)),
+                    vec![star; count]
+                );
+            }
+        }
+        assert!(
+            unjoined(&theme)
+                .tag_value_list()
+                .contains(&("zero".into(), 1))
+        );
+    }
+
+    #[test]
+    fn pieces_cover_the_text() {
+        assert_eq!(pieces(0, &[])[..], [(0, false)]);
+        assert_eq!(pieces(9, &[])[..], [(9, false)]);
+        assert_eq!(pieces(3, &[0..1, 1..3])[..], [(1, true), (2, true)]);
+        assert_eq!(
+            pieces(12, &[2..5, 5..7, 9..12])[..],
+            [(2, false), (3, true), (2, true), (2, false), (3, true)]
+        );
+    }
 }

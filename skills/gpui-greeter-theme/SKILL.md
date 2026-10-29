@@ -202,7 +202,8 @@ done
 The looks that answer to input need it in the screenshot too: `--press
 f12` (keys written as in `[keys]`) shoots the armed power action, `--press
 mod-j --at 200` the fired look of what mod-j runs while it lasts (700 ms),
-and `--hover X,Y` points at whatever lies there in the screenshot, for a
+`--state idle --press a --press b` the field with two characters typed, and
+`--hover X,Y` points at whatever lies there in the screenshot, for a
 control's hover look.
 
 To lay a screenshot over a mockup, make what changes match it: preview a

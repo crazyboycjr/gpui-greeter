@@ -34,6 +34,10 @@ x11rb = { version = "0.14", features = ["dpms", "randr", "xkb"] }
 zbus = { version = "5", default-features = false, features = ["async-io", "blocking-api"] }
 zeroize = "1"
 
+[dev-dependencies]
+# GPUI's text shaper, for tests that shape text as the greeter does.
+cosmic-text = "0.19"
+
 [features]
 # For tests only: `lock --pam-dir DIR` checks passwords with a fake PAM
 # service read from DIR, never the system's.
