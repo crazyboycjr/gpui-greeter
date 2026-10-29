@@ -3,9 +3,10 @@
 //! screen, give it the keyboard, and read and switch the keyboard layout.
 
 use anyhow::{Context as _, Result};
-use x11rb::connection::Connection;
+use x11rb::connection::{Connection, RequestConnection as _};
 use x11rb::protocol::dpms::ConnectionExt as _;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
+use x11rb::protocol::screensaver::{self, ConnectionExt as _};
 use x11rb::protocol::xkb::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _};
 use x11rb::rust_connection::RustConnection;
@@ -231,6 +232,25 @@ impl X11 {
         if let Some(Ok(Err(error))) = disabled {
             log::warn!("cannot turn DPMS off: {error}");
         }
+    }
+
+    /// Whether the X server's screen saver has the screen blank now.
+    pub fn screen_saver_on(&self) -> bool {
+        let has = self
+            .conn
+            .extension_information(screensaver::X11_EXTENSION_NAME)
+            .ok()
+            .flatten()
+            .is_some();
+        has && self
+            .conn
+            .screensaver_query_info(self.root)
+            .ok()
+            .and_then(|cookie| cookie.reply().ok())
+            .is_some_and(|info| {
+                let state = screensaver::State::from(info.state);
+                state == screensaver::State::ON || state == screensaver::State::CYCLE
+            })
     }
 
     pub fn pointer(&self) -> Option<(i32, i32)> {

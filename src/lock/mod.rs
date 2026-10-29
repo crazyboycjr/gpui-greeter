@@ -10,6 +10,7 @@
 //! back.
 
 mod cover;
+pub mod idle;
 pub mod link;
 pub mod pam;
 
@@ -27,6 +28,7 @@ use anyhow::{Context as _, Result};
 use rustix::event::{PollFd, PollFlags, Timespec};
 use rustix::process::{Signal, set_parent_process_death_signal};
 use x11rb::protocol::Event;
+use x11rb::protocol::screensaver;
 use x11rb::protocol::xproto::{self, KeyButMask};
 use zeroize::Zeroizing;
 
@@ -60,6 +62,10 @@ const FIELD_AFTER: Duration = Duration::from_secs(2);
 /// xss-lock's `--transfer-sleep-lock` hands its delay lock on suspend over
 /// in this descriptor, for the locker to close once the screen is locked.
 const SLEEP_LOCK_FD: &str = "XSS_SLEEP_LOCK_FD";
+/// How long the pointer's moves are kept from the view once the screen
+/// saver has let the screen light up again: the move that woke the screen
+/// shows the look at rest, not its form.
+const WAKING_MOVES: Duration = Duration::from_secs(1);
 
 pub struct Options {
     pub config: PathBuf,
@@ -156,6 +162,11 @@ struct Lock {
     /// Where the pointer last moved, not yet told to the view.
     moved: Option<(i32, i32)>,
     restack: bool,
+    /// Whether the X server's screen saver has the screen blank: the view's
+    /// windows are off the screen then, drawing nothing.
+    blank: bool,
+    /// Until when the pointer's moves are not told to the view.
+    quiet_until: Option<Instant>,
 }
 
 struct View {
@@ -225,6 +236,8 @@ impl Lock {
         bell.set_nonblocking(true)?;
         let (mail, inbox) = mpsc::channel();
         Ok(Self {
+            blank: cover.blank(),
+            quiet_until: None,
             cover,
             options,
             user,
@@ -348,7 +361,16 @@ impl Lock {
                 });
             }
             Event::MotionNotify(motion) => {
-                self.moved = Some((motion.root_x.into(), motion.root_y.into()));
+                if self.quiet_until.is_none_or(|until| Instant::now() >= until) {
+                    self.moved = Some((motion.root_x.into(), motion.root_y.into()));
+                }
+            }
+            Event::ScreensaverNotify(saver) => {
+                let blank = matches!(
+                    saver.state,
+                    screensaver::State::ON | screensaver::State::CYCLE
+                );
+                self.set_blank(blank);
             }
             Event::MapNotify(map) => self.restack |= !self.is_ours(map.window),
             Event::ConfigureNotify(configure) if configure.window == self.cover.root() => {
@@ -365,6 +387,28 @@ impl Lock {
             Event::RandrScreenChangeNotify(_) | Event::RandrNotify(_) => self.monitors_changed(),
             Event::Error(error) => log::debug!("the X server refused a request: {error:?}"),
             _ => {}
+        }
+    }
+
+    /// The screen saver blanked the screen, or let it light up again. While
+    /// it is blank, the view's windows are off the screen and draw nothing:
+    /// the screen stays blank until a key or the pointer wakes it, and on
+    /// NVIDIA a frame presented at the vertical blank of a blanked monitor
+    /// could wait for it as long. The cover holds the screen meanwhile.
+    fn set_blank(&mut self, blank: bool) {
+        if blank == self.blank {
+            return;
+        }
+        self.blank = blank;
+        let windows = self
+            .view
+            .as_ref()
+            .and_then(|view| view.shown.as_ref())
+            .map_or(&[][..], |shown| &shown.windows);
+        self.cover.show_view(windows, !blank);
+        if !blank {
+            self.quiet_until = Some(Instant::now() + WAKING_MOVES);
+            self.restack = true;
         }
     }
 
@@ -478,6 +522,9 @@ impl Lock {
         }
         match message {
             ToLock::Shown { windows, keys } => {
+                if self.blank {
+                    self.cover.show_view(&windows, false);
+                }
                 if let Some(view) = &mut self.view {
                     view.shown = Some(Shown { windows, keys });
                 }

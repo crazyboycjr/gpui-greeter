@@ -39,12 +39,14 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
            theme's [keys], and --hover puts the pointer at X,Y; --lock
            shows the theme as the lock screen
        gpui-greeter lock [--config FILE] [--theme THEME] [--language LANG]
-                         [--dry-run]
+                         [--dry-run] [--when-idle SECONDS]
            lock the X session on $DISPLAY: the looks over every monitor,
            at rest until a key, the keyboard and the pointer held until
            the user's password is typed, which PAM checks as the service
            gpui-greeter-lock. F9 switches looks there too; the theme is
-           the config's until one is picked there
+           the config's until one is picked there. With --when-idle, stay
+           and lock whenever the X screen saver has kept the screen blank
+           for SECONDS, and at once on logind's lock-session
        gpui-greeter settings [--section SECTION]
            a window for the settings: the look, Frost's wallpapers, your
            avatar, the size and the language, each shown as the greeter
@@ -194,11 +196,12 @@ fn greet(args: &[String]) -> anyhow::Result<()> {
     start.run(remembered::LOGIN, None)
 }
 
-/// The lock's supervisor, or, with `--view`, the view it starts.
-fn lock(args: &[String]) -> anyhow::Result<()> {
-    let mut args = Args { rest: args.iter() };
+/// The lock's supervisor; with `--view`, the view it starts; with
+/// `--when-idle`, what starts it once the screen has been blank a while.
+fn lock(all: &[String]) -> anyhow::Result<()> {
+    let mut args = Args { rest: all.iter() };
     let mut start = Start::default();
-    let mut view = None;
+    let (mut view, mut when_idle) = (None, None);
     #[cfg(feature = "fake-pam")]
     let mut service = lock::pam::Service::default();
     #[cfg(not(feature = "fake-pam"))]
@@ -206,11 +209,31 @@ fn lock(args: &[String]) -> anyhow::Result<()> {
     while let Some(arg) = args.rest.next() {
         match arg.as_str() {
             "--view" => view = Some(args.value(arg)?.parse::<RawFd>()?),
+            "--when-idle" => {
+                let seconds: u64 = args
+                    .value(arg)?
+                    .parse()
+                    .map_err(|_| anyhow::anyhow!("--when-idle takes a number of seconds"))?;
+                when_idle = Some(Duration::from_secs(seconds));
+            }
             #[cfg(feature = "fake-pam")]
             "--pam-dir" => service = lock::pam::Service::fake(Path::new(args.value(arg)?)),
             _ if start.option(arg, &mut args)? => {}
             other => anyhow::bail!("unknown argument {other:?}\n{USAGE}"),
         }
+    }
+    if let Some(delay) = when_idle {
+        // The lock it starts takes every other option given.
+        let mut passed = Vec::new();
+        let mut rest = all.iter();
+        while let Some(arg) = rest.next() {
+            if arg == "--when-idle" {
+                rest.next();
+            } else {
+                passed.push(arg.clone());
+            }
+        }
+        return lock::idle::run(delay, passed);
     }
     match view {
         Some(fd) => start.run(remembered::LOCK, Some(ViewEnd::adopt(fd)?)),

@@ -261,16 +261,29 @@ In i3's config:
 Any other window manager's key bindings, or a key daemon such as sxhkd,
 run the same command.
 
-To lock before a suspend and after a while idle, run xss-lock in the
-session, say from `~/.xinitrc` or the window manager's startup:
+To lock once the screen has gone blank, let the lock wait for it in the
+session, say from `~/.xinitrc` before the window manager starts:
+
+    gpui-greeter lock --when-idle 30 &
+
+It locks once the X screen saver has kept the screen blank for 30 seconds
+(`xset s 600` blanks it after ten minutes without a key or the mouse;
+`xset s blank` blanks rather than draws a pattern), so that whoever wakes
+the screen finds the lock at rest with its clock, and at once on
+`loginctl lock-session`; `loginctl unlock-session` ends the lock it
+started. It costs nothing while it waits, starts no lock while one runs,
+and the lock keeps the screen blank: nothing is drawn until a key or the
+mouse wakes the screen, and the move that wakes it leaves the lock at
+rest.
+
+xss-lock does the same when the screen saver starts, and locks before a
+suspend too, waiting until the lock is showing:
 
     xss-lock --transfer-sleep-lock -- gpui-greeter lock &
 
-xss-lock then locks when the X screen saver starts (`xset s 600` starts it
-after ten minutes), before a suspend, which waits until the lock is
-showing, and on `loginctl lock-session`; `loginctl unlock-session` ends the
-lock. A second lock started while one runs waits for that one and ends
-with it.
+A second lock started while one runs waits for that one and ends with it.
+Whatever started it, a lock takes its look off the screen while the
+screen saver has the screen blank, and puts it back when it lights up.
 
 The password is checked by PAM as the service `gpui-greeter-lock`, which
 the package installs as `/etc/pam.d/gpui-greeter-lock`:

@@ -19,7 +19,8 @@ post_install() {
 ==> Design themes of your own with an agent: see "Theme folders" in
     /usr/share/doc/gpui-greeter/README.md
 ==> Lock a running X session with the same looks: gpui-greeter lock, on
-    a key of the window manager's or with xss-lock; see "Lock screen" in
-    the README.
+    a key of the window manager's, and once the screen has blanked with
+    gpui-greeter lock --when-idle 30 & in ~/.xinitrc; see "Lock screen"
+    in the README.
 TEXT
 }

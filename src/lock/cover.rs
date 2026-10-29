@@ -10,6 +10,7 @@ use anyhow::{Context as _, Result, bail};
 use x11rb::connection::{Connection as _, RequestConnection as _};
 use x11rb::protocol::Event;
 use x11rb::protocol::randr::{self, ConnectionExt as _};
+use x11rb::protocol::screensaver::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, ConnectionExt as _, EventMask, KeyButMask};
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
@@ -190,9 +191,10 @@ impl Cover {
     }
 
     /// Marks the screen as locked for as long as the cover lasts, and asks
-    /// to hear of windows put over it and of the monitors changing: RandR
-    /// tells of outputs and modes, and the root window's ConfigureNotify of
-    /// monitors set with `xrandr --setmonitor` too.
+    /// to hear of windows put over it, of the monitors changing and of the
+    /// screen saver blanking the screen: RandR tells of outputs and modes,
+    /// and the root window's ConfigureNotify of monitors set with
+    /// `xrandr --setmonitor` too.
     pub fn claim(&self) -> Result<()> {
         let conn = self.x11.conn();
         conn.set_selection_owner(self.window, self.marker, x11rb::CURRENT_TIME)?;
@@ -213,8 +215,32 @@ impl Cover {
                     | randr::NotifyMask::OUTPUT_CHANGE,
             )?;
         }
+        if conn
+            .extension_information(screensaver::X11_EXTENSION_NAME)?
+            .is_some()
+        {
+            conn.screensaver_select_input(self.root(), screensaver::Event::NOTIFY_MASK)?;
+        }
         conn.flush()?;
         Ok(())
+    }
+
+    /// Whether the X server's screen saver has the screen blank now.
+    pub fn blank(&self) -> bool {
+        self.x11.screen_saver_on()
+    }
+
+    /// Takes the view's windows off the screen, where they draw nothing, or
+    /// puts them back. A window gone already only answers with an error.
+    pub fn show_view(&self, view: &[xproto::Window], shown: bool) {
+        let conn = self.x11.conn();
+        for &window in view {
+            let _ = if shown {
+                conn.map_window(window)
+            } else {
+                conn.unmap_window(window)
+            };
+        }
     }
 
     /// Puts the cover back over everything, and the view's windows over
@@ -339,6 +365,13 @@ impl Cover {
         let _ = conn.destroy_window(self.window);
         let _ = conn.flush();
     }
+}
+
+/// Whether a lock holds the screen of `x11`'s display.
+pub fn locked(x11: &X11) -> Result<bool> {
+    let conn = x11.conn();
+    let marker = conn.intern_atom(false, MARKER)?.reply()?.atom;
+    Ok(conn.get_selection_owner(marker)?.reply()?.owner != x11rb::NONE)
 }
 
 /// The primary monitor, else the first, else the whole screen.
