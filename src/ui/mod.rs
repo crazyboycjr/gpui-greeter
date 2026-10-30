@@ -12,6 +12,7 @@ mod screen;
 mod text;
 mod theme;
 
+pub use frames::enabled as frames_timed;
 pub use looks::SvgAssets;
 
 use std::cell::{Cell, RefCell};

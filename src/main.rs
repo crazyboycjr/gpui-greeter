@@ -64,10 +64,15 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
 ";
 
 fn main() -> ExitCode {
-    env_logger::Builder::from_env(
+    let mut logger = env_logger::Builder::from_env(
         env_logger::Env::default().default_filter_or("warn,gpui_greeter=info"),
-    )
-    .init();
+    );
+    // Timing frames, GPUI's X11 backend says how often each window is
+    // given one, and why.
+    if ui::frames_timed() {
+        logger.filter_module("gpui_linux::linux::x11::refresh", log::LevelFilter::Info);
+    }
+    logger.init();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let outcome = match args.first().map(String::as_str) {
         Some("--help" | "-h") => {

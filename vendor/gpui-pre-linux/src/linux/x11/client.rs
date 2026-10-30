@@ -45,7 +45,9 @@ use super::{
     XimHandler, button_or_scroll_from_event_detail, check_reply,
     clipboard::{self, Clipboard},
     get_reply, get_valuator_axis_index, handle_connection_error, modifiers_from_state,
-    pressed_button_from_mask, xcb_flush,
+    pressed_button_from_mask,
+    refresh::{self, Refresh},
+    xcb_flush,
 };
 
 use crate::linux::{
@@ -113,10 +115,10 @@ impl Deref for WindowRef {
 
 enum RefreshState {
     Hidden {
-        refresh_rate: Duration,
+        refresh: Refresh,
     },
     PeriodicRefresh {
-        refresh_rate: Duration,
+        refresh: Refresh,
         event_loop_token: RegistrationToken,
     },
 }
@@ -455,6 +457,27 @@ impl X11Connection {
                 &xkb::SelectEventsAux::new(),
             ),
         )?;
+
+        // gpui-greeter: RandR tells of monitors that change, sleep or wake, for each window's
+        // frames to keep to its monitor's refresh rate.
+        if get_reply(
+            || "RandR QueryVersion failed",
+            xcb_connection.randr_query_version(1, 2),
+        )
+        .log_err()
+        .is_some()
+        {
+            check_reply(
+                || "Failed to select RandR events",
+                xcb_connection.randr_select_input(
+                    xcb_connection.setup().roots[x_root_index].root,
+                    randr::NotifyMask::SCREEN_CHANGE
+                        | randr::NotifyMask::CRTC_CHANGE
+                        | randr::NotifyMask::OUTPUT_CHANGE,
+                ),
+            )
+            .log_err();
+        }
 
         let xkb_context = new_xkb_context()?;
         let xkb_device_id = xkbc::x11::get_core_keyboard_device_id(&xcb_connection);
@@ -925,6 +948,10 @@ impl X11Client {
                     window_ref.last_visibility = event.state;
                 }
                 handle_visibility_changed(state, event.window);
+            }
+            // gpui-greeter: see `update_refresh_rates`.
+            Event::RandrScreenChangeNotify(_) | Event::RandrNotify(_) => {
+                self.0.borrow_mut().update_refresh_rates();
             }
             Event::ClientMessage(event) => {
                 let window = self.get_window(event.window)?;
@@ -2007,66 +2034,73 @@ impl X11ClientState {
             (
                 false,
                 Some(RefreshState::PeriodicRefresh {
-                    refresh_rate,
+                    refresh,
                     event_loop_token,
                 }),
             ) => {
                 self.loop_handle.remove(event_loop_token);
-                window_ref.refresh_state = Some(RefreshState::Hidden { refresh_rate });
+                window_ref.refresh_state = Some(RefreshState::Hidden { refresh });
             }
-            (true, Some(RefreshState::Hidden { refresh_rate })) => {
-                let event_loop_token = self.start_refresh_loop(x_window, refresh_rate);
+            // gpui-greeter: the rate is read again each time the window is shown, which may
+            // be over another monitor, or after its monitor's mode changed.
+            (true, hidden @ (None | Some(RefreshState::Hidden { .. }))) => {
+                let before = match hidden {
+                    Some(RefreshState::Hidden { refresh }) => Some(refresh),
+                    _ => None,
+                };
+                let refresh =
+                    refresh::window_refresh(&*self.xcb_connection, self.root(), x_window, before);
+                let event_loop_token = self.start_refresh_loop(x_window, refresh.period);
                 let Some(window_ref) = self.windows.get_mut(&x_window) else {
                     return;
                 };
                 window_ref.refresh_state = Some(RefreshState::PeriodicRefresh {
-                    refresh_rate,
+                    refresh,
                     event_loop_token,
                 });
             }
-            (true, None) => {
-                let Some(screen_resources) = get_reply(
-                    || "Failed to get screen resources",
-                    self.xcb_connection
-                        .randr_get_screen_resources_current(x_window),
-                )
-                .log_err() else {
-                    return;
-                };
+        }
+    }
 
-                // Ideally this would be re-queried when the window changes screens, but there
-                // doesn't seem to be an efficient / straightforward way to do this. Should also be
-                // updated when screen configurations change.
-                let mode_info = screen_resources.crtcs.iter().find_map(|crtc| {
-                    let crtc_info = self
-                        .xcb_connection
-                        .randr_get_crtc_info(*crtc, x11rb::CURRENT_TIME)
-                        .ok()?
-                        .reply()
-                        .ok()?;
+    fn root(&self) -> xproto::Window {
+        self.xcb_connection.setup().roots[self.x_root_index].root
+    }
 
-                    screen_resources
-                        .modes
-                        .iter()
-                        .find(|m| m.id == crtc_info.mode)
-                });
-                let refresh_rate = match mode_info {
-                    Some(mode_info) => mode_refresh_rate(mode_info),
-                    None => {
-                        log::error!(
-                            "Failed to get screen mode info from xrandr, \
-                            defaulting to 60hz refresh rate."
-                        );
-                        Duration::from_micros(1_000_000 / 60)
-                    }
-                };
-
-                let event_loop_token = self.start_refresh_loop(x_window, refresh_rate);
-                let Some(window_ref) = self.windows.get_mut(&x_window) else {
-                    return;
-                };
+    /// gpui-greeter: RandR told of a change, such as a monitor that slept, woke or changed
+    /// its mode: each window shown takes its monitor's rate again.
+    fn update_refresh_rates(&mut self) {
+        let root = self.root();
+        let shown: Vec<_> = self
+            .windows
+            .iter()
+            .filter_map(|(&x_window, window_ref)| match window_ref.refresh_state {
+                Some(RefreshState::PeriodicRefresh { refresh, .. }) => Some((x_window, refresh)),
+                _ => None,
+            })
+            .collect();
+        for (x_window, before) in shown {
+            let refresh =
+                refresh::window_refresh(&*self.xcb_connection, root, x_window, Some(before));
+            if refresh == before {
+                continue;
+            }
+            let Some(window_ref) = self.windows.get_mut(&x_window) else {
+                continue;
+            };
+            let Some(RefreshState::PeriodicRefresh {
+                mut event_loop_token,
+                ..
+            }) = window_ref.refresh_state.take()
+            else {
+                continue;
+            };
+            if refresh.period != before.period {
+                self.loop_handle.remove(event_loop_token);
+                event_loop_token = self.start_refresh_loop(x_window, refresh.period);
+            }
+            if let Some(window_ref) = self.windows.get_mut(&x_window) {
                 window_ref.refresh_state = Some(RefreshState::PeriodicRefresh {
-                    refresh_rate,
+                    refresh,
                     event_loop_token,
                 });
             }
@@ -2244,19 +2278,6 @@ impl X11ClientState {
         .log_err();
         self.xcb_connection.flush().log_err();
     }
-}
-
-// Adapted from:
-// https://docs.rs/winit/0.29.11/src/winit/platform_impl/linux/x11/monitor.rs.html#103-111
-pub fn mode_refresh_rate(mode: &randr::ModeInfo) -> Duration {
-    if mode.dot_clock == 0 || mode.htotal == 0 || mode.vtotal == 0 {
-        return Duration::from_millis(16);
-    }
-
-    let millihertz = mode.dot_clock as u64 * 1_000 / (mode.htotal as u64 * mode.vtotal as u64);
-    let micros = 1_000_000_000 / millihertz;
-    log::info!("Refreshing every {}ms", micros / 1_000);
-    Duration::from_micros(micros)
 }
 
 /// Applies a mapped/obscured change to the refresh loop and reports the

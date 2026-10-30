@@ -1,8 +1,8 @@
 # gpui's Linux and wgpu backends, vendored
 
 `gpui-pre-linux` and `gpui-pre-wgpu` 0.3.9, as crates.io publishes them,
-taken in through `[patch.crates-io]` in the top `Cargo.toml`, with one
-change on top. The first commit that touches them adds them unchanged,
+taken in through `[patch.crates-io]` in the top `Cargo.toml`, with these
+changes on top. The first commit that touches them adds them unchanged,
 without their `Cargo.lock` and the wgpu backend's benchmark, so
 `git log -p -- vendor` shows every change made since; in the code,
 `gpui-greeter:` comments mark them. Both crates are Zed's, under the
@@ -42,6 +42,25 @@ Apache License 2.0, whose text is beside each.
   drawn with gpui, without silent's other changes to these crates. The
   greeter's own windows, over whole monitors and never resized, present
   into a child the size of the window, as before into the window itself.
+
+- **Each window keeps to its own monitor's refresh rate** (`x11/refresh.rs`,
+  `x11/client.rs`). gpui gives a window its frames on a timer at the rate
+  of the first lit CRTC's mode, read once, when the window is first shown,
+  and kept as long as the window lasts; with no CRTC lit then, 60 Hz. So a
+  window on a second monitor ran at the first one's rate, and a window
+  first shown while its monitor slept, as the lock can be (NVIDIA then
+  lists the monitor as disconnected, with no modes), stayed at 60 Hz after
+  the monitor woke.
+
+  Now a window takes the current mode of the CRTC it lies over most, the
+  faster of mirrored ones, read again each time it is shown and whenever
+  RandR tells of a change to the screen, a CRTC or an output. While no lit
+  CRTC lies under it, it keeps the rate it had from one; failing that it
+  takes the fastest lit CRTC's, then the fastest mode RandR lists, then
+  60 Hz, until RandR tells of a monitor lit under it. Each window's rate,
+  and what it comes from, is logged at info with the target
+  `gpui_linux::linux::x11::refresh`, which `GPUI_GREETER_FRAMES=1` turns
+  on.
 
 To take a newer gpui, copy its crates over these, drop their `Cargo.lock`
 and benchmarks, and carry the change over.
