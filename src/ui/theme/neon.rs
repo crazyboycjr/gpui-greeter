@@ -680,9 +680,8 @@ fn panel(view: &View, palette: &Palette) -> impl IntoElement {
         weight: FontWeight::NORMAL,
         size: 13.,
         color: color(BRIGHT, 1.0),
-        tracking: 0.32,
+        tracking: 0.06,
         placeholder: color(0xBEE6F0, 0.32),
-        placeholder_tracking: 0.06,
         caret: palette.accent,
         centered: false,
     };

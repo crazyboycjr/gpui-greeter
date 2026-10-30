@@ -775,7 +775,11 @@ fn read_layer(
     let kind = match kind_name {
         "text" => Kind::Text,
         "field" => Kind::Field {
-            mask: f.string(r, "mask").unwrap_or("\u{2022}").into(),
+            // A bullet asks for what macOS draws for one.
+            mask: match f.string(r, "mask") {
+                None | Some("dots" | "\u{2022}") => Mask::Dots,
+                Some(text) => Mask::Text(text.into()),
+            },
             max: f.integer(r, "max", 0..256).unwrap_or(64) as usize,
             blink: f.millis(r, "blink").unwrap_or(Duration::from_millis(1060)),
             caret_width: f.number_in(r, "caret_width", 0.0..400.0),

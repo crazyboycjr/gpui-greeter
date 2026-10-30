@@ -90,6 +90,9 @@ against its own menu bar to know its points:
    `macos-sequoia-macbook-air-startup-options-recovery-continue.png`, whose
    "ABC" input menu and button labels come out at 13 points at 1.13 pixels
    to a point.
+5. **Monterey's lock screen with five characters typed**, a picture whose
+   password field, 158.3 by 27.8 pixels, gives 1.01 points to a pixel as
+   160 by 28 points.
 
 An edge is where a part's coverage crosses one half, between pixel
 centres. A text's size is the one at which Apple's SF Pro, with the
@@ -108,6 +111,7 @@ show a part: the hint's first line, "Your password is required to", is
 | name | SF Pro Semibold, 15 points | 14.98 in 1, its ink between Semibold's and Bold's; 15.0 in 2; 16 in 3 |
 | password field | 160 by 28 points, its ends round | 159.9 by 28.2 in 2, 159.4 by 26.9 in 3 |
 | its placeholder | SF Pro Medium, 13 points, 13 to 15 in from the left | 13.05 for two strings in 2 and 3, where Regular would be 13.5 |
+| a typed password | solid circles 6.2 points across, 8.3 apart, centred on the field, the first 14.8 in from its left | 5: 6.0 to 6.2 across by their area and their height, 8.15 to 8.36 apart and 8.29 on average, their middles 0.3 under the field's |
 | help button | a 22-point ring 1.5 thick, 9 points right of the field | 2 |
 | the hint under it | SF Pro Semibold, 12 points, centred, lines 15 apart | 11.99 in 1, its ink within 0.2%; 11.97 in 2 and 3 |
 | gaps | from the avatar to the name's capitals 18.5 points, from the name's baseline to the field 18.4, from the field to the hint's capitals 11 | 2 and 3 |
@@ -129,7 +133,8 @@ What these pictures cannot say: the login window's own Sleep, Restart and
 Shut Down buttons, which show only when the settings ask, are in none of
 Apple's pictures found, so the startup options' buttons stand in for
 them; that macOS goes on scaling the clock on screens taller than 1260
-points is assumed; and the dots of a typed password show nowhere.
+points is assumed; and a typed password's dots show only on Monterey's
+lock screen, beside text taken to be 13 points as on the later ones.
 
 ## theme.toml
 
@@ -303,18 +308,27 @@ Boxes:
 **text**: `text` is a template (see Bindings); `\n` breaks lines. Text does
 not wrap.
 
-**field**: what has been typed, one `mask` character (`"•"` by default)
-for each, at most `max` (64) of them; the answer itself when PAM asks a
-question whose answer may show. While the password is checked it keeps the
-mask of what was sent. When empty it shows `placeholder`, a template, in
-`placeholder_color` (the text colour at half strength by default). Text
-style keys set its look.
+**field**: what has been typed, a `mask` for each character, at most `max`
+(64) of them; the answer itself when PAM asks a question whose answer may
+show. While the password is checked it keeps the mask of what was sent.
+When empty it shows `placeholder`, a template, in `placeholder_color` (the
+text colour at half strength by default). Text style keys set its look.
+Once what is typed outgrows the field, its end stays in sight and the
+start scrolls away under the field's edge, as in a text field.
 
-What is typed is drawn a glyph for each character: a field's text, and what
-`{typed}` and `{sent}` write, go without ligatures and contextual
-alternates, whatever `features` says, so the glyphs shown never change as
-more are typed. JetBrains Mono, for one, would join `***` and raise the
-middle asterisk.
+`mask` is `"dots"` (the default), or a character to show for each one
+typed, such as `"*"`. The dots are macOS's: solid circles in the text
+colour, 0.48 of the text's `size` across and 0.64 apart, in the middle of
+its line, each on whole device pixels, so that 13-point text on a 27-inch
+4K monitor has dots 9 pixels across, 12 apart. They start where the
+placeholder does, after the caret, and the caret stands a gap after the
+last; `tracking` leaves them be. `"•"` asks for the dots too.
+
+What is typed as text is drawn a glyph for each character: a field's
+answer or mask, and what `{typed}` and `{sent}` write, go without ligatures
+and contextual alternates, whatever `features` says, so the glyphs shown
+never change as more are typed. JetBrains Mono, for one, would join `***`
+and raise the middle asterisk.
 
 A field is one line of its font tall (its `line_height`, if set), or as
 tall as its caret where that is taller, empty or not, and a `height` larger

@@ -112,25 +112,27 @@ struct FieldLook {
     family: &'static str,
     weight: gpui_kit::FontWeight,
     size: f32,
+    /// What has been typed: its dots, or an answer that may show.
     color: Hsla,
-    /// CSS letter-spacing of the dots, in ems.
+    /// CSS letter-spacing of the placeholder and of an answer that shows,
+    /// in ems.
     tracking: f32,
     placeholder: Hsla,
-    placeholder_tracking: f32,
     caret: Hsla,
     /// Whether the text sits in the middle of the field, rather than at its
     /// start.
     centered: bool,
 }
 
+/// The caret's width, in points.
+const CARET: f32 = 1.5;
+
 /// Dots for a password, the text of a visible answer, or the placeholder
 /// (PAM's own question once it asks something else), with a caret.
 fn field_text(view: &View, look: &FieldLook, placeholder: &str) -> impl IntoElement {
     let greeter = view.greeter;
-    let typed = match greeter.visible_answer() {
-        Some(answer) => Some(answer.to_string()),
-        None => (greeter.typed_len() > 0).then(|| "\u{2022}".repeat(greeter.typed_len())),
-    };
+    let answer = greeter.visible_answer();
+    let dots = answer.is_none() && greeter.typed_len() > 0;
     let placeholder = greeter
         .question
         .as_ref()
@@ -143,23 +145,21 @@ fn field_text(view: &View, look: &FieldLook, placeholder: &str) -> impl IntoElem
         ("caret", greeter.typed_len()),
         std::time::Duration::from_millis(1060),
         div()
-            .w(u(1.5))
+            .w(u(CARET))
             .h(u(look.size * 1.15))
             .when(!welcome, |caret| caret.bg(look.caret))
             .flex_shrink_0(),
     );
-    let caret_after = typed.is_some();
-    let text = match typed {
-        Some(text) => {
-            let len = text.len();
-            label(text)
-                .typed(0..len)
-                .color(look.color)
-                .tracking_em(look.tracking)
-        }
+    let caret_after = answer.is_some() || dots;
+    let text = match answer {
+        Some(answer) => label(answer.to_string())
+            .typed(0..answer.len())
+            .color(look.color)
+            .tracking_em(look.tracking),
+        None if dots => label("").dots(greeter.typed_len()).color(look.color),
         None => label(placeholder)
             .color(look.placeholder)
-            .tracking_em(look.placeholder_tracking),
+            .tracking_em(look.tracking),
     };
     let text = text.font(look.family, look.weight).size(look.size);
     let line = if look.centered {
@@ -179,15 +179,27 @@ fn field_text(view: &View, look: &FieldLook, placeholder: &str) -> impl IntoElem
         };
         div().relative().child(text).child(hanger)
     } else if caret_after {
-        div().flex().items_center().child(text).child(caret)
+        // The dots start where the placeholder does, after the caret.
+        div()
+            .flex()
+            .items_center()
+            .when(dots, |line| line.pl(u(CARET)))
+            .child(text)
+            .child(caret)
     } else {
         div().flex().items_center().child(caret).child(text)
     };
+    // Once what is typed outgrows the field, its end stays in sight, as a
+    // text field scrolls: the spare room goes to spacers beside it, and
+    // what overflows does so at the start.
+    let spacer = || div().flex_grow_1();
     div()
         .flex()
         .items_center()
-        .when(look.centered, |field| field.justify_center().px(u(2.)))
+        .justify_end()
+        .when(look.centered, |field| field.px(u(2.)).child(spacer()))
         .min_w_0()
         .overflow_hidden()
-        .child(line)
+        .child(line.flex_shrink_0())
+        .child(spacer())
 }

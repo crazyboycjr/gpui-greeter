@@ -1,6 +1,7 @@
 //! Text set the way the mockups set it: with CSS letter-spacing, which
 //! GPUI's text has no notion of, and with soft text shadows, drawn as faint
-//! copies of the glyphs around them.
+//! copies of the glyphs around them; and a password's dots, which stand
+//! where its text would.
 
 use std::ops::Range;
 use std::sync::Arc;
@@ -8,8 +9,8 @@ use std::sync::Arc;
 use gpui_kit::{
     App, Bounds, Display, Element, ElementId, FlexDirection, FontFallbacks, FontFeatures,
     FontStyle, FontWeight, GlobalElementId, Hsla, InspectorElementId, IntoElement, LayoutId,
-    Pixels, Point, ShapedLine, SharedString, Style, TextRun, Window, WindowTextSystem, font, point,
-    px, size,
+    Pixels, Point, ShapedLine, SharedString, Style, TextRun, Window, WindowTextSystem, fill, font,
+    point, px, size,
 };
 use smallvec::SmallVec;
 
@@ -46,6 +47,7 @@ pub fn label(text: impl Into<SharedString>) -> Label {
         tracking: Tracking::Px(0.0),
         line_height: None,
         shadows: SmallVec::new(),
+        dots: 0,
     }
 }
 
@@ -68,6 +70,8 @@ pub struct Label {
     tracking: Tracking,
     line_height: Option<f32>,
     shadows: SmallVec<[Shadow; 2]>,
+    /// Dots drawn in place of the text.
+    dots: usize,
 }
 
 #[derive(Clone, Copy)]
@@ -144,6 +148,18 @@ impl Label {
         {
             self.typed.push(range);
         }
+        self
+    }
+
+    /// Draws a password's `count` characters as macOS does, solid circles
+    /// (see `Dots`) in place of the text, in its colour and in the middle
+    /// of its line, which is as tall as the font's, as `strut` makes it.
+    /// Tracking leaves them be.
+    pub fn dots(mut self, count: usize) -> Self {
+        self.text = SharedString::default();
+        self.typed.clear();
+        self.dots = count;
+        self.strut = true;
         self
     }
 
@@ -299,7 +315,16 @@ impl Element for Label {
                     None => ascent + descent,
                 };
                 let baseline = ((height - ascent - descent) / 2.0 + ascent).max(px(0.0));
-                (line.width + tracking * chars, height, baseline)
+                let width = if self.dots > 0 {
+                    // Each dot takes its pitch, so that what follows them,
+                    // the caret, stands a gap after the last.
+                    let scale = window.scale_factor();
+                    let pitch = Dots::new(font_size.as_f32() * scale).pitch;
+                    px(pitch * self.dots as f32 / scale)
+                } else {
+                    line.width + tracking * chars
+                };
+                (width, height, baseline)
             }
         };
         // GPUI tells the layout no baseline, which would then take the
@@ -357,6 +382,15 @@ impl Element for Label {
             ink,
         } = layout;
         let unit = *unit;
+        let color = if self.inherits_color {
+            window.text_style().color
+        } else {
+            self.color
+        };
+        if self.dots > 0 {
+            self.paint_dots(bounds, unit, color, window);
+            return;
+        }
         let font_size = line.font_size;
         let (left, baseline) = match ink {
             Some(ink) => (
@@ -395,14 +429,62 @@ impl Element for Label {
                 }
             }
         }
-        let color = if self.inherits_color {
-            window.text_style().color
-        } else {
-            self.color
-        };
         for (origin, font_id, glyph_id) in &glyphs {
             let _ = window.paint_glyph(*origin, *font_id, *glyph_id, font_size, color);
         }
+    }
+}
+
+impl Label {
+    /// The dots in a row from the left of `bounds`, each on whole device
+    /// pixels with its middle on the line's, over their shadows.
+    fn paint_dots(&self, bounds: Bounds<Pixels>, unit: f32, color: Hsla, window: &mut Window) {
+        let scale = window.scale_factor();
+        let Dots { diameter, pitch } = Dots::new(self.size * unit * scale);
+        let left = (bounds.origin.x.as_f32() * scale).round();
+        let middle = (bounds.origin.y + bounds.size.height / 2.0).as_f32() * scale;
+        let top = (middle - diameter / 2.0).round();
+        let side = px(diameter / scale);
+        let circles = |window: &mut Window, (x, y): (f32, f32), color: Hsla| {
+            for index in 0..self.dots {
+                let origin = point(
+                    px((left + x + pitch * index as f32) / scale),
+                    px((top + y) / scale),
+                );
+                let dot = Bounds::new(origin, size(side, side));
+                window.paint_quad(fill(dot, color).corner_radii(side / 2.0));
+            }
+        };
+        for shadow in &self.shadows {
+            let (x, y) = shadow.offset;
+            for (spread, weight) in blur_samples(shadow.blur * unit) {
+                let at = (
+                    ((x * unit + spread.x.as_f32()) * scale).round(),
+                    ((y * unit + spread.y.as_f32()) * scale).round(),
+                );
+                circles(window, at, shadow.color.opacity(weight));
+            }
+        }
+        circles(window, (0.0, 0.0), color);
+    }
+}
+
+/// A password's dots as macOS draws them, measured on Monterey's lock
+/// screen beside 13-point text: circles 6.2 points across, 8.3 apart. In
+/// device pixels, whole ones, so that every dot is the same crisp circle
+/// and every gap the same.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct Dots {
+    diameter: f32,
+    pitch: f32,
+}
+
+impl Dots {
+    /// The dots beside text `size` device pixels large.
+    fn new(size: f32) -> Self {
+        let diameter = (size * 6.2 / 13.0).round().max(1.0);
+        let pitch = (size * 8.3 / 13.0).round().max(diameter + 1.0);
+        Self { diameter, pitch }
     }
 }
 
@@ -576,6 +658,40 @@ mod tests {
             unjoined(&theme)
                 .tag_value_list()
                 .contains(&("zero".into(), 1))
+        );
+    }
+
+    #[test]
+    fn dots_keep_their_shape_on_whole_pixels() {
+        // 13-point text on a 27-inch 4K monitor, 1.5 pixels to a point.
+        assert_eq!(
+            Dots::new(19.5),
+            Dots {
+                diameter: 9.0,
+                pitch: 12.0
+            }
+        );
+        assert_eq!(
+            Dots::new(13.0),
+            Dots {
+                diameter: 6.0,
+                pitch: 8.0
+            }
+        );
+        assert_eq!(
+            Dots::new(26.0),
+            Dots {
+                diameter: 12.0,
+                pitch: 17.0
+            }
+        );
+        // However small, each is a pixel with a gap after it.
+        assert_eq!(
+            Dots::new(1.0),
+            Dots {
+                diameter: 1.0,
+                pitch: 2.0
+            }
         );
     }
 

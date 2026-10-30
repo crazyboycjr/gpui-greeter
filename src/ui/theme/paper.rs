@@ -294,9 +294,8 @@ fn form(view: &View, palette: &Palette) -> gpui_kit::Div {
         weight: FontWeight::LIGHT,
         size: 13.,
         color: ink,
-        tracking: 0.32,
+        tracking: 0.06,
         placeholder: color(palette.ink, 0.55),
-        placeholder_tracking: 0.06,
         caret: accent,
         centered: false,
     };

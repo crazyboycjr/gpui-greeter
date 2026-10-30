@@ -279,15 +279,14 @@ fn form(view: &View) -> impl IntoElement {
         0.4,
     ));
     // macOS's placeholder starts 13 to 15 points in, after the caret,
-    // in Medium; the dots follow it from the same place.
+    // in Medium; the dots start at the same place.
     let look = FieldLook {
         family: "Inter",
         weight: FontWeight::MEDIUM,
         size: 13.,
         color: color(WHITE, 1.0),
-        tracking: 0.32,
+        tracking: -0.08 / 13.,
         placeholder: color(WHITE, 0.6),
-        placeholder_tracking: -0.08 / 13.,
         caret: color(WHITE, 0.9),
         centered: false,
     };

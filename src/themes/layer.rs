@@ -244,6 +244,15 @@ pub enum Caret {
     Hidden,
 }
 
+/// What a field shows for each character of a password.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Mask {
+    /// A dot, as macOS draws one.
+    Dots,
+    /// This text.
+    Text(Arc<str>),
+}
+
 /// How a picture fills its box.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Fit {
@@ -410,7 +419,7 @@ pub enum Kind {
     Text,
     Field {
         /// What each typed character shows as.
-        mask: Arc<str>,
+        mask: Mask,
         /// The most characters shown.
         max: usize,
         /// A caret's blink, on for its first half; steady when zero.

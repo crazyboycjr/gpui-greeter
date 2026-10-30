@@ -31,7 +31,7 @@ use crate::i18n;
 use crate::system;
 use crate::themes::{
     Action, Align, Anchor, Binding, Caret, Case, Color, FRAME_PIXELS_PER_POINT, Fill, Fit, Flow,
-    Folder, Justify, Kind, Layer, Length, Picture, Props, Repeat, State, TextAlign, Tiles,
+    Folder, Justify, Kind, Layer, Length, Mask, Picture, Props, Repeat, State, TextAlign, Tiles,
     format_time, tiles, uptime,
 };
 use crate::ui::model::{Phase, Status};
@@ -47,6 +47,12 @@ const POINT: f32 = 1.0 / FRAME_PIXELS_PER_POINT;
 /// Text is this size, in frame pixels, unless a theme says otherwise:
 /// macOS's body text, 13 points.
 const TEXT_SIZE: f32 = 19.5;
+
+/// What a field shows of what has been typed.
+enum Typed {
+    Text(String),
+    Dots(usize),
+}
 
 /// What a window needs to draw a theme folder.
 pub struct Frame<'a> {
@@ -704,9 +710,14 @@ impl Builder<'_> {
         let greeter = self.view.greeter;
         let props = &look.props;
         let size = props.size.unwrap_or(TEXT_SIZE);
+        let count = greeter.typed_len().min(*max);
         let typed = match greeter.visible_answer() {
-            Some(answer) => Some(answer.to_string()),
-            None => (greeter.typed_len() > 0).then(|| mask.repeat(greeter.typed_len().min(*max))),
+            Some(answer) => Some(Typed::Text(answer.to_string())),
+            None if count == 0 => None,
+            None => Some(match mask {
+                Mask::Dots => Typed::Dots(count),
+                Mask::Text(text) => Typed::Text(text.repeat(count)),
+            }),
         };
         let caret_shape = match props.caret {
             Some(shape) => shape,
@@ -731,14 +742,14 @@ impl Builder<'_> {
             phase < half
         };
         let caret_height = self.len(size * 1.15, zoom);
+        let caret_len = |shape: Caret| {
+            caret_width.unwrap_or(match shape {
+                Caret::Block => 0.6 * size,
+                _ => 3.6,
+            })
+        };
         let caret = (caret_shape != Caret::Hidden).then(|| {
-            let width = self.len(
-                caret_width.unwrap_or(match caret_shape {
-                    Caret::Block => 0.6 * size,
-                    _ => 3.6,
-                }),
-                zoom,
-            );
+            let width = self.len(caret_len(caret_shape), zoom);
             let bar = div().w(width).h(caret_height);
             let bar = if caret_on {
                 bar.bg(hsla(look.caret_color))
@@ -748,11 +759,14 @@ impl Builder<'_> {
             (width, bar)
         });
         let shown = match &typed {
-            Some(text) => {
+            Some(Typed::Text(text)) => {
                 let text = cased(text, props.case);
                 let len = text.len();
                 self.label(text, props, look.color, zoom).typed(0..len)
             }
+            Some(Typed::Dots(count)) => self
+                .label(String::new(), props, look.color, zoom)
+                .dots(*count),
             None => {
                 let placeholder = props
                     .placeholder
@@ -769,9 +783,19 @@ impl Builder<'_> {
         let mut text = div()
             .relative()
             .flex()
+            .flex_shrink_0()
             .items_center()
             .min_h(caret_height)
             .child(shown.strut());
+        if matches!(typed, Some(Typed::Dots(_))) {
+            // The dots start where the placeholder does, after the caret,
+            // and stay there while a state hides it.
+            let room = match layer.base.caret.unwrap_or(Caret::Bar) {
+                Caret::Hidden => 0.0,
+                shape => caret_len(shape),
+            };
+            text = text.pl(self.len(room, zoom));
+        }
         if let Some((width, bar)) = caret {
             let holder = div()
                 .absolute()
@@ -786,13 +810,22 @@ impl Builder<'_> {
                 text.pl(width).child(holder.left_0())
             };
         }
-        let line = div().flex().items_center().min_w_0().overflow_hidden();
+        // Once what is typed outgrows the field, its end stays in sight, as
+        // a text field scrolls: the spare room goes to spacers beside it,
+        // and what overflows does so at the start.
+        let spacer = || div().flex_grow_1();
+        let line = div()
+            .flex()
+            .items_center()
+            .justify_end()
+            .min_w_0()
+            .overflow_hidden();
         let line = match props.text_align {
-            Some(TextAlign::Center) => line.justify_center(),
-            Some(TextAlign::End) => line.justify_end(),
-            _ => line,
+            Some(TextAlign::Center) => line.child(spacer()).child(text).child(spacer()),
+            Some(TextAlign::End) => line.child(spacer()).child(text),
+            _ => line.child(text).child(spacer()),
         };
-        self.sized_text(line.child(text), look, zoom)
+        self.sized_text(line, look, zoom)
     }
 
     fn corners(&self, props: &Props, zoom: f32) -> Corners<gpui_kit::Pixels> {
