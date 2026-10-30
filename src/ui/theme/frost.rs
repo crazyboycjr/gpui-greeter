@@ -188,7 +188,7 @@ fn clock_screen(view: &View) -> impl IntoElement {
         ))
         .with_animation(
             ("clock-appear", greeter.rest_changes as usize),
-            appear(550),
+            appear(250),
             |clock, t| clock.opacity(t),
         );
     div()
@@ -322,7 +322,7 @@ fn form(view: &View) -> impl IntoElement {
         .child(div().mt(u(8.)).h(u(15.)).child(message(view)))
         .with_animation(
             ("form-appear", greeter.rest_changes as usize),
-            appear(550),
+            appear(250),
             |form, t| form.opacity(t),
         )
 }

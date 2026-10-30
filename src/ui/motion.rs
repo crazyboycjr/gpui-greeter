@@ -44,11 +44,12 @@ impl Shake {
     }
 }
 
-/// Content that appears fades in where it stands: GPUI lays out and paints
-/// on whole pixels, so content that slid into place would step a pixel at
-/// a time at the slow end of its easing.
+/// Content that appears fades in where it stands, quickly and then
+/// settling, as on macOS's lock screen: GPUI lays out and paints on whole
+/// pixels, so content that slid into place would step a pixel at a time at
+/// the slow end of its easing.
 pub fn appear(duration_ms: u64) -> Animation {
-    Animation::new(Duration::from_millis(duration_ms)).with_easing(|t| css_ease().sample(t))
+    Animation::new(Duration::from_millis(duration_ms)).with_easing(|t| Easing::EaseOut.sample(t))
 }
 
 /// The three dots after "Checking": each fades in and out, a fifth of a
@@ -201,9 +202,10 @@ impl Element for Blink {
     }
 }
 
-/// Frost's wallpaper blurs and dims, and clears again.
+/// Frost's wallpaper blurs and dims, and clears again, quickly and then
+/// settling, as on macOS's lock screen.
 pub fn veil() -> Animation {
-    Animation::new(Duration::from_millis(700)).with_easing(|t| css_ease().sample(t))
+    Animation::new(Duration::from_millis(300)).with_easing(|t| Easing::EaseOut.sample(t))
 }
 
 /// A new wallpaper fades in over the one before.
