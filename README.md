@@ -321,6 +321,12 @@ view crash, hang or fail to start, the cover and the grabs stay, the view
 starts again, and meanwhile the cover takes the password itself: a line
 where it goes, a square for each character, Enter to unlock.
 
+The cover and the view's windows ask a compositor to keep compositing
+them (`_NET_WM_BYPASS_COMPOSITOR` set to 2) rather than unredirect them,
+as many do with a window over a whole monitor: a full-screen window that
+flips by itself on NVIDIA gets variable refresh, whose uneven pace can
+black out a monitor such as an OLED.
+
 What it cannot do: the supervisor is what holds the screen, so if it ends,
 by a bug or a signal, the X server lets go of its grabs and its cover and
 the session shows, as with any X screen locker; it is kept small for that.

@@ -23,6 +23,12 @@ const MARKER: &[u8] = b"_GPUI_GREETER_LOCK";
 
 const GRAB_RETRY: Duration = Duration::from_millis(20);
 
+/// `_NET_WM_BYPASS_COMPOSITOR`'s ask that a compositor never unredirect
+/// the window. Unredirected, a full-screen window flips by itself, and
+/// NVIDIA gives such flips variable refresh, which can black out a monitor
+/// such as an OLED; the view's windows ask the same.
+const KEEP_COMPOSITING: u32 = 2;
+
 pub const RETURN: u32 = 0xff0d;
 pub const KP_ENTER: u32 = 0xff8d;
 pub const BACKSPACE: u32 = 0xff08;
@@ -83,6 +89,17 @@ impl Cover {
             xproto::AtomEnum::WM_CLASS,
             xproto::AtomEnum::STRING,
             b"gpui-greeter-lock\0gpui-greeter-lock\0",
+        )?;
+        let bypass = conn
+            .intern_atom(false, b"_NET_WM_BYPASS_COMPOSITOR")?
+            .reply()?
+            .atom;
+        conn.change_property32(
+            xproto::PropMode::REPLACE,
+            window,
+            bypass,
+            xproto::AtomEnum::CARDINAL,
+            &[KEEP_COMPOSITING],
         )?;
         let gc = conn.generate_id()?;
         conn.create_gc(

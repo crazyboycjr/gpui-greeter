@@ -643,6 +643,18 @@ impl X11WindowState {
                         &[atoms._NET_WM_WINDOW_TYPE_NOTIFICATION],
                     ),
                 )?;
+                // gpui-greeter: the pop-ups are the lock's windows, each over a whole monitor,
+                // which a compositor is asked to keep compositing (2), never to unredirect.
+                check_reply(
+                    || "X11 ChangeProperty32 setting _NET_WM_BYPASS_COMPOSITOR failed.",
+                    xcb.change_property32(
+                        xproto::PropMode::REPLACE,
+                        x_window,
+                        atoms._NET_WM_BYPASS_COMPOSITOR,
+                        xproto::AtomEnum::CARDINAL,
+                        &[2],
+                    ),
+                )?;
             }
 
             if params.kind == WindowKind::Floating || params.kind == WindowKind::Dialog {
