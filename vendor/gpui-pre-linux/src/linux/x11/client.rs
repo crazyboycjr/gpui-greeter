@@ -81,9 +81,15 @@ pub(crate) const XINPUT_ALL_DEVICE_GROUPS: xinput::DeviceId = 1;
 
 const GPUI_X11_SCALE_FACTOR_ENV: &str = "GPUI_X11_SCALE_FACTOR";
 
+/// gpui-greeter: how long after its last move or resize a window's refresh rate is read again.
+const RATE_AFTER_MOVE: Duration = Duration::from_millis(100);
+
 pub(crate) struct WindowRef {
     window: X11WindowStatePtr,
     refresh_state: Option<RefreshState>,
+    /// gpui-greeter: when the shown window's refresh rate is to be read again; see
+    /// `update_refresh_rate_when_due`.
+    refresh_due: Option<Instant>,
     last_visibility: Visibility,
     is_mapped: bool,
 }
@@ -1100,6 +1106,10 @@ impl X11Client {
                     .set_bounds(bounds)
                     .context("X11: Failed to set window bounds")
                     .log_err();
+                // gpui-greeter: moved or resized, the window may lie over another monitor.
+                if let Some(window_ref) = self.0.borrow_mut().windows.get_mut(&event.window) {
+                    window_ref.refresh_due = Some(Instant::now() + RATE_AFTER_MOVE);
+                }
             }
             Event::PropertyNotify(event) => {
                 let window = self.get_window(event.window)?;
@@ -1799,6 +1809,7 @@ impl X11Client {
         let window_ref = WindowRef {
             window: window.0.clone(),
             refresh_state: None,
+            refresh_due: None,
             last_visibility: Visibility::UNOBSCURED,
             is_mapped: false,
         };
@@ -2042,14 +2053,20 @@ impl X11ClientState {
                 window_ref.refresh_state = Some(RefreshState::Hidden { refresh });
             }
             // gpui-greeter: the rate is read again each time the window is shown, which may
-            // be over another monitor, or after its monitor's mode changed.
+            // be over another monitor, or after its monitor's mode changed. Shown again, it
+            // starts at the rate it had and reads it after its first frame, which so waits for
+            // no round trip.
             (true, hidden @ (None | Some(RefreshState::Hidden { .. }))) => {
-                let before = match hidden {
-                    Some(RefreshState::Hidden { refresh }) => Some(refresh),
-                    _ => None,
+                let refresh = match hidden {
+                    Some(RefreshState::Hidden { refresh }) => {
+                        window_ref.refresh_due = Some(Instant::now());
+                        refresh
+                    }
+                    _ => {
+                        window_ref.refresh_due = None;
+                        refresh::window_refresh(&*self.xcb_connection, self.root(), x_window, None)
+                    }
                 };
-                let refresh =
-                    refresh::window_refresh(&*self.xcb_connection, self.root(), x_window, before);
                 let event_loop_token = self.start_refresh_loop(x_window, refresh.period);
                 let Some(window_ref) = self.windows.get_mut(&x_window) else {
                     return;
@@ -2069,41 +2086,63 @@ impl X11ClientState {
     /// gpui-greeter: RandR told of a change, such as a monitor that slept, woke or changed
     /// its mode: each window shown takes its monitor's rate again.
     fn update_refresh_rates(&mut self) {
-        let root = self.root();
-        let shown: Vec<_> = self
-            .windows
-            .iter()
-            .filter_map(|(&x_window, window_ref)| match window_ref.refresh_state {
-                Some(RefreshState::PeriodicRefresh { refresh, .. }) => Some((x_window, refresh)),
-                _ => None,
-            })
-            .collect();
-        for (x_window, before) in shown {
-            let refresh =
-                refresh::window_refresh(&*self.xcb_connection, root, x_window, Some(before));
-            if refresh == before {
-                continue;
-            }
-            let Some(window_ref) = self.windows.get_mut(&x_window) else {
-                continue;
-            };
-            let Some(RefreshState::PeriodicRefresh {
-                mut event_loop_token,
+        let windows: Vec<_> = self.windows.keys().copied().collect();
+        for x_window in windows {
+            self.update_refresh_rate(x_window);
+        }
+    }
+
+    /// gpui-greeter: a shown window's rate is read again once due, after its frame: after the
+    /// first frame of a showing again, and once a move or a resize has rested, since asking
+    /// the server while the window is dragged would wait behind each of its moves.
+    fn update_refresh_rate_when_due(&mut self, x_window: xproto::Window) {
+        let Some(window_ref) = self.windows.get_mut(&x_window) else {
+            return;
+        };
+        if window_ref
+            .refresh_due
+            .is_none_or(|due| due > Instant::now())
+        {
+            return;
+        }
+        window_ref.refresh_due = None;
+        self.update_refresh_rate(x_window);
+    }
+
+    /// gpui-greeter: a shown window takes the rate RandR gives it now, on a new timer if
+    /// that changes its period.
+    fn update_refresh_rate(&mut self, x_window: xproto::Window) {
+        let before = match self.windows.get(&x_window) {
+            Some(WindowRef {
+                refresh_state: Some(RefreshState::PeriodicRefresh { refresh, .. }),
                 ..
-            }) = window_ref.refresh_state.take()
-            else {
-                continue;
-            };
-            if refresh.period != before.period {
-                self.loop_handle.remove(event_loop_token);
-                event_loop_token = self.start_refresh_loop(x_window, refresh.period);
-            }
-            if let Some(window_ref) = self.windows.get_mut(&x_window) {
-                window_ref.refresh_state = Some(RefreshState::PeriodicRefresh {
-                    refresh,
-                    event_loop_token,
-                });
-            }
+            }) => *refresh,
+            _ => return,
+        };
+        let refresh =
+            refresh::window_refresh(&*self.xcb_connection, self.root(), x_window, Some(before));
+        if refresh == before {
+            return;
+        }
+        let Some(window_ref) = self.windows.get_mut(&x_window) else {
+            return;
+        };
+        let Some(RefreshState::PeriodicRefresh {
+            mut event_loop_token,
+            ..
+        }) = window_ref.refresh_state.take()
+        else {
+            return;
+        };
+        if refresh.period != before.period {
+            self.loop_handle.remove(event_loop_token);
+            event_loop_token = self.start_refresh_loop(x_window, refresh.period);
+        }
+        if let Some(window_ref) = self.windows.get_mut(&x_window) {
+            window_ref.refresh_state = Some(RefreshState::PeriodicRefresh {
+                refresh,
+                event_loop_token,
+            });
         }
     }
 
@@ -2136,6 +2175,9 @@ impl X11ClientState {
                         xcb_connection
                     };
                     client.process_x11_events(&xcb_connection).log_err();
+                    // gpui-greeter: this may give the window a new timer, at a new rate, which
+                    // takes over from this one.
+                    client.0.borrow_mut().update_refresh_rate_when_due(x_window);
 
                     // Take into account that some frames have been skipped
                     let now = Instant::now();

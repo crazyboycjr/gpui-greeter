@@ -1,9 +1,9 @@
 //! gpui-greeter: how often a window is given a frame. A window gets the
 //! current mode's rate of the monitor it lies over most, read again
-//! whenever it is shown and whenever RandR tells of a change, so that a
-//! monitor that slept, woke or changed its mode sets the pace once it is
-//! back. With no lit monitor under it, as while its monitor sleeps, a
-//! window keeps the rate it had, or takes the fastest there is.
+//! whenever it is shown, moved or resized and whenever RandR tells of a
+//! change, so that a monitor that slept, woke or changed its mode sets the
+//! pace once it is back. With no lit monitor under it, as while its monitor
+//! sleeps, a window keeps the rate it had, or takes the fastest there is.
 
 use std::time::Duration;
 

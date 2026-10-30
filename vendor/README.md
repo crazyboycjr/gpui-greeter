@@ -53,12 +53,17 @@ Apache License 2.0, whose text is beside each.
   the monitor woke.
 
   Now a window takes the current mode of the CRTC it lies over most, the
-  faster of mirrored ones, read again each time it is shown and whenever
-  RandR tells of a change to the screen, a CRTC or an output. While no lit
-  CRTC lies under it, it keeps the rate it had from one; failing that it
-  takes the fastest lit CRTC's, then the fastest mode RandR lists, then
-  60 Hz, until RandR tells of a monitor lit under it. Each window's rate,
-  and what it comes from, is logged at info with the target
+  faster of mirrored ones, read again each time it is shown, 100 ms after
+  it last moved or changed size, and whenever RandR tells of a change to
+  the screen, a CRTC or an output. A window shown again starts at the rate
+  it had and reads it after its first frame, so that the frame waits for
+  no round trip; one moved or resized reads it once it has rested, since
+  a round trip while it is dragged would wait behind each move. silent's
+  copy of these crates does the same. While no lit CRTC lies under it, a
+  window keeps the rate it had from one; failing that it takes the
+  fastest lit CRTC's, then the fastest mode RandR lists, then 60 Hz,
+  until RandR tells of a monitor lit under it. Each window's rate, and
+  what it comes from, is logged at info with the target
   `gpui_linux::linux::x11::refresh`, which `GPUI_GREETER_FRAMES=1` turns
   on.
 
