@@ -5,7 +5,7 @@
 # The AUR's gpui-greeter builds a tagged release with the same
 # dependencies, check() and package(); keep the two alike.
 pkgname=gpui-greeter
-pkgver=0.1.0
+pkgver=1.0.0
 pkgrel=1
 pkgdesc='A greeter for greetd on X11, drawn with GPUI'
 arch=(x86_64)

@@ -2,10 +2,11 @@
 
 <!-- TODO: the date of the release, once it is tagged. -->
 
-## 0.1.0 (unreleased)
+## 1.0.0 (unreleased)
 
 The first release. gpui-greeter is a login screen for greetd on X11, a lock
-screen for any X session, and a settings window for both, drawn with GPUI.
+screen for any X session, and a settings window for both, built with GPUI and
+gpui-kit.
 
 **The login screen.** greetd runs the greeter as its `greeter` user, in an X
 server of its own that `startx` starts on VT 1, with a window over every
@@ -20,11 +21,11 @@ by a second press. If the greeter's X server cannot start, agreety offers a
 text login on the same VT. The password is wiped from memory once it is sent,
 and never logged.
 
-**Three looks.** Paper sets a large Fraunces clock on warm paper, on a desk,
-ledger paper, a drafting sheet or plain, with Paper Night on a walnut desk or
-a dark ground, each in an accent of your choosing. Frost is macOS's lock
-screen and login window, over a wallpaper that blurs and dims behind the
-form. Neon is a terminal over a drawn city at night, a circuit board, a
+**Built-in looks.** Paper sets a large Fraunces clock on warm paper, on a
+desk, ledger paper, a drafting sheet or plain, with Paper Night on a walnut
+desk or a dark ground, each in an accent of your choosing. Frost follows
+macOS's lock screen and login window, over a wallpaper that blurs and dims
+behind the form. Neon is a terminal over a drawn city at night, a circuit board, a
 synthwave horizon or a grid, with scanlines and a scan beam. F9 and Shift+F9
 switch looks, Tab, Shift+Tab and F2 the session, F10 to F12 the power
 actions. No look says how to log in: the line under the field stays quiet
@@ -45,8 +46,8 @@ text that fills in the time, the user, the session, PAM's words and facts
 about the machine, read from files. `check-theme` names every problem by file
 and line, `preview --shot` draws a theme without a display, and
 `install-theme` installs it. A theme that cannot be read gives way to Paper.
-The package carries a skill for designing themes with a coding agent, and an
-example theme, Dial.
+The package carries a skill for designing themes with a coding agent, an
+idea borrowed from Omarchy, and an example theme, Dial.
 
 **The lock screen.** `gpui-greeter lock` locks a running X session with the
 same looks, at rest until a key, the first key only waking it. A small
