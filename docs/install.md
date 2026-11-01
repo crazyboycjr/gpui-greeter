@@ -50,9 +50,6 @@ greetd read `/etc/greetd/gpui-greeter.toml` instead.
 
 ## NixOS
 
-<!-- TODO: check this against flake.nix and packaging/nix/module.nix as
-the packaging branch lands them. -->
-
 The flake has a NixOS module. Add the flake to your system's inputs and
 turn the module on:
 
@@ -84,12 +81,16 @@ It sets up greetd with the greeter on VT 1, in an X server of its own that
 window's Apply changes only your avatar there, and `install-theme --select`
 cannot select a theme, so set `theme` in `settings` instead.
 `services.gpui-greeter.lock.enable` (on by default) adds the PAM service
-of `gpui-greeter lock`, and `services.gpui-greeter.bing.enable` the daily
-timer for Bing's picture of the day.
+of `gpui-greeter lock`, and `services.gpui-greeter.bing.enable` (on when
+`settings.wallpaper.pick` is `"bing"`) the daily timer for Bing's picture
+of the day.
 
-Elsewhere, `nix run github:crazyboycjr/gpui-greeter -- preview DIR` shows a
-theme folder and `-- settings` opens the settings window; the login screen
-itself needs greetd, set up as the Arch package or the NixOS module does.
+On other distributions, a Nix-built gpui-greeter does not reach the
+system's Vulkan driver by itself and cannot open its windows, so
+`nix run github:crazyboycjr/gpui-greeter -- preview DIR` needs a wrapper
+such as [nixGL](https://github.com/nix-community/nixGL) there. The login
+screen itself needs greetd, set up as the Arch package or the NixOS module
+does.
 
 ## From source
 
@@ -108,7 +109,7 @@ goes.
 Run one display manager at a time. Starting greetd while another display
 manager's session is running starts a second X server beside that
 session's, and the two can fight over the GPU: on NVIDIA the session's X
-server lost the GPU to the greeter's and ended, taking the session with
+server can lose the GPU to the greeter's and end, taking the session with
 it. To look at a theme folder without any of that, `gpui-greeter preview
 DIR` shows it in a window of the running session (see
 [theme folders](themes.md)).

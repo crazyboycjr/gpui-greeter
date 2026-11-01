@@ -37,7 +37,7 @@ Have the window manager run it. In xmonad's keys:
 In i3's config:
 
 ```
-bindsym $mod+Shift+l exec --no-startup-id gpui-greeter lock
+bindsym $mod+Shift+x exec --no-startup-id gpui-greeter lock
 ```
 
 Any other window manager's key bindings, or a key daemon such as sxhkd,

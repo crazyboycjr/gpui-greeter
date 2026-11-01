@@ -133,8 +133,8 @@ sudo systemctl enable --now gpui-greeter-bing.timer
 The lock screen shows the newest picture there. The settings window's
 Wallpaper section shows them all, by day and title, and a click on one
 shows it always, written as `pick = "bing4k/2026-10-29.jpg"`. Nothing is
-removed from the folder, which grows by about 3.5 MB a day; delete old
-pictures there by hand when it is large enough.
+removed from the folder, which grows by a picture of a few megabytes a
+day; delete old pictures there by hand when it is large enough.
 
 ## Sessions
 

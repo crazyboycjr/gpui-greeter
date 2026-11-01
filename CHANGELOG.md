@@ -10,25 +10,25 @@ screen for any X session, and a settings window for both, drawn with GPUI.
 **The login screen.** greetd runs the greeter as its `greeter` user, in an X
 server of its own that `startx` starts on VT 1, with a window over every
 monitor and the form on the primary one, following the pointer to another.
-Sessions come from the
-desktop entries in `/usr/share/xsessions` and start the way tuigreet starts
-them, `startx /usr/bin/env <Exec>`, so your own `~/.xserverrc` and
-`~/.xinitrc` apply. The session starts the moment PAM accepts the password,
-with no welcome to wait through. The last user and session are remembered,
-and before the first login the session is the one LightDM left with
-AccountsService. Power actions go to logind, each confirmed by a second
-press. If the greeter's X server cannot start, agreety offers a text login on
-the same VT. The password is wiped from memory once it is sent, and never
-logged.
+Sessions come from the desktop entries in `/usr/share/xsessions` and start the
+way tuigreet starts them, `startx /usr/bin/env <Exec>`, so your own
+`~/.xserverrc` and `~/.xinitrc` apply. The session starts the moment PAM
+accepts the password, with no welcome to wait through. The last user and
+session are remembered, and before the first login the session is the one
+LightDM left with AccountsService. Power actions go to logind, each confirmed
+by a second press. If the greeter's X server cannot start, agreety offers a
+text login on the same VT. The password is wiped from memory once it is sent,
+and never logged.
 
-**Three looks.** Paper, a large Fraunces clock on warm paper, on a desk,
+**Three looks.** Paper sets a large Fraunces clock on warm paper, on a desk,
 ledger paper, a drafting sheet or plain, with Paper Night on a walnut desk or
-a dark ground, each in an accent of your choosing. Frost, macOS's lock screen and login
-window over a wallpaper that blurs and dims behind the form. Neon, a terminal
-over a drawn city at night, a circuit board, a synthwave horizon or a grid,
-with scanlines and a scan beam. F9 and Shift+F9 switch looks, Tab, Shift+Tab
-and F2 the session, F10 to F12 the power actions. No look says how to log in:
-the line under the field stays quiet until there is something to say.
+a dark ground, each in an accent of your choosing. Frost is macOS's lock
+screen and login window, over a wallpaper that blurs and dims behind the
+form. Neon is a terminal over a drawn city at night, a circuit board, a
+synthwave horizon or a grid, with scanlines and a scan beam. F9 and Shift+F9
+switch looks, Tab, Shift+Tab and F2 the session, F10 to F12 the power
+actions. No look says how to log in: the line under the field stays quiet
+until there is something to say.
 
 **Sizes and motion.** The looks are laid out in points, as a Mac lays out a
 display, from each monitor's own pixels per inch, at macOS's sizes: a 160 by
@@ -55,7 +55,7 @@ password with PAM (the service `gpui-greeter-lock`), while the looks are drawn
 by a second process that can start again without showing the session.
 `--when-idle` locks once the screen saver has kept the screen blank a while,
 and on `loginctl lock-session`. The lock asks compositors to keep compositing
-it, so it never flips into variable refresh.
+it, rather than let it flip into variable refresh.
 
 **The settings window.** `gpui-greeter settings` changes the look, each
 look's background and accent, Frost's wallpapers and Bing's picture of the

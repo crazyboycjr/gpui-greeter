@@ -46,12 +46,12 @@ its own, and F9 switches between them.
 
 ### Paper
 
-A large Fraunces clock on warm paper, and beneath it the avatar, the name and
-an underlined password field. The paper is a sheet on a wooden desk among a
-pencil, a fountain pen, a cup of coffee and a succulent; ledger paper; a
-drafting sheet whose title block holds the session and the power actions; or
-plain. Paper Night is the same on a walnut desk or a dark ground, and each
-takes an accent.
+Paper sets a large Fraunces clock on warm paper, with the avatar, the name
+and an underlined password field beneath it. The paper is a sheet on a
+wooden desk among a pencil, a fountain pen, a cup of coffee and a succulent;
+ledger paper; a drafting sheet whose title block holds the session and the
+power actions; or plain. Paper Night is the same on a walnut desk or a dark
+ground, and each takes an accent.
 
 <p><img src="docs/images/paper.webp" width="100%" alt="Paper on the desk: the clock 09:41 in Fraunces and the date on a sheet of paper, alice's avatar beside the name and a password field with seven dots, the session at the bottom left and Sleep, Restart and Shut down at the bottom right; on the wooden desk to the right a cup of coffee, a pencil, a fountain pen, a sticky note and a succulent"></p>
 
@@ -59,21 +59,23 @@ takes an accent.
 
 ### Frost
 
-macOS's lock screen and login window. At rest, the wallpaper, sharp, with a
-large clock and the date; a key or a click blurs and dims it behind a round
-avatar, the name and a password field, set low as macOS sets them, above
-Sleep, Restart and Shut Down. The sizes are macOS's, point for point: a
-160 by 28 point field, a 72-point avatar, round password dots set as close as
-Apple's, and a refused password shakes the field in three small swings.
+Frost is macOS's lock screen and login window. At rest it shows the
+wallpaper, sharp, with a large clock and the date; a key or a click blurs and
+dims it behind a round avatar, the name and a password field, set low as
+macOS sets them, above Sleep, Restart and Shut Down. The sizes are macOS's,
+point for point: a 160 by 28 point field, a 72-point avatar, round password
+dots set as close as Apple's, and a refused password shakes the field in
+three small swings.
 
 <p><img src="docs/images/frost-form.webp" width="100%" alt="Frost's form at full size: the avatar in its round frame, the name alice, a password field holding seven round dots, and Sleep, Restart and Shut Down under it, over a blurred sunset"></p>
 
 ### Neon
 
-A terminal over a city at night, a circuit board with light running along its
-traces, a synthwave sunset over a moving grid floor, or a faint grid, all with
-scanlines and a slow scan beam; a status line that goes READY, AUTH, then
-GRANTED or DENIED, and F-key buttons.
+Neon is a terminal over a city at night, a circuit board with light running
+along its traces, a synthwave sunset over a moving grid floor, or a faint
+grid, all with scanlines and a slow scan beam. Its status line goes READY,
+AUTH, then GRANTED or DENIED, and F-keys along the bottom pick the session,
+the keyboard layout and the power actions.
 
 <p><img src="docs/images/neon.webp" width="100%" alt="Neon over a synthwave sunset: the host name example-host in large type over a terminal panel with the user alice and a typed password, a moving grid floor below and the time at the top right"></p>
 
@@ -139,7 +141,7 @@ the password is accepted every window is as it was.
 <p><img src="docs/images/lock.webp" width="100%" alt="The lock screen at rest in three looks: Paper Night's clock on a walnut desk, Neon's host name over a city at night marked LOCKED, and Dial's ring of ticks"></p>
 
 ```sh
-gpui-greeter lock                    # from a key of your window manager's
+gpui-greeter lock                    # on a key of your window manager
 gpui-greeter lock --when-idle 30 &   # in ~/.xinitrc: lock once the screen has blanked
 ```
 
@@ -170,17 +172,18 @@ only the settings the window offers and checks them all first.
 ## Made for a real desk
 
 - **Native density.** The looks are laid out in points, as a Mac lays out a
-  display, from each monitor's own pixels per inch: as large on a 27-inch 4K
-  monitor as on a 24-inch 1080p one, and as large as macOS's lock screen.
-- **Every monitor.** A window over each one, and the form on the primary one,
-  following the pointer to another. Nothing is tied to a monitor, a port or a
-  mode.
+  display, from each monitor's own pixels per inch: about as large on a
+  27-inch 4K monitor as on a 24-inch 1080p one, and as large as macOS's lock
+  screen.
+- **Every monitor.** Each monitor gets a window of its own, and the form
+  shows on the primary one and follows the pointer to another. Nothing is
+  tied to a monitor, a port or a mode.
 - **Smooth.** Each window draws at its own monitor's refresh rate, 240 Hz
   included, and follows it as monitors sleep, wake and change modes.
 - **Instant.** The session starts the moment PAM accepts the password, with
   no welcome to wait through.
-- **English and 中文.** `language = "zh-CN"` for Chinese, in every look, the
-  lock screen and the settings window.
+- **English and 中文.** `language = "zh-CN"` puts every look, the lock screen
+  and the settings window in Chinese.
 
 <p><img src="docs/images/zh.webp" width="100%" alt="The Chinese login screen: Frost at rest with the date 10月31日 星期六 over the lake at sunset, and Paper signing in with the date and the Chinese session and power labels"></p>
 
@@ -207,8 +210,6 @@ makepkg -si
 On NixOS, the flake's module sets up greetd with the greeter
 ([docs/install.md](docs/install.md#nixos)):
 
-<!-- TODO: check against the packaging branch's flake.nix and module.nix. -->
-
 ```nix
 imports = [ gpui-greeter.nixosModules.default ];
 services.gpui-greeter.enable = true;
@@ -218,7 +219,7 @@ services.gpui-greeter.enable = true;
 
 Run one display manager at a time: starting greetd while another display
 manager's session runs starts a second X server beside it, and on NVIDIA that
-session's X server lost the GPU and ended, taking the session with it.
+session's X server can lose the GPU and end, taking the session with it.
 
 ```sh
 sudo gpui-greeter-switch greetd    # greetd from the next boot
@@ -229,9 +230,10 @@ Nothing starts or stops until the next boot. To switch at once, log out, log
 in on a text console (Ctrl+Alt+F2) and run
 `sudo systemctl stop lightdm && sudo systemctl start greetd`. The session
 greetd starts runs on VT 1, where the login screen was, so Ctrl+Alt+F1 returns
-to it from a text console; stopping or restarting greetd ends it. The logs
-are in `journalctl -t gpui-greeter`, and if the greeter's X server cannot
-start, agreety offers a text login on the same VT.
+to it from a text console. Stopping or restarting greetd ends that session.
+
+The logs are in `journalctl -t gpui-greeter`, and if the greeter's X server
+cannot start, agreety offers a text login on the same VT.
 [docs/install.md](docs/install.md) has what the package installs and the rest.
 
 ## Configuration

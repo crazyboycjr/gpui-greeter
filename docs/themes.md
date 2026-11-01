@@ -52,11 +52,12 @@ from logging in.
 `preview` shows the theme against a fake greetd that takes the password
 `test`, in a window of the running session; with `--shot` it needs no
 display, drawing in an Xvfb of its own with lavapipe, and writes a
-screenshot once the screen settles. `--state` shows the theme at rest,
-waiting, typing, checking or refused, `--lang` in English or Chinese,
-`--size` on another screen, `--lock` as the lock screen, and `--user` and
-`--host` stand in for the real names. `--press` and `--hover` press its
-keys and point at its controls before the screenshot.
+screenshot once the screen settles. `--state` shows the theme in one
+state, `rest`, `idle` (waiting), `typing`, `checking` or `error`
+(refused); `--lang` shows it in English or Chinese, `--size` on another
+screen and `--lock` as the lock screen, and `--user` and `--host` stand
+in for the real names. `--press` and `--hover` press its keys and point
+at its controls before the screenshot.
 
 `install-theme` checks the folder again and copies its files, owned by
 root and readable by the greeter, to the themes folder; `--select` sets
