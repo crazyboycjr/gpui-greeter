@@ -361,9 +361,21 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let check = dir.join("check");
+        // pam_exec gives the script no PATH, so it names tr as found on the
+        // tests' own: a build root such as Nix's has none in /usr/bin.
+        let tr = std::env::var_os("PATH")
+            .and_then(|path| {
+                std::env::split_paths(&path)
+                    .map(|dir| dir.join("tr"))
+                    .find(|tr| tr.is_file())
+            })
+            .unwrap_or_else(|| PathBuf::from("tr"));
         std::fs::write(
             &check,
-            "#!/bin/sh\n[ \"$(tr -d '\\000')\" = test ] && exit 0\necho 'Wrong test password'\nexit 1\n",
+            format!(
+                "#!/bin/sh\n[ \"$({} -d '\\000')\" = test ] && exit 0\necho 'Wrong test password'\nexit 1\n",
+                tr.display()
+            ),
         )
         .unwrap();
         std::fs::set_permissions(&check, std::fs::Permissions::from_mode(0o755)).unwrap();
