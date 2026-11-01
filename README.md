@@ -1,390 +1,276 @@
-# gpui-greeter
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/header-dark.png">
+    <img src="docs/images/header-light.png" width="880" alt="gpui-greeter: a login and lock screen for X11, drawn on the GPU with GPUI">
+  </picture>
+</p>
 
-A greeter for [greetd](https://git.sr.ht/~kennylevinsen/greetd) on X11,
-drawn with [GPUI](https://www.gpui.rs) and longbridge's
-[gpui-kit](https://github.com/longbridge/gpui-kit). It comes in three looks,
-chosen in its settings:
+<p align="center">
+  A greeter for greetd on X11, with a lock screen and a settings window, drawn with GPUI.
+</p>
 
-- **Paper**: a large Fraunces clock on paper and beneath it the avatar,
-  beside the name and an underlined password field, the session at the
-  bottom left and Sleep, Restart and Shut down at the bottom right. The
-  paper is a sheet on a wooden desk, among a pencil, a fountain pen, a cup
-  of coffee and a succulent; ledger paper; a drafting sheet, whose title
-  block holds the session and the power actions on F10, F11 and F12; or
-  plain. Paper Night is the same on a walnut desk or a dark ground.
-- **Frost**: macOS's lock screen and login window: a wallpaper, sharp,
-  with a big clock and the date. A click or a key blurs and dims it behind
-  a round avatar, the name and a password field, low on the screen as
-  macOS sizes and places them, above Sleep, Restart and Shut Down, with the
-  time in the top right corner and the session in the bottom left.
-- **Neon**: a terminal over a city at night, a circuit board with light
-  running along its traces, a synthwave sunset over a moving grid floor, or
-  a faint grid, all with scanlines and a slow scan beam; a status line that
-  goes READY, AUTH, then GRANTED or DENIED, and F-key buttons.
+<p align="center">
+  <a href="https://crazyboycjr.github.io/gpui-greeter/">Homepage</a> ·
+  <a href="#install">Install</a> ·
+  <a href="#three-looks">Looks</a> ·
+  <a href="#theme-folders">Theme folders</a> ·
+  <a href="#lock-screen">Lock screen</a> ·
+  <a href="#settings">Settings</a> ·
+  <a href="CHANGELOG.md">Changes</a>
+</p>
 
-None of them says how to log in or how to wake the screen: as on a Mac,
+<p><img src="docs/images/readme-frost.webp" width="100%" alt="Frost at rest: a mountain lake at sunset with the date and a large clock reading 09:41; a key blurs and dims the picture behind a round avatar, the name alice and a password field, seven dots are typed, the refused password shakes the field and says so, and Escape brings back the clock"></p>
+
+## Why I wrote this
+
+The login screen is the first thing my computer shows me every day, and on
+X11 none of them looked like they belonged there. LightDM's GTK greeter looks
+dated, the web greeter that followed lightdm-webkit died along with PyQt5, and
+SDDM and the rest are not what I would call fancy. The Mac beside it,
+meanwhile, greets me with a blurred wallpaper, a big clock, and a field that
+shakes when I mistype.
+
+So I wrote my own: a greeter for greetd on X11, drawn with GPUI, the GPU UI
+framework of the Zed editor, and held to the polish of macOS's login and lock
+screens. Its Frost look is measured against Apple's own pictures of them,
+point for point. It grew two more looks of its own, a lock screen that shares
+them, a settings window, and theme folders that you, or a coding agent, can
+design.
+
+If you run X11 and would like a login screen you are glad to see, read on.
+
+## Three looks
+
+Paper, Frost and Neon come built in, each with backgrounds or a wallpaper of
+its own, and F9 switches between them.
+
+### Paper
+
+A large Fraunces clock on warm paper, and beneath it the avatar, the name and
+an underlined password field. The paper is a sheet on a wooden desk among a
+pencil, a fountain pen, a cup of coffee and a succulent; ledger paper; a
+drafting sheet whose title block holds the session and the power actions; or
+plain. Paper Night is the same on a walnut desk or a dark ground, and each
+takes an accent.
+
+<p><img src="docs/images/paper.webp" width="100%" alt="Paper on the desk: the clock 09:41 in Fraunces and the date on a sheet of paper, alice's avatar beside the name and a password field with seven dots, the session at the bottom left and Sleep, Restart and Shut down at the bottom right; on the wooden desk to the right a cup of coffee, a pencil, a fountain pen, a sticky note and a succulent"></p>
+
+<p><img src="docs/images/paper-backgrounds.webp" width="100%" alt="Four more Paper backgrounds: ledger paper with blue rules and a blue accent, a drafting sheet with its title block, Paper Night on a walnut desk, and a drafting sheet at night"></p>
+
+### Frost
+
+macOS's lock screen and login window. At rest, the wallpaper, sharp, with a
+large clock and the date; a key or a click blurs and dims it behind a round
+avatar, the name and a password field, set low as macOS sets them, above
+Sleep, Restart and Shut Down. The sizes are macOS's, point for point: a
+160 by 28 point field, a 72-point avatar, round password dots set as close as
+Apple's, and a refused password shakes the field in three small swings.
+
+<p><img src="docs/images/frost-form.webp" width="100%" alt="Frost's form at full size: the avatar in its round frame, the name alice, a password field holding seven round dots, and Sleep, Restart and Shut Down under it, over a blurred sunset"></p>
+
+### Neon
+
+A terminal over a city at night, a circuit board with light running along its
+traces, a synthwave sunset over a moving grid floor, or a faint grid, all with
+scanlines and a slow scan beam; a status line that goes READY, AUTH, then
+GRANTED or DENIED, and F-key buttons.
+
+<p><img src="docs/images/neon.webp" width="100%" alt="Neon over a synthwave sunset: the host name example-host in large type over a terminal panel with the user alice and a typed password, a moving grid floor below and the time at the top right"></p>
+
+<p><img src="docs/images/neon-backgrounds.webp" width="100%" alt="Neon's panel over two more of its backgrounds: a city at night with its windows lit, and a circuit board whose traces carry pulses of light"></p>
+
+### Switching looks
+
+F9 switches to the next look at the login screen and at the lock screen, and
+Shift+F9 to the one before: the built-in looks, then the theme folders you
+have installed. The greeter starts with the one picked next time. Tab picks
+the session, F10 to F12 sleep, restart and shut down after a second press,
+and Escape clears the field or goes back to rest.
+
+<p><img src="docs/images/f9.webp" width="100%" alt="F9 pressed five times at the login screen: Paper on its desk, Paper Night, Frost over a mountain lake, Neon over a city at night, then the example theme Dial, and back to Paper"></p>
+
+None of the looks says how to log in or how to wake the screen: as on a Mac,
 the line under the field stays quiet until there is something to say, a
 refused password or a word from PAM.
 
-F9 switches between them at the login screen. Tab and F2 step to the next
-session, Shift+Tab to the one before, in every look, as a click on the
-session does.
-
-It speaks English and Chinese (`language = "zh-CN"`); another language is
-one more table in `src/i18n.rs`.
-
-Other looks come as theme folders, which live outside the package and can be
-designed with an agent; see [Theme folders](#theme-folders).
-
-## How it fits together
-
-greetd runs the greeter as its `greeter` user through `startx`, in an X
-server of its own on VT 1. The greeter opens a window over every monitor
-and lays each one out in points, as a Mac lays out its display: a Mac
-draws a 27-inch display at about 109 points to the inch, so a point is a
-monitor's pixels per inch over 109, from the size it reports, and never
-less than a pixel. On a 27-inch 3840×2160 monitor a point is 1.5 pixels
-and the screen 2560×1440 points; on a 27-inch 2560×1440 or a 24-inch
-1920×1080 monitor, a point is a pixel. A monitor that reports no size
-counts as 2560×1440 points fitted to its pixels. The looks are as large
-as macOS's lock screen, point for point, as it is on a 27-inch display:
-13-point text, a 160 by 28 point password field, a 72-point avatar and a
-clock whose figures stand 122 points tall (the theme skill's
-[reference](skills/gpui-greeter-theme/reference.md#macos-metrics) has
-the measurements). Each look keeps its parts against the window's edges
-and its middle, so it holds on any size and shape, and `scale` in the
-settings makes every look larger or denser.
-The login form is on the primary monitor (or the one under the pointer)
-and follows the pointer to another one. Nothing in it names a monitor, a
-port or a mode.
-
-On Enter it asks greetd to log the user in, and once PAM accepts, to start
-the chosen X session the way tuigreet does, `startx /usr/bin/env <Exec>`,
-so the user's own `~/.xserverrc` and `~/.xinitrc` apply. The greeter then
-exits at once, startx stops its X server, and greetd starts the session on
-the same VT. Power actions go to logind over D-Bus, and each asks for a
-second press to confirm. The last user and session are remembered; before
-the first login, the session is the one AccountsService remembers from
-LightDM.
-
-While another VT is in front, such as a text console, the greeter takes
-its windows off the screen and draws nothing until its
-own VT is back. logind's view of the greeter's session says when, or the
-kernel's active console where logind cannot.
-
-The password is kept in memory that is wiped once it is sent, and never
-logged. If the greeter's X server cannot start, greetd's command falls back
-to agreety, a text login on the same VT whose session is the user's
-`startx`. If the greeter itself fails, greetd restarts.
-
-## Install
-
-On Arch Linux, build the package from this repository and install it:
-
-    cd packaging/arch
-    makepkg -si
-
-It installs the greeter as `/usr/bin/gpui-greeter`, its settings as
-`/etc/gpui-greeter/config.toml`, its home `/var/lib/gpui-greeter`, and
-greetd's settings for it as `/etc/greetd/gpui-greeter.toml`. greetd's own
-`/etc/greetd/config.toml` stays as it is: a drop-in for greetd.service
-points greetd at the new file.
-
-Run one display manager at a time. Starting greetd while another display
-manager's session is running starts a second X server beside that
-session's, and the two can fight over the GPU: on NVIDIA the session's X
-server lost the GPU to the greeter's and ended, taking the session with
-it. To look at a theme folder without any of that, `gpui-greeter preview
-DIR` shows it in a window of the running session (see Theme folders).
-
-    sudo gpui-greeter-switch greetd
-
-makes greetd the display manager from the next boot; nothing starts or
-stops before then. LightDM stays installed, and
-
-    sudo gpui-greeter-switch lightdm
-
-makes it the display manager again from the next boot. To switch at once,
-log out first, since stopping LightDM ends the session it started; then
-log in on a text console (Ctrl+Alt+F2) and run
-`sudo systemctl stop lightdm && sudo systemctl start greetd`. Going back
-is the same with the two swapped, after logging out of any session greetd
-started.
-
-The session greetd starts runs on VT 1, where the login screen was, so
-Ctrl+Alt+F1 returns to it from a text console (LightDM's ran on VT 7).
-Stopping or restarting greetd ends that session.
-
-The greeter's log, startx's and the X server's are in
-`journalctl -t gpui-greeter`, Xorg's log in
-`/var/lib/gpui-greeter/.local/share/xorg/`.
-
-## Wallpapers
-
-The greeter cannot read anyone's home, so Frost's pictures are copied to
-`/usr/local/share/gpui-greeter/wallpapers`: one by one under Wallpaper in
-`gpui-greeter settings` (see [Settings](#settings)), or a whole folder at
-once, again whenever it changes:
-
-    sudo gpui-greeter sync-wallpapers ~/Pictures/Wallpapers
-
-It mirrors the folder: new pictures are added, changed ones replaced,
-removed ones removed, and a picture saved twice is copied once. Every picture
-in the folder is copied, so keep only wallpapers there.
-
-With `pick = "bing"`, Frost shows Bing's picture of the day. Bing's
-pictures are kept at their full size, 3840×2160, in
-`/usr/local/share/gpui-greeter/bing4k`, which the package makes for the
-greeter's user and lets everyone read: each under its day,
-`2026-10-29.jpg`, beside `2026-10-29.json` with its title and copyright.
-The login screen asks Bing's archive for the picture of the day in the
-background and shows it as soon as it arrives; until the first one has,
-Frost shows one of the wallpapers. `gpui-greeter-bing.timer` does the same
-once a day as the greeter's user, so the pictures gather on days without a
-login screen too; the settings window turns it on when Bing is chosen and
-off otherwise, or by hand:
-
-    sudo systemctl enable --now gpui-greeter-bing.timer
-
-The lock screen shows the newest picture there. The settings window's
-Wallpaper section shows them all, by day and title, and a click on one
-shows it always, written as `pick = "bing4k/2026-10-29.jpg"`. Nothing is
-removed from the folder, which grows by about 3.5 MB a day; delete old
-pictures there by hand when it is large enough.
-
-## Settings
-
-`gpui-greeter settings`, "gpui-greeter Settings" among the applications,
-is a window for the settings used day to day: the look the login screen
-and the lock screen start with, each look's background and accent, Frost's
-wallpapers and Bing's pictures, your avatar, the size and the language. It
-shows the look as the greeter draws it, small, and follows each change at
-once.
-
-    gpui-greeter settings --section wallpaper
-
-Nothing changes until Apply. The avatar goes to AccountsService, which
-lets everyone set their own. The settings file, the wallpaper folder and
-the daily Bing timer are root's, so Apply runs `gpui-greeter
-apply-settings` once through pkexec, and polkit asks for the password.
-That helper reads the changes from its standard input, pictures included,
-and checks them all before it changes anything: only the settings the
-window offers, each value as the greeter reads it; new pictures that
-decode, under plain names, written into the configured wallpaper folder
-alone; removals of pictures that are there; a pick of one of Bing's
-pictures that is there; the package's own Bing timer, only turned on or
-off; and no folder that other users can write to. It keeps the settings
-file's comments. Without polkit, the window gives the `sudo` command that
-does the same.
-
-`dist/config.toml` lists every setting with its default: the theme, the
-language, the scale, each theme's accent and background, Frost's blur, dim
-and idle time, the wallpaper folder and pick, and how sessions start.
-
-`scale`, from 0.5 to 1.5, multiplies every size of every look, the theme
-folders' too: above 1 for a larger login screen, below 1 for a denser one.
-
-Paper's and Neon's backgrounds are drawn from the mockups' SVG (with
-resvg) at each monitor's size, and kept in
-`/var/lib/gpui-greeter/.cache/gpui-greeter/scenery`, one picture for each
-size, so that later starts read them back instead of drawing them again;
-what moves in them is drawn over the picture.
-
 ## Theme folders
 
-Besides its own looks, the greeter draws theme folders: a `theme.toml` of
-layers on a 3840 by 2160 frame, with the pictures, SVGs and fonts they draw,
-kept outside the package in `/usr/local/share/gpui-greeter/themes`, one
-folder per theme. `theme = "<name>"` selects one. Layers anchor to the
-screen's edges or its centre, change with the state of the login, and can
-move; text fills in the time, the user, the session, PAM's words and facts
-about the machine, read from files: a theme never runs anything.
-[The format](skills/gpui-greeter-theme/reference.md) is documented beside an
-example theme, [dial](skills/gpui-greeter-theme/dial).
+Other looks come as theme folders: a `theme.toml` of layers on a 3840 by 2160
+frame, with the pictures, SVGs and fonts they draw, anchored to the screen's
+edges and centre so they hold on any monitor. Layers change with the state of
+the login, can move, and fill in the time, the user, the session, what PAM
+says and facts about the machine, read from files: a theme never runs
+anything. They live outside the package, in
+`/usr/local/share/gpui-greeter/themes`, and every one is a lock screen too.
 
-    gpui-greeter check-theme DIR
-    gpui-greeter preview DIR --state error --lang zh-CN --shot error.png
-    sudo gpui-greeter install-theme DIR --select
+<p><img src="docs/images/dial-pair.webp" width="100%" alt="Dial, the example theme: a ring of sixty ticks around a serif clock with one tick lit in amber, at rest; then signing in, with the name and a password field under the ring and the power actions at the bottom right"></p>
 
-`check-theme` names what is wrong by file and line. `preview` shows the
-theme against a fake greetd; with `--shot` it needs no display, drawing in
-an Xvfb of its own with lavapipe. `install-theme` checks the folder, copies
-its files, owned by root and readable by the greeter, and `--select` sets
-`theme` in the settings. A theme that cannot be read gives way to Paper,
-and `journalctl -t gpui-greeter` says why.
+```sh
+gpui-greeter check-theme DIR
+gpui-greeter preview DIR --state error --lang zh-CN --shot error.png
+sudo gpui-greeter install-theme DIR --select
+```
 
-At the login screen, F9 switches to the next look and Shift+F9 back: the
-built-in looks, then the installed theme folders by name, or the list in
-`[themes] cycle`. Paper and Neon also show a quiet control for it beside
-their session. The greeter keeps the choice in its own state, under
-`/var/lib/gpui-greeter`, and starts with it next time, until the settings'
-`theme` changes.
+`check-theme` names what is wrong by file and line, and a theme that fails it
+is never drawn: the greeter shows Paper instead. `preview --shot` draws the
+theme in an X server of its own with no display needed. [The format](skills/gpui-greeter-theme/reference.md)
+is documented beside an example theme, [dial](skills/gpui-greeter-theme/dial),
+and [docs/themes.md](docs/themes.md) has the rest.
 
-### Designing a theme with an agent
+**Design one with an agent.** The package comes with a skill that walks an
+agent such as Claude Code through designing a theme with you: drawing out the
+idea, gathering fonts and pictures lawfully, previewing every state, and
+installing it. Add it to Claude Code with
 
-The package comes with a skill that walks an agent such as Claude Code
-through designing a theme with you: drawing out the idea, gathering fonts
-and pictures lawfully, previewing every state, and installing it. Add it to
-Claude Code with
+```sh
+mkdir -p ~/.claude/skills
+ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme ~/.claude/skills/
+```
 
-    mkdir -p ~/.claude/skills
-    ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme ~/.claude/skills/
-
-and ask it for a new login screen.
+and ask it for a new login screen. Your themes stay on your machine.
 
 ## Lock screen
 
-`gpui-greeter lock` locks a running X session with the same looks: Paper,
-Paper Night, Frost, Neon and the installed theme folders, over every
-monitor. It runs as the user, in their own session, under greetd or any
-other display manager.
+`gpui-greeter lock` locks a running X session with the same looks, over every
+monitor, under greetd or any other display manager. It starts at rest, the
+look's clock and art without the form; the first key only wakes it, and once
+the password is accepted every window is as it was.
 
-    gpui-greeter lock
+<p><img src="docs/images/lock.webp" width="100%" alt="The lock screen at rest in three looks: Paper Night's clock on a walnut desk, Neon's host name over a city at night marked LOCKED, and Dial's ring of ticks"></p>
 
-It starts at rest, the look's clock and art without the form, for a screen
-to leave behind while away. A key, a click or moving the mouse more than a
-nudge brings the form, and that first key types nothing, as on a Mac:
-Space, Enter or Escape is as good as any. Escape takes the form away again;
-F9 and Shift+F9 switch looks there too, and the lock keeps the
-look picked for next time in `~/.local/state/gpui-greeter/lock.toml`,
-until the settings' `theme` changes. F10 to F12 and the power buttons act
-as at the login screen, a second press confirming. The user is the one who
-locked, and the session the one running, which is not chosen there: the
-built-in looks leave out their session controls, the session keys do
-nothing, and a theme folder hides its session row with `locked` (see
-[the format](skills/gpui-greeter-theme/reference.md)). Once the password
-is accepted the lock is gone at once, and every window is as it was. Its
-drawn backgrounds are kept in the user's own `~/.cache/gpui-greeter`.
+```sh
+gpui-greeter lock                    # from a key of your window manager's
+gpui-greeter lock --when-idle 30 &   # in ~/.xinitrc: lock once the screen has blanked
+```
 
-To lock with a key, have the window manager run it. In xmonad's keys:
+A small supervisor holds the keyboard, the pointer and a black cover, and
+checks the password with PAM; the looks are drawn by a second process, which
+can crash and start again without ever showing the session. The password is
+checked as the PAM service `gpui-greeter-lock`, which the package installs.
+[docs/lock-screen.md](docs/lock-screen.md) covers key bindings, xss-lock and
+how it holds the screen.
 
-    , ((modm .|. shiftMask, xK_l), spawn "gpui-greeter lock")
+## Settings
 
-In i3's config:
+`gpui-greeter settings` is a window for the settings used day to day: the
+look to start with, each look's background and accent, Frost's wallpapers and
+Bing's picture of the day, your avatar, the size and the language. It shows
+the look as the greeter draws it, small, and follows each change at once.
 
-    bindsym $mod+Shift+l exec --no-startup-id gpui-greeter lock
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/settings-dark.webp">
+  <img src="docs/images/settings.webp" width="100%" alt="The settings window in warm paper tones: Look, Wallpaper, Avatar and General in a sidebar; a live preview of Frost signing in over the sunset wallpaper; the looks to choose from, and Frost's blur, dim and the seconds before the clock comes back">
+</picture>
 
-Any other window manager's key bindings, or a key daemon such as sxhkd,
-run the same command.
+Nothing changes until Apply. Your avatar goes to AccountsService; what root
+keeps goes through one `pkexec gpui-greeter apply-settings`, which accepts
+only the settings the window offers and checks them all first.
+[docs/settings.md](docs/settings.md) has the details.
 
-To lock once the screen has gone blank, let the lock wait for it in the
-session, say from `~/.xinitrc` before the window manager starts:
+## Made for a real desk
 
-    gpui-greeter lock --when-idle 30 &
+- **Native density.** The looks are laid out in points, as a Mac lays out a
+  display, from each monitor's own pixels per inch: as large on a 27-inch 4K
+  monitor as on a 24-inch 1080p one, and as large as macOS's lock screen.
+- **Every monitor.** A window over each one, and the form on the primary one,
+  following the pointer to another. Nothing is tied to a monitor, a port or a
+  mode.
+- **Smooth.** Each window draws at its own monitor's refresh rate, 240 Hz
+  included, and follows it as monitors sleep, wake and change modes.
+- **Instant.** The session starts the moment PAM accepts the password, with
+  no welcome to wait through.
+- **English and 中文.** `language = "zh-CN"` for Chinese, in every look, the
+  lock screen and the settings window.
 
-It locks once the X screen saver has kept the screen blank for 30 seconds
-(`xset s 600` blanks it after ten minutes without a key or the mouse;
-`xset s blank` blanks rather than draws a pattern), so that whoever wakes
-the screen finds the lock at rest with its clock, and at once on
-`loginctl lock-session`; `loginctl unlock-session` ends the lock it
-started. It costs nothing while it waits, starts no lock while one runs,
-and the lock keeps the screen blank: nothing is drawn until a key or the
-mouse wakes the screen, and the move that wakes it leaves the lock at
-rest.
+<p><img src="docs/images/zh.webp" width="100%" alt="The Chinese login screen: Frost at rest with the date 10月31日 星期六 over the lake at sunset, and Paper signing in with the date and the Chinese session and power labels"></p>
 
-xss-lock does the same when the screen saver starts, and locks before a
-suspend too, waiting until the lock is showing:
+## Install
 
-    xss-lock --transfer-sleep-lock -- gpui-greeter lock &
+gpui-greeter runs on X11, as the login screen of
+[greetd](https://git.sr.ht/~kennylevinsen/greetd). It needs a Vulkan driver,
+an X server with `startx`, PAM and systemd.
 
-A second lock started while one runs waits for that one and ends with it.
-Whatever started it, a lock takes its look off the screen while the
-screen saver has the screen blank, and puts it back when it lights up.
+On Arch Linux, from the AUR:
 
-The password is checked by PAM as the service `gpui-greeter-lock`, which
-the package installs as `/etc/pam.d/gpui-greeter-lock`:
+```sh
+paru -S gpui-greeter
+```
 
-    auth       include      system-auth
+Or from this repository, which builds what is on `main`:
 
-so as at a login: pam_unix checks it through its setuid helper, PAM waits
-a moment after a wrong one, and faillock counts the refusals and says
-when the account is locked. Without that file the lock refuses to start,
-since no password could end it.
+```sh
+git clone https://github.com/crazyboycjr/gpui-greeter
+cd gpui-greeter/packaging/arch
+makepkg -si
+```
 
-### How it holds the screen
+On NixOS, the flake's module sets up greetd with the greeter
+([docs/install.md](docs/install.md#nixos)):
 
-The process the command starts is the supervisor. It covers the screen
-with a plain black window, out of the window manager's hands, above every
-other window, docks and fullscreen ones included; it raises it again
-whenever another window is mapped or raised, and covers the screen again
-when the monitors change. It holds the keyboard and the pointer for as
-long as the screen is locked: a window manager's key bindings do nothing,
-and no other window gets a key or a click. When another program holds
-them for more than two seconds, as an open menu may, the lock says so and
-ends, rather than seem to lock. The supervisor checks the password with
-PAM and draws nothing else.
+<!-- TODO: check against the packaging branch's flake.nix and module.nix. -->
 
-The looks are drawn by its view, a second process, which it starts and
-hands the keys and the pointer to, and which hands it back what was
-typed; both wipe the password from memory once it is sent. Should the
-view crash, hang or fail to start, the cover and the grabs stay, the view
-starts again, and meanwhile the cover takes the password itself: a line
-where it goes, a square for each character, Enter to unlock.
+```nix
+imports = [ gpui-greeter.nixosModules.default ];
+services.gpui-greeter.enable = true;
+```
 
-The cover and the view's windows ask a compositor to keep compositing
-them (`_NET_WM_BYPASS_COMPOSITOR` set to 2) rather than unredirect them,
-as many do with a window over a whole monitor: a full-screen window that
-flips by itself on NVIDIA gets variable refresh, whose uneven pace can
-black out a monitor such as an OLED.
+### Switching to greetd
 
-What it cannot do: the supervisor is what holds the screen, so if it ends,
-by a bug or a signal, the X server lets go of its grabs and its cover and
-the session shows, as with any X screen locker; it is kept small for that.
-Programs running as the user can end it, as they can any of the user's
-programs. And the X server switches to another VT on Ctrl+Alt+F2 whatever
-holds the keyboard, so a text console logged in there stays usable.
+Run one display manager at a time: starting greetd while another display
+manager's session runs starts a second X server beside it, and on NVIDIA that
+session's X server lost the GPU and ended, taking the session with it.
 
-## Trying it out
+```sh
+sudo gpui-greeter-switch greetd    # greetd from the next boot
+sudo gpui-greeter-switch lightdm   # and back
+```
 
-`scripts/try` runs the greeter in an invisible X server (Xvfb, drawn by
-lavapipe) against a fake greetd that accepts the password `test` and only
-prints the session it would start. Power buttons only log.
+Nothing starts or stops until the next boot. To switch at once, log out, log
+in on a text console (Ctrl+Alt+F2) and run
+`sudo systemctl stop lightdm && sudo systemctl start greetd`. The session
+greetd starts runs on VT 1, where the login screen was, so Ctrl+Alt+F1 returns
+to it from a text console; stopping or restarting greetd ends it. The logs
+are in `journalctl -t gpui-greeter`, and if the greeter's X server cannot
+start, agreety offers a text login on the same VT.
+[docs/install.md](docs/install.md) has what the package installs and the rest.
 
-    cargo build --bins --examples
-    scripts/try start frost --monitors 2
-    scripts/try type test; scripts/try key Return
-    scripts/try shot frost-login
-    scripts/try log
-    scripts/try stop
+## Configuration
 
-`scripts/try start neon --background circuit` picks a background,
-`scripts/try start path/to/theme` runs a theme folder,
-`scripts/try vt away` and `scripts/try vt back` play the greeter's VT
-switched to another and back, and
-`cargo run --example scenery -- paper-night-desk desk.png` draws one alone.
+The settings are `/etc/gpui-greeter/config.toml`, which the package installs
+with every key and its default: the look, the language, the size, each look's
+background and accent, Frost's blur, dim and idle time, the wallpaper folder
+and pick, and how sessions start.
 
-Try the lock screen the same way, in an X server of its own (Xvfb, with
-`xrandr --setmonitor` for monitors), never on the display you work on: a
-build with `--features fake-pam`, which exists for tests alone and which
-packages leave out, takes `gpui-greeter lock --pam-dir DIR`, where DIR
-holds a fake `gpui-greeter-lock` service, so that no real password is
-involved. `gpui-greeter preview DIR --lock` shows a theme folder as the
-lock screen.
+```sh
+sudo gpui-greeter sync-wallpapers ~/Pictures/Wallpapers
+```
 
-To see how smoothly a look moves on a real screen, set
-`GPUI_GREETER_FRAMES=1`: after each burst of motion, such as a wake from
-rest, every window says on stderr how many frames it drew, how far apart
-they came, how long each took to lay out and paint, and which were slow.
-Each window also says how often it is given a frame, at what refresh
-rate, and from which monitor's mode, when it is shown and whenever that
-changes, as when its monitor sleeps or wakes.
-The lock screen is the easy place to read it, in a terminal of the
-session: wake it, press Escape to send it back to rest, a few times over,
-then unlock.
+copies a folder of wallpapers where the greeter can read them, for Frost; with
+`pick = "bing"` it shows Bing's picture of the day instead.
+[docs/configuration.md](docs/configuration.md) explains each setting.
 
-    GPUI_GREETER_FRAMES=1 gpui-greeter lock 2> frames.log
+## Built with Rust and GPUI
 
-`cargo test` covers the parts without a screen: the greetd conversation,
-the lock's PAM conversation (against libpam, with a fake service of the
-tests' own), desktop entries, users, the wallpaper copy, Bing's folder
-(against a web server of the tests' own), the settings and the Bing timer
-(offline, with `systemctl --root`), the theme format and the example
-theme, and the backgrounds,
-whose skyline and circuit board must come out of the mockup's seeds
-exactly as the mockup grows them.
+gpui-greeter is written in Rust on [GPUI](https://www.gpui.rs), the GPU UI
+framework of the Zed editor, through longbridge's
+[gpui-kit](https://github.com/longbridge/gpui-kit), and draws with Vulkan. It
+speaks to greetd with [greetd_ipc](https://crates.io/crates/greetd_ipc), to X
+with [x11rb](https://crates.io/crates/x11rb), to logind and AccountsService
+with [zbus](https://crates.io/crates/zbus), and draws its SVGs with
+[resvg](https://crates.io/crates/resvg). How it fits together, trying it in an
+invisible X server with `scripts/try`, and the tests are in
+[docs/development.md](docs/development.md).
 
-## Fonts
+## License
 
-Inter, Fraunces and JetBrains Mono are built in, subset to Latin and the
-symbols the looks use, under the SIL Open Font License (`assets/fonts`).
-Chinese text uses the system's Noto Sans CJK SC.
+<!-- TODO: the licence is the author's to choose. -->
+
+The licence is not chosen yet.
+
+The fonts built in, Inter, Fraunces and JetBrains Mono, and the example
+theme's Noto Serif Display are under the SIL Open Font License. The
+screenshots show a test account, alice, on a machine called example-host,
+with an avatar drawn for them. Frost's wallpapers in them are five
+photographs by Sergei Akulich, Robert Magnusson, Peter Winckler, adrian and
+Ales Krivec, released into the public domain (CC0) and kept on Wikimedia
+Commons; [docs/images/SOURCES.md](docs/images/SOURCES.md) links each.
