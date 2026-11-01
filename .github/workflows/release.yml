@@ -1,0 +1,76 @@
+# On a tag v<version>, builds the Arch package with packaging/arch/PKGBUILD,
+# its tests included, a tarball of the same files under usr/ and etc/ for
+# other distributions, and their SHA256SUMS, and publishes them as the tag's
+# GitHub release, with CHANGELOG.md's section for the version as its notes.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - name: Install what the build needs
+        run: >-
+          pacman -Syu --noconfirm --needed
+          git github-cli rust fontconfig libxcb libxkbcommon libxkbcommon-x11 pam
+
+      - uses: actions/checkout@v4
+
+      - name: Check that the tag, Cargo.toml and the PKGBUILD agree
+        run: |
+          version=${GITHUB_REF_NAME#v}
+          grep -qx "version = \"$version\"" Cargo.toml
+          grep -qx "pkgver=$version" packaging/arch/PKGBUILD
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      # makepkg will not run as root. --nodeps: the run-time dependencies,
+      # greetd, X and the rest, are not needed to build.
+      - name: Build the Arch package
+        run: |
+          useradd --create-home builder
+          chown -R builder .
+          su builder -c 'cd packaging/arch && makepkg --nodeps'
+
+      - name: Check that the binary runs
+        run: packaging/arch/pkg/gpui-greeter/usr/bin/gpui-greeter --version | grep -Fx "gpui-greeter $VERSION"
+
+      - name: Gather the files, with their checksums
+        run: |
+          mkdir release
+          cp packaging/arch/gpui-greeter-"$VERSION"-*.pkg.tar.* release/
+          tar -C packaging/arch/pkg/gpui-greeter --owner=0 --group=0 \
+            -czf "release/gpui-greeter-$VERSION-x86_64-linux.tar.gz" usr etc
+          cd release
+          sha256sum -- * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Write the release notes
+        run: |
+          package=$(cd release && ls gpui-greeter-"$VERSION"-*.pkg.tar.*)
+          {
+            echo "Install on Arch with \`paru -S gpui-greeter\`, or from the attached package with \`sudo pacman -U $package\`;"
+            echo "on NixOS, with the flake's module and \`services.gpui-greeter.enable = true;\` (see the README)."
+            echo "The tarball holds the same files under \`usr/\` and \`etc/\` for other distributions (X11 only)."
+            echo
+            awk -v heading="## $VERSION" '
+              /^## / { if (found) exit; if (index($0, heading) == 1) { found = 1; next } }
+              found { print }
+            ' CHANGELOG.md 2>/dev/null || true
+          } > notes.md
+          cat notes.md
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" release/*
+          --repo "$GITHUB_REPOSITORY"
+          --title "gpui-greeter $VERSION"
+          --notes-file notes.md
