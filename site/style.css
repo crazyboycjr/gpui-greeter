@@ -261,12 +261,12 @@ figcaption, .caption {
 }
 .hero-media figcaption { text-align: center; }
 
-/* Why I wrote this: a short letter in a reading column, between the hero
-   and the points. */
+/* Why I wrote this: a short note in a reading column, under the hero. */
 .why { margin-top: 104px; max-width: 760px; }
 .why .kicker { font-family: var(--font-text); font-size: var(--fs-s); line-height: 1.4; letter-spacing: 0.01em; }
 .why p { color: var(--ink-2); }
-.why + .points { margin-top: 80px; }
+/* The themes follow it closer than one feature follows another. */
+.why + .feature { margin-top: 96px; }
 
 /* Media: a screen in a frame, as wide as the column, or a window cut out
    on the page with a shadow that follows it. */
@@ -280,20 +280,6 @@ figure { margin: 0; }
 }
 .frame video, .frame img { width: 100%; height: auto; }
 .cutout img { width: 100%; height: auto; filter: var(--cutout-shadow); }
-
-/* The four points */
-.points {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 40px;
-  margin-top: 96px;
-  padding-top: 36px;
-  border-top: 1px solid var(--rule);
-}
-.point h2 { font-family: var(--font-text); font-size: var(--fs); font-weight: 650; letter-spacing: 0; line-height: 1.35; }
-.point h2 a { color: var(--ink); text-decoration: none; }
-.point h2 a:hover { text-decoration: underline; text-decoration-color: var(--rule-strong); }
-.point p { margin-top: 6px; font-size: var(--fs-s); line-height: 1.55; color: var(--ink-2); }
 
 /* A feature: its words in two columns, then its pictures across the page. */
 .feature { margin-top: var(--section); }
@@ -407,7 +393,7 @@ figure { margin: 0; }
   .top-nav { display: none; }
   .top-actions { margin-left: auto; }
   .feature-head { grid-template-columns: 1fr; gap: 16px; }
-  .points, .facts { grid-template-columns: repeat(2, 1fr); gap: 28px 32px; }
+  .facts { grid-template-columns: repeat(2, 1fr); gap: 28px 32px; }
   .stack, .details { grid-template-columns: 1fr; }
 }
 @media (max-width: 720px) {
@@ -421,9 +407,8 @@ figure { margin: 0; }
   .hero-media { margin-top: 40px; }
   .hero-media figcaption { text-align: left; }
   .why { margin-top: 72px; }
-  .why + .points { margin-top: 56px; }
+  .why + .feature { margin-top: 64px; }
   .frame { border-radius: 10px; }
-  .points { grid-template-columns: 1fr; margin-top: 64px; }
   .tiles, .install-grid, .pair { grid-template-columns: 1fr; }
   .tiles { gap: 28px; }
   .trio { grid-template-columns: 1fr; gap: 16px; }

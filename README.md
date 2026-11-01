@@ -1,109 +1,116 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/header-dark.png">
-    <img src="docs/images/header-light.png" width="880" alt="gpui-greeter: a login and lock screen for X11, drawn on the GPU with GPUI">
+    <img src="docs/images/header-light.png" width="880" alt="gpui-greeter: a login screen and lock screen for X11, built with GPUI and gpui-kit">
   </picture>
 </p>
 
 <p align="center">
-  A greeter for greetd on X11, with a lock screen and a settings window, drawn with GPUI.
+  A greeter for greetd on X11, with a lock screen and a settings window.
 </p>
 
 <p align="center">
   <a href="https://crazyboycjr.github.io/gpui-greeter/">Homepage</a> ·
   <a href="#install">Install</a> ·
-  <a href="#three-looks">Looks</a> ·
+  <a href="#themes">Themes</a> ·
   <a href="#theme-folders">Theme folders</a> ·
   <a href="#lock-screen">Lock screen</a> ·
   <a href="#settings">Settings</a> ·
   <a href="CHANGELOG.md">Changes</a>
 </p>
 
-<p><img src="docs/images/readme-frost.webp" width="100%" alt="Frost at rest: a mountain lake at sunset with the date and a large clock reading 09:41; a key blurs and dims the picture behind a round avatar, the name alice and a password field, seven dots are typed, the refused password shakes the field and says so, and Escape brings back the clock"></p>
-
 ## Why I wrote this
 
-The login screen is the first thing my computer shows me every day, and on
-X11 none of them looked like they belonged there. LightDM's GTK greeter looks
-dated, the web greeter that followed lightdm-webkit died along with PyQt5, and
-SDDM and the rest are not what I would call fancy. The Mac beside it,
-meanwhile, greets me with a blurred wallpaper, a big clock, and a field that
-shakes when I mistype.
+I wrote gpui-greeter for fun. Tiling window managers such as xmonad don't
+come with a display manager of their own, and LightDM, SDDM and GDM all look
+dated to me, so I made a modern-looking login screen for greetd, and a lock
+screen to go with it, with gpui-kit. That's all it is.
 
-So I wrote my own: a greeter for greetd on X11, drawn with GPUI, the GPU UI
-framework of the Zed editor, and held to the polish of macOS's login and lock
-screens. Its Frost look is measured against Apple's own pictures of them,
-point for point. It grew two more looks of its own, a lock screen that shares
-them, a settings window, and theme folders that you, or a coding agent, can
-design.
+## Themes
 
-If you run X11 and would like a login screen you are glad to see, read on.
-
-## Three looks
-
-Paper, Frost and Neon come built in, each with backgrounds or a wallpaper of
-its own, and F9 switches between them.
-
-### Paper
-
-Paper sets a large Fraunces clock on warm paper, with the avatar, the name
-and an underlined password field beneath it. The paper is a sheet on a
-wooden desk among a pencil, a fountain pen, a cup of coffee and a succulent;
-ledger paper; a drafting sheet whose title block holds the session and the
-power actions; or plain. Paper Night is the same on a walnut desk or a dark
-ground, and each takes an accent.
-
-<p><img src="docs/images/paper.webp" width="100%" alt="Paper on the desk: the clock 09:41 in Fraunces and the date on a sheet of paper, alice's avatar beside the name and a password field with seven dots, the session at the bottom left and Sleep, Restart and Shut down at the bottom right; on the wooden desk to the right a cup of coffee, a pencil, a fountain pen, a sticky note and a succulent"></p>
-
-<p><img src="docs/images/paper-backgrounds.webp" width="100%" alt="Four more Paper backgrounds: ledger paper with blue rules and a blue accent, a drafting sheet with its title block, Paper Night on a walnut desk, and a drafting sheet at night"></p>
+Frost and Neon come with gpui-greeter, as does Paper further down. XMonad
+Bind, XMonad Tall and Arch Linux Console are theme folders I made for my own
+machine with the theme skill in the package. They draw the xmonad and Arch
+Linux logos, so they stay on my machine and are not part of gpui-greeter;
+they are here to show what a [theme folder](#theme-folders) can do.
 
 ### Frost
 
-Frost is macOS's lock screen and login window. At rest it shows the
-wallpaper, sharp, with a large clock and the date; a key or a click blurs and
-dims it behind a round avatar, the name and a password field, set low as
-macOS sets them, above Sleep, Restart and Shut Down. The sizes are macOS's,
-point for point: a 160 by 28 point field, a 72-point avatar, round password
-dots set as close as Apple's, and a refused password shakes the field in
-three small swings.
+Frost follows macOS's lock screen and login window. At rest it shows the
+wallpaper with a large clock and the date; a key or a click blurs and dims it
+behind a round avatar, the name and a password field, set low as macOS sets
+them, above Sleep, Restart and Shut Down. The sizes are macOS's, point for
+point, and a refused password shakes the field in three small swings.
+
+<p><img src="docs/images/readme-frost.webp" width="100%" alt="Frost at rest: a mountain lake at sunset with the date and a large clock reading 09:41; a key blurs and dims the picture behind a round avatar, the name alice and a password field, seven dots are typed, the refused password shakes the field and says so, and Escape brings back the clock"></p>
 
 <p><img src="docs/images/frost-form.webp" width="100%" alt="Frost's form at full size: the avatar in its round frame, the name alice, a password field holding seven round dots, and Sleep, Restart and Shut Down under it, over a blurred sunset"></p>
 
+### XMonad Bind
+
+xmonad's classic logo on a dark page, a large clock, and a login written as
+Haskell: `login :: User -> Password -> X ()` above
+`login alice ••••••• >>= xmonad`, where the red `>>=` logs in and Tab changes
+the session after it. A wrong password gets GHC's type error back.
+
+<p><img src="docs/images/bind.webp" width="100%" alt="XMonad Bind after a refused password: xmonad's classic logo, an X over a red >>=, at the top left of a dark page, and the clock 09:41 with the date at the top right; under the logo, login :: User -> Password -> X (), then login alice, an empty field, >>= and xmonad, and GHC's error that it couldn't match the expected type Password with the actual type [Char]; F10 suspend, F11 reboot and F12 poweroff along the bottom"></p>
+
+### XMonad Tall
+
+The login tiled as xmonad's Tall layout tiles windows: the form is the master
+pane, with tty-clock, a feh slideshow and a list of keys stacked beside it,
+and polybar along the bottom. xmonad's own keys work, so mod-j and mod-k move
+the focus and mod-space cycles Tall, Mirror Tall and Full. At rest the clock
+fills the screen.
+
+<p><img src="docs/images/tall.webp" width="100%" alt="XMonad Tall: xmonad's logo over alice@example-host and seven typed dots in the master pane, which has the red border; at the right tty-clock reading 09:41, a feh slideshow showing a mountain lake, and xmonad's keys; polybar along the bottom with the date, the sessions as workspaces with xmonad current, the layout Tall and example-host"></p>
+
+### Arch Linux Console
+
+Arch's login on tty1: the issue line, a fetch block beside the Arch logo, and
+the `login:` and `Password:` prompts. The facts are read from the machine's
+own files (the screenshot's machine is made up), and a wrong password prints
+`Login incorrect`, as getty does.
+
+<p><img src="docs/images/console.webp" width="100%" alt="Arch Linux Console after a refused password: the issue line with the kernel and the date, the Arch Linux logo beside a fetch block for alice@example-host listing the system, kernel, uptime, packages, shell, CPU, GPU and the session xmonad, then example-host login: alice, Password: and eight asterisks, Login incorrect in red, and a new prompt"></p>
+
 ### Neon
 
-Neon is a terminal over a city at night, a circuit board with light running
-along its traces, a synthwave sunset over a moving grid floor, or a faint
-grid, all with scanlines and a slow scan beam. Its status line goes READY,
-AUTH, then GRANTED or DENIED, and F-keys along the bottom pick the session,
-the keyboard layout and the power actions.
+Neon puts the machine's name over a terminal panel, on a city at night, a
+circuit board with light running along its traces, a synthwave sunset over a
+moving grid floor, or a faint grid, all with scanlines and a slow scan beam.
+Its status line goes READY, AUTH, then GRANTED or DENIED, and F-keys along the
+bottom pick the session, the keyboard layout and the power actions.
 
 <p><img src="docs/images/neon.webp" width="100%" alt="Neon over a synthwave sunset: the host name example-host in large type over a terminal panel with the user alice and a typed password, a moving grid floor below and the time at the top right"></p>
 
 <p><img src="docs/images/neon-backgrounds.webp" width="100%" alt="Neon's panel over two more of its backgrounds: a city at night with its windows lit, and a circuit board whose traces carry pulses of light"></p>
 
-### Switching looks
-
-F9 switches to the next look at the login screen and at the lock screen, and
-Shift+F9 to the one before: the built-in looks, then the theme folders you
-have installed. The greeter starts with the one picked next time. Tab picks
-the session, F10 to F12 sleep, restart and shut down after a second press,
-and Escape clears the field or goes back to rest.
-
-<p><img src="docs/images/f9.webp" width="100%" alt="F9 pressed five times at the login screen: Paper on its desk, Paper Night, Frost over a mountain lake, Neon over a city at night, then the example theme Dial, and back to Paper"></p>
-
-None of the looks says how to log in or how to wake the screen: as on a Mac,
-the line under the field stays quiet until there is something to say, a
-refused password or a word from PAM.
-
 ## Theme folders
 
-Other looks come as theme folders: a `theme.toml` of layers on a 3840 by 2160
-frame, with the pictures, SVGs and fonts they draw, anchored to the screen's
-edges and centre so they hold on any monitor. Layers change with the state of
-the login, can move, and fill in the time, the user, the session, what PAM
-says and facts about the machine, read from files: a theme never runs
-anything. They live outside the package, in
-`/usr/local/share/gpui-greeter/themes`, and every one is a lock screen too.
+**Design your own, or ask an agent to.** A theme is a folder: a `theme.toml`
+of layers on a 3840 by 2160 frame, with the pictures, SVGs and fonts they
+draw, anchored to the screen's edges and centre so they hold on any monitor.
+Layers change with the state of the login, can move, and fill in the time,
+the user, the session, what PAM says and facts about the machine, read from
+files: a theme never runs anything. Theme folders live outside the package,
+in `/usr/local/share/gpui-greeter/themes`, and every one is a lock screen too.
+
+This is inspired by [Omarchy](https://omarchy.org), where a theme is a folder
+on your own machine that restyles the whole desktop, and Omarchy ships skills
+that help your coding agent make new ones. Here the package comes with a
+skill that walks an agent such as Claude Code through designing a theme with
+you: drawing out the idea, gathering fonts and pictures lawfully, previewing
+every state, and installing it. Add it to Claude Code with
+
+```sh
+mkdir -p ~/.claude/skills
+ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme ~/.claude/skills/
+```
+
+and ask it for a new login screen. XMonad Bind, XMonad Tall and Arch Linux
+Console were made this way, and your themes stay on your machine too. The
+package's own example is Dial, a clock in a ring of sixty ticks:
 
 <p><img src="docs/images/dial-pair.webp" width="100%" alt="Dial, the example theme: a ring of sixty ticks around a serif clock with one tick lit in amber, at rest; then signing in, with the name and a password field under the ring and the power actions at the bottom right"></p>
 
@@ -119,17 +126,32 @@ theme in an X server of its own with no display needed. [The format](skills/gpui
 is documented beside an example theme, [dial](skills/gpui-greeter-theme/dial),
 and [docs/themes.md](docs/themes.md) has the rest.
 
-**Design one with an agent.** The package comes with a skill that walks an
-agent such as Claude Code through designing a theme with you: drawing out the
-idea, gathering fonts and pictures lawfully, previewing every state, and
-installing it. Add it to Claude Code with
+## Paper
 
-```sh
-mkdir -p ~/.claude/skills
-ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme ~/.claude/skills/
-```
+Paper is the look the greeter starts with: a large Fraunces clock on warm
+paper, with the avatar, the name and an underlined password field beneath it.
+The paper is a sheet on a wooden desk among a pencil, a fountain pen, a cup of
+coffee and a succulent; ledger paper; a drafting sheet whose title block holds
+the session and the power actions; or plain. Paper Night is the same on a
+walnut desk or a dark ground, and each takes an accent.
 
-and ask it for a new login screen. Your themes stay on your machine.
+<p><img src="docs/images/paper.webp" width="100%" alt="Paper on the desk: the clock 09:41 in Fraunces and the date on a sheet of paper, alice's avatar beside the name and a password field with seven dots, the session at the bottom left and Sleep, Restart and Shut down at the bottom right; on the wooden desk to the right a cup of coffee, a pencil, a fountain pen, a sticky note and a succulent"></p>
+
+<p><img src="docs/images/paper-backgrounds.webp" width="100%" alt="Four more Paper backgrounds: ledger paper with blue rules and a blue accent, a drafting sheet with its title block, Paper Night on a walnut desk, and a drafting sheet at night"></p>
+
+## Switching looks
+
+F9 switches to the next look at the login screen and at the lock screen, and
+Shift+F9 to the one before: the built-in looks, then the theme folders you
+have installed. The greeter starts with the one picked next time. Tab picks
+the session, F10 to F12 sleep, restart and shut down after a second press,
+and Escape clears the field or goes back to rest.
+
+<p><img src="docs/images/f9.webp" width="100%" alt="F9 pressed five times at the login screen: Paper on its desk, Paper Night, Frost over a mountain lake, Neon over a city at night, then the example theme Dial, and back to Paper"></p>
+
+None of the looks says how to log in or how to wake the screen: as on a Mac,
+the line under the field stays quiet until there is something to say, a
+refused password or a word from PAM.
 
 ## Lock screen
 
@@ -169,7 +191,7 @@ keeps goes through one `pkexec gpui-greeter apply-settings`, which accepts
 only the settings the window offers and checks them all first.
 [docs/settings.md](docs/settings.md) has the details.
 
-## Made for a real desk
+## Details
 
 - **Native density.** The looks are laid out in points, as a Mac lays out a
   display, from each monitor's own pixels per inch: about as large on a
@@ -178,10 +200,10 @@ only the settings the window offers and checks them all first.
 - **Every monitor.** Each monitor gets a window of its own, and the form
   shows on the primary one and follows the pointer to another. Nothing is
   tied to a monitor, a port or a mode.
-- **Smooth.** Each window draws at its own monitor's refresh rate, 240 Hz
-  included, and follows it as monitors sleep, wake and change modes.
-- **Instant.** The session starts the moment PAM accepts the password, with
-  no welcome to wait through.
+- **Refresh rate.** Each window draws at its own monitor's refresh rate, 240
+  Hz included, and follows it as monitors sleep, wake and change modes.
+- **No waiting.** The session starts the moment PAM accepts the password,
+  with no welcome to wait through.
 - **English and 中文.** `language = "zh-CN"` puts every look, the lock screen
   and the settings window in Chinese.
 
@@ -272,7 +294,10 @@ The licence is not chosen yet.
 The fonts built in, Inter, Fraunces and JetBrains Mono, and the example
 theme's Noto Serif Display are under the SIL Open Font License. The
 screenshots show a test account, alice, on a machine called example-host,
-with an avatar drawn for them. Frost's wallpapers in them are five
-photographs by Sergei Akulich, Robert Magnusson, Peter Winckler, adrian and
-Ales Krivec, released into the public domain (CC0) and kept on Wikimedia
-Commons; [docs/images/SOURCES.md](docs/images/SOURCES.md) links each.
+with an avatar drawn for them. Frost's wallpapers in them, and the slides in
+XMonad Tall's, are five photographs by Sergei Akulich, Robert Magnusson,
+Peter Winckler, adrian and Ales Krivec, released into the public domain (CC0)
+and kept on Wikimedia Commons. The screenshots of XMonad Bind, XMonad Tall and
+Arch Linux Console show the xmonad and Arch Linux logos, which belong to their
+projects. [docs/images/SOURCES.md](docs/images/SOURCES.md) links each picture
+and says under what terms it is shown.

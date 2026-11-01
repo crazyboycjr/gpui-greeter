@@ -3,24 +3,24 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>gpui-greeter, a login and lock screen for X11</title>
-<meta name="description" content="A greeter for greetd on X11, with a lock screen and a settings window, drawn on the GPU with GPUI: a clock on warm paper, a frosted login as polished as a Mac's, or a terminal at night, and theme folders you can design.">
+<title>gpui-greeter, a login screen and lock screen for X11</title>
+<meta name="description" content="A login screen and lock screen for X11, built with GPUI and gpui-kit: a greeter for greetd with a lock screen, a settings window, and theme folders you can design yourself or with a coding agent.">
 <meta name="color-scheme" content="light dark">
 <link rel="icon" href="favicon.ico" sizes="16x16 32x32 48x48">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="gpui-greeter">
-<meta property="og:title" content="gpui-greeter, a login and lock screen for X11">
-<meta property="og:description" content="A greeter for greetd on X11, with a lock screen and a settings window, drawn on the GPU with GPUI.">
+<meta property="og:title" content="gpui-greeter, a login screen and lock screen for X11">
+<meta property="og:description" content="A login screen and lock screen for X11, built with GPUI and gpui-kit.">
 <meta property="og:url" content="https://crazyboycjr.github.io/gpui-greeter/">
 <meta property="og:image" content="https://crazyboycjr.github.io/gpui-greeter/media/social-preview.png">
 <meta property="og:image:width" content="1280">
 <meta property="og:image:height" content="640">
-<meta property="og:image:alt" content="gpui-greeter's icon, an avatar over a password field on a frosted dusk, beside the name and the line: a login and lock screen for X11">
+<meta property="og:image:alt" content="gpui-greeter's icon, an avatar over a password field on a frosted dusk, beside the name and the line: a login screen and lock screen for X11, built with GPUI and gpui-kit">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="gpui-greeter, a login and lock screen for X11">
-<meta name="twitter:description" content="A greeter for greetd on X11, with a lock screen and a settings window, drawn on the GPU with GPUI.">
+<meta name="twitter:title" content="gpui-greeter, a login screen and lock screen for X11">
+<meta name="twitter:description" content="A login screen and lock screen for X11, built with GPUI and gpui-kit.">
 <meta name="twitter:image" content="https://crazyboycjr.github.io/gpui-greeter/media/social-preview.png">
 <link rel="preload" href="fonts/literata-latin.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/noto-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -43,8 +43,8 @@
       <span>gpui-greeter</span>
     </a>
     <nav class="top-nav" aria-label="Sections">
-      <a href="#looks">Looks</a>
-      <a href="#themes">Theme folders</a>
+      <a href="#themes">Themes</a>
+      <a href="#theme-folders">Theme folders</a>
       <a href="#lock">Lock screen</a>
       <a href="#settings">Settings</a>
       <a href="#install">Install</a>
@@ -66,9 +66,9 @@
 <section class="hero">
   <div class="wrap hero-text">
     <img class="hero-icon" src="icon.svg" width="112" height="112" alt="gpui-greeter's icon: a round avatar over a password field with five dots, on a frosted dusk">
-    <p class="kicker">gpui-greeter 0.1, a login and lock screen for X11</p>
-    <h1>A login screen worth<br>waking up to.</h1>
-    <p class="lede">gpui-greeter greets you with a clock on warm paper, a frosted login as polished as a Mac's, or a terminal at night, drawn on the GPU with GPUI. It locks your session in the same looks, and takes new ones from a folder that you, or a coding agent, can design.</p>
+    <p class="kicker">gpui-greeter 1.0</p>
+    <h1>A login screen and lock screen for X11</h1>
+    <p class="lede">gpui-greeter is a greeter for greetd, with a lock screen and a settings window, built with GPUI and gpui-kit.</p>
     <div class="actions">
       <a class="button primary" href="#install">Install gpui-greeter</a>
       <a class="button" href="https://github.com/crazyboycjr/gpui-greeter">Source on GitHub</a>
@@ -87,69 +87,19 @@
 
 <section class="why wrap" id="why" aria-labelledby="why-title">
   <h2 class="kicker" id="why-title">Why I wrote this</h2>
-  <p>The login screen is the first thing my computer shows me every day, and on X11 none of them looked like they belonged there. LightDM's GTK greeter looks dated, the web greeter that followed lightdm-webkit died along with PyQt5, and SDDM and the rest are not what I would call fancy. The Mac beside it, meanwhile, greets me with a blurred wallpaper, a big clock, and a field that shakes when I mistype.</p>
-  <p>So I wrote my own: a greeter for greetd on X11, drawn with GPUI, the GPU UI framework of the Zed editor, and held to the polish of macOS's login and lock screens. Its Frost look is measured against Apple's own pictures of them, point for point. It grew two more looks of its own, a lock screen that shares them, a settings window, and theme folders that you, or a coding agent, can design.</p>
-  <p>If you run X11 and would like a login screen you are glad to see, read on.</p>
+  <p>I wrote gpui-greeter for fun. Tiling window managers such as xmonad don't come with a display manager of their own, and LightDM, SDDM and GDM all look dated to me, so I made a modern-looking login screen for greetd, and a lock screen to go with it, with gpui-kit. That's all it is.</p>
 </section>
 
-<section class="points wrap" aria-label="What gpui-greeter is">
-  <div class="point">
-    <h2><a href="#looks">Three looks</a></h2>
-    <p>Paper, Frost and Neon, with backgrounds and accents of their own, and F9 between them.</p>
+<section class="feature wrap" id="themes">
+  <div class="section-head">
+    <p class="kicker">Themes</p>
+    <h2>Built-in looks and theme folders</h2>
+    <p>Frost and Neon come with gpui-greeter, as does Paper further down. XMonad Bind, XMonad Tall and Arch Linux Console are theme folders I made for my own machine with the theme skill in the package. They draw the xmonad and Arch Linux logos, so they stay on my machine and are not part of gpui-greeter; they are here to show what a <a href="#theme-folders">theme folder</a> can do.</p>
   </div>
-  <div class="point">
-    <h2><a href="#lock">A lock screen</a></h2>
-    <p>The same looks over your running session, at rest with a clock until a key wakes them.</p>
-  </div>
-  <div class="point">
-    <h2><a href="#themes">Theme folders</a></h2>
-    <p>New looks from a folder of layers, pictures and fonts, checked and previewed before they show.</p>
-  </div>
-  <div class="point">
-    <h2><a href="#settings">Settings</a></h2>
-    <p>A window for the look, the wallpapers, your avatar, the size and the language.</p>
-  </div>
-</section>
-
-<section class="feature wrap" id="looks">
-  <div class="feature-head">
+  <div class="feature-head" id="frost">
     <div>
-      <p class="kicker">Paper</p>
-      <h2>A clock on warm paper</h2>
-    </div>
-    <div class="feature-text">
-      <p>Paper sets a large Fraunces clock above your avatar, the name and an underlined password field, with the session at the bottom left and Sleep, Restart and Shut down at the bottom right. The paper is a sheet on a wooden desk among a pencil, a fountain pen, a cup of coffee and a succulent, all drawn at your monitor's size.</p>
-      <p>Or ledger paper, a drafting sheet whose title block holds the session and the power actions, or plain paper; Paper Night lays each on a walnut desk or a dark ground, and every one takes an accent.</p>
-    </div>
-  </div>
-  <figure class="frame">
-    <img src="media/paper.webp" width="1920" height="1080" loading="lazy" alt="Paper on the desk: the clock 09:41 and the date on a sheet of paper, alice's avatar beside the name and a password field with seven dots, the session at the bottom left and Sleep, Restart and Shut down at the bottom right; on the wooden desk to the right a cup of coffee, a pencil, a fountain pen, a sticky note and a succulent">
-  </figure>
-  <div class="tiles">
-    <figure class="tile">
-      <img src="media/paper-ledger.webp" width="1200" height="675" loading="lazy" alt="Paper on ledger paper with blue rules and a red margin, in the blue accent, a password typed">
-      <figcaption>Ledger <span>in the blue accent</span></figcaption>
-    </figure>
-    <figure class="tile">
-      <img src="media/paper-drafting.webp" width="1200" height="675" loading="lazy" alt="Paper on a drafting sheet, its title block at the bottom right holding the session and the power actions">
-      <figcaption>Drafting <span>the session and power in its title block</span></figcaption>
-    </figure>
-    <figure class="tile">
-      <img src="media/night-desk.webp" width="1200" height="675" loading="lazy" alt="Paper Night: the sheet on a walnut desk with the same coffee, pencil, pen and succulent, a password typed">
-      <figcaption>Paper Night <span>on a walnut desk</span></figcaption>
-    </figure>
-    <figure class="tile">
-      <img src="media/night-drafting.webp" width="1200" height="675" loading="lazy" alt="Paper Night's drafting sheet: light lines on a dark ground, the title block at the bottom right">
-      <figcaption>Paper Night <span>on a drafting sheet</span></figcaption>
-    </figure>
-  </div>
-</section>
-
-<section class="feature wrap" id="frost">
-  <div class="feature-head">
-    <div>
-      <p class="kicker">Frost</p>
-      <h2>macOS's lock screen, point for point</h2>
+      <p class="kicker">Frost, built in</p>
+      <h2>Modelled on macOS's lock screen</h2>
     </div>
     <div class="feature-text">
       <p>At rest Frost shows your wallpaper, sharp, with a large clock and the date. A key or a click blurs and dims it in 300&nbsp;milliseconds behind a round avatar, the name and a password field, set low on the screen as macOS sets them, above Sleep, Restart and Shut Down.</p>
@@ -173,10 +123,88 @@
   </dl>
 </section>
 
+<section class="feature wrap" id="bind">
+  <div class="feature-head">
+    <div>
+      <p class="kicker">XMonad Bind, a theme folder</p>
+      <h2>A login written as Haskell</h2>
+    </div>
+    <div class="feature-text">
+      <p>xmonad's classic logo on a dark page, a large clock at the top right, and the login as a line of Haskell: <code>login :: User -&gt; Password -&gt; X ()</code>, then <code>login alice ••••••• &gt;&gt;= xmonad</code>. The red <code>&gt;&gt;=</code> logs in, as Return does, and Tab changes the session after it.</p>
+      <p>A wrong password gets GHC's type error back, and on the lock screen the line reads <code>unlock</code>.</p>
+    </div>
+  </div>
+  <figure class="frame">
+    <img src="media/bind.webp" width="1920" height="1080" loading="lazy" alt="XMonad Bind signing in: xmonad's classic logo, an X over a red >>=, at the top left of a dark page, and the clock 09:41 with the date at the top right; under the logo, login :: User -> Password -> X (), then login alice with seven typed dots, >>= and xmonad; F10 suspend, F11 reboot and F12 poweroff along the bottom">
+  </figure>
+  <div class="tiles">
+    <figure class="tile">
+      <img src="media/bind-ghc.webp" width="960" height="540" loading="lazy" alt="XMonad Bind after a refused password, close up: login alice with an empty field underlined in red, and GHC's error that it couldn't match the expected type Password with the actual type [Char], in the second argument of login">
+      <figcaption>Refused <span>GHC's answer, at the screen's own pixels</span></figcaption>
+    </figure>
+    <figure class="tile">
+      <img src="media/bind-rest.webp" width="1200" height="675" loading="lazy" alt="XMonad Bind at rest: only the logo at the top left and the clock with the date at the top right">
+      <figcaption>At rest <span>the logo and the clock</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="feature wrap" id="tall">
+  <div class="feature-head">
+    <div>
+      <p class="kicker">XMonad Tall, a theme folder</p>
+      <h2>The login, tiled by xmonad</h2>
+    </div>
+    <div class="feature-text">
+      <p>The login tiled as xmonad's Tall layout tiles windows, in xmonad's and polybar's default colours: the form is the master pane, and tty-clock, a feh slideshow and a list of keys are stacked beside it, with polybar along the bottom.</p>
+      <p>xmonad's own keys work: <span class="keys">mod-j</span> and <span class="keys">mod-k</span> move the red border, <span class="keys">mod-Return</span> swaps a pane into the master, and <span class="keys">mod-space</span> cycles Tall, Mirror Tall and Full. polybar's workspaces are the sessions, and at rest tty-clock fills the screen.</p>
+    </div>
+  </div>
+  <figure class="frame">
+    <img src="media/tall.webp" width="1920" height="1080" loading="lazy" alt="XMonad Tall: xmonad's logo over alice@example-host and seven typed dots in the master pane, which has the red border; at the right tty-clock reading 09:41, a feh slideshow showing a mountain lake, and xmonad's keys; polybar along the bottom with the date, the sessions as workspaces with xmonad current, the layout Tall and example-host">
+  </figure>
+  <div class="tiles">
+    <figure class="tile">
+      <img src="media/tall-mirror.webp" width="1200" height="675" loading="lazy" alt="XMonad Tall in Mirror Tall: the login form across the top, and tty-clock, the slideshow and the keys side by side below it">
+      <figcaption>Mirror Tall <span>after mod-space</span></figcaption>
+    </figure>
+    <figure class="tile">
+      <img src="media/tall-rest.webp" width="1200" height="675" loading="lazy" alt="XMonad Tall at rest: tty-clock alone, full screen, with polybar below">
+      <figcaption>At rest <span>tty-clock, full screen</span></figcaption>
+    </figure>
+  </div>
+</section>
+
+<section class="feature wrap" id="console">
+  <div class="feature-head">
+    <div>
+      <p class="kicker">Arch Linux Console, a theme folder</p>
+      <h2>Arch's login on tty1</h2>
+    </div>
+    <div class="feature-text">
+      <p>The issue line with the date and the time, a fetch block beside the Arch logo, and the <code>login:</code> and <code>Password:</code> prompts with a block cursor. A wrong password prints <code>Login incorrect</code> as getty does, and the lock screen speaks as vlock.</p>
+      <p>The fetch block's facts are read from the machine's own files: the system, the kernel, the uptime, the packages, the shell, the CPU and the graphics card. The machine in these screenshots is made up.</p>
+    </div>
+  </div>
+  <figure class="frame">
+    <img src="media/console.webp" width="1920" height="1080" loading="lazy" alt="Arch Linux Console signing in: the issue line with the kernel and the date across the top, the Arch Linux logo beside a fetch block for alice@example-host, then example-host login: alice and Password: with seven asterisks and a block cursor">
+  </figure>
+  <div class="tiles">
+    <figure class="tile">
+      <img src="media/console-incorrect.webp" width="1156" height="650" loading="lazy" alt="Arch Linux Console after a refused password, close up: the logo and the fetch block listing Arch Linux, a kernel, an uptime, 1234 packages, bash, a CPU, a graphics card and the session xmonad, then the failed attempt, Login incorrect in red, and a new prompt">
+      <figcaption>Refused <span>at the screen's own pixels</span></figcaption>
+    </figure>
+    <figure class="tile">
+      <img src="media/console-rest.webp" width="1200" height="675" loading="lazy" alt="Arch Linux Console at rest: the Arch Linux logo in the middle of the screen, with the date and the time under it">
+      <figcaption>At rest <span>the logo and the time</span></figcaption>
+    </figure>
+  </div>
+</section>
+
 <section class="feature wrap" id="neon">
   <div class="feature-head">
     <div>
-      <p class="kicker">Neon</p>
+      <p class="kicker">Neon, built in</p>
       <h2>A terminal at night</h2>
     </div>
     <div class="feature-text">
@@ -206,6 +234,79 @@
   </div>
 </section>
 
+<section class="feature wrap" id="theme-folders">
+  <div class="feature-head">
+    <div>
+      <p class="kicker">Theme folders</p>
+      <h2>Design your own, or ask an agent to</h2>
+    </div>
+    <div class="feature-text">
+      <p>A theme is a folder: a <code>theme.toml</code> of layers on a 3840 by 2160 frame, with the pictures, SVGs and fonts they draw. Layers keep to the screen's edges and centre, change with each state of the login, move by keyframes, and fill in the time, the user, the session, what PAM says and facts about the machine, read from files. A theme never runs anything.</p>
+      <p>This is inspired by <a href="https://omarchy.org">Omarchy</a>, where a theme is a folder on your own machine that restyles the whole desktop, and Omarchy ships skills that help your coding agent make new ones. Here the package comes with a skill for designing login screens with an agent; the three theme folders above were made with it.</p>
+      <p>Dial, the example in the package, is a clock in a ring of sixty ticks, one of them lit and moving with the seconds.</p>
+      <p class="more"><a href="https://github.com/crazyboycjr/gpui-greeter/blob/main/skills/gpui-greeter-theme/reference.md">The format, every key of it</a></p>
+    </div>
+  </div>
+  <div class="pair">
+    <figure class="frame">
+      <img src="media/dial-rest.webp" width="1200" height="675" loading="lazy" alt="Dial at rest: a ring of sixty ticks around a serif clock reading 09:41 and the date, one tick lit in amber">
+    </figure>
+    <figure class="frame">
+      <img src="media/dial-typing.webp" width="1200" height="675" loading="lazy" alt="Dial signing in: the name alice and seven typed dots on an underlined field below the ring, the session at the bottom left and Sleep, Restart and Shut down at the bottom right">
+    </figure>
+  </div>
+  <div class="install-grid">
+    <div class="card install-item">
+      <header><h3>Design one with Claude Code</h3><button class="copy" type="button">Copy</button></header>
+      <div class="code"><pre><code>mkdir -p ~/.claude/skills
+ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
+  ~/.claude/skills/</code></pre></div>
+      <p>Then ask it for a new login screen. The skill walks the agent through it with you: the idea, fonts and pictures gathered lawfully, macOS's sizes, a preview of every state in both languages, and the install. Your themes stay on your machine.</p>
+    </div>
+    <div class="card install-item">
+      <header><h3>Check, preview, install</h3><button class="copy" type="button">Copy</button></header>
+      <div class="code"><pre><code>gpui-greeter check-theme DIR
+gpui-greeter preview DIR --state error --shot error.png
+sudo gpui-greeter install-theme DIR --select</code></pre></div>
+      <p><code>check-theme</code> names every problem by file and line, and a theme that fails it is never drawn: the greeter shows Paper instead. <code>preview --shot</code> draws it in any state, in an X server of its own, with no display.</p>
+    </div>
+  </div>
+</section>
+
+<section class="feature wrap" id="paper">
+  <div class="feature-head">
+    <div>
+      <p class="kicker">Paper, built in</p>
+      <h2>A clock on warm paper</h2>
+    </div>
+    <div class="feature-text">
+      <p>Paper is the look the greeter starts with. It sets a large Fraunces clock above your avatar, the name and an underlined password field, with the session at the bottom left and Sleep, Restart and Shut down at the bottom right. The paper is a sheet on a wooden desk among a pencil, a fountain pen, a cup of coffee and a succulent, all drawn at your monitor's size.</p>
+      <p>Or ledger paper, a drafting sheet whose title block holds the session and the power actions, or plain paper; Paper Night lays each on a walnut desk or a dark ground, and every one takes an accent.</p>
+    </div>
+  </div>
+  <figure class="frame">
+    <img src="media/paper.webp" width="1920" height="1080" loading="lazy" alt="Paper on the desk: the clock 09:41 and the date on a sheet of paper, alice's avatar beside the name and a password field with seven dots, the session at the bottom left and Sleep, Restart and Shut down at the bottom right; on the wooden desk to the right a cup of coffee, a pencil, a fountain pen, a sticky note and a succulent">
+  </figure>
+  <div class="tiles">
+    <figure class="tile">
+      <img src="media/paper-ledger.webp" width="1200" height="675" loading="lazy" alt="Paper on ledger paper with blue rules and a red margin, in the blue accent, a password typed">
+      <figcaption>Ledger <span>in the blue accent</span></figcaption>
+    </figure>
+    <figure class="tile">
+      <img src="media/paper-drafting.webp" width="1200" height="675" loading="lazy" alt="Paper on a drafting sheet, its title block at the bottom right holding the session and the power actions">
+      <figcaption>Drafting <span>the session and power in its title block</span></figcaption>
+    </figure>
+    <figure class="tile">
+      <img src="media/night-desk.webp" width="1200" height="675" loading="lazy" alt="Paper Night: the sheet on a walnut desk with the same coffee, pencil, pen and succulent, a password typed">
+      <figcaption>Paper Night <span>on a walnut desk</span></figcaption>
+    </figure>
+    <figure class="tile">
+      <img src="media/night-drafting.webp" width="1200" height="675" loading="lazy" alt="Paper Night's drafting sheet: light lines on a dark ground, the title block at the bottom right">
+      <figcaption>Paper Night <span>on a drafting sheet</span></figcaption>
+    </figure>
+  </div>
+</section>
+
 <section class="feature wrap" id="switch">
   <div class="feature-head">
     <div>
@@ -223,44 +324,6 @@
       <source src="media/f9.webm" type="video/webm">
       <source src="media/f9.mp4" type="video/mp4">
     </video>
-  </div>
-</section>
-
-<section class="feature wrap" id="themes">
-  <div class="feature-head">
-    <div>
-      <p class="kicker">Theme folders</p>
-      <h2>Design your own, or ask an agent to</h2>
-    </div>
-    <div class="feature-text">
-      <p>A theme is a folder: a <code>theme.toml</code> of layers on a 3840 by 2160 frame, with the pictures, SVGs and fonts they draw. Layers keep to the screen's edges and centre, change with each state of the login, move by keyframes, and fill in the time, the user, the session, what PAM says and facts about the machine, read from files. A theme never runs anything.</p>
-      <p>Dial, the example, is a clock in a ring of sixty ticks, one of them lit and moving with the seconds.</p>
-      <p class="more"><a href="https://github.com/crazyboycjr/gpui-greeter/blob/main/skills/gpui-greeter-theme/reference.md">The format, every key of it</a></p>
-    </div>
-  </div>
-  <div class="pair">
-    <figure class="frame">
-      <img src="media/dial-rest.webp" width="1200" height="675" loading="lazy" alt="Dial at rest: a ring of sixty ticks around a serif clock reading 09:41 and the date, one tick lit in amber">
-    </figure>
-    <figure class="frame">
-      <img src="media/dial-typing.webp" width="1200" height="675" loading="lazy" alt="Dial signing in: the name alice and seven typed dots on an underlined field below the ring, the session at the bottom left and Sleep, Restart and Shut down at the bottom right">
-    </figure>
-  </div>
-  <div class="install-grid">
-    <div class="card install-item">
-      <header><h3>Check, preview, install</h3><button class="copy" type="button">Copy</button></header>
-      <div class="code"><pre><code>gpui-greeter check-theme DIR
-gpui-greeter preview DIR --state error --shot error.png
-sudo gpui-greeter install-theme DIR --select</code></pre></div>
-      <p><code>check-theme</code> names every problem by file and line, and a theme that fails it is never drawn: the greeter shows Paper instead. <code>preview --shot</code> draws it in any state, in an X server of its own, with no display.</p>
-    </div>
-    <div class="card install-item">
-      <header><h3>Design one with Claude Code</h3><button class="copy" type="button">Copy</button></header>
-      <div class="code"><pre><code>mkdir -p ~/.claude/skills
-ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
-  ~/.claude/skills/</code></pre></div>
-      <p>The package comes with a skill that walks an agent through it with you: the idea, fonts and pictures gathered lawfully, macOS's sizes, a preview of every state in both languages, and the install. Your themes stay on your machine.</p>
-    </div>
   </div>
 </section>
 
@@ -332,14 +395,13 @@ ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
 <section class="feature wrap" id="details">
   <div class="section-head">
     <p class="kicker">Details</p>
-    <h2>Made for a real desk</h2>
-    <p>The things you notice only when they are wrong.</p>
+    <h2>Monitors, sizes and languages</h2>
   </div>
   <dl class="details">
     <div><dt>Native density</dt><dd>The looks are laid out in points, as a Mac lays out a display, from each monitor's own pixels per inch: about as large on a 27-inch 4K monitor as on a 24-inch 1080p one, and as large as macOS's lock screen. <code>scale</code> makes them larger or denser.</dd></div>
     <div><dt>Every monitor</dt><dd>Each monitor gets a window of its own, and the form shows on the primary one and follows the pointer to another. Nothing is tied to a monitor, a port or a mode.</dd></div>
-    <div><dt>Smooth</dt><dd>Each window draws at its own monitor's refresh rate, 240&nbsp;Hz included, and follows it as monitors sleep, wake and change modes. Nothing is drawn while another VT is in front.</dd></div>
-    <div><dt>Instant</dt><dd>The session starts the moment PAM accepts the password, with no welcome to wait through. It runs through <code>startx</code>, as tuigreet starts it, so your own <code>~/.xinitrc</code> applies.</dd></div>
+    <div><dt>Refresh rate</dt><dd>Each window draws at its own monitor's refresh rate, 240&nbsp;Hz included, and follows it as monitors sleep, wake and change modes. Nothing is drawn while another VT is in front.</dd></div>
+    <div><dt>No waiting</dt><dd>The session starts the moment PAM accepts the password, with no welcome to wait through. It runs through <code>startx</code>, as tuigreet starts it, so your own <code>~/.xinitrc</code> applies.</dd></div>
     <div><dt>Quiet</dt><dd>No look tells you how to log in or how to wake the screen. The line under the field says nothing until there is something to say.</dd></div>
     <div><dt>English and 中文</dt><dd><code>language = "zh-CN"</code> puts every look, the lock screen and the settings window in Chinese.</dd></div>
   </dl>
@@ -403,8 +465,8 @@ services.gpui-greeter.enable = true;</code></pre></div>
 <footer class="foot">
   <div class="wrap foot-row">
     <!-- TODO: the licence, once the author has chosen it. -->
-    <p>gpui-greeter 0.1. Its licence is yet to be chosen. <a href="https://github.com/crazyboycjr/gpui-greeter">Source</a> · <a href="https://github.com/crazyboycjr/gpui-greeter/blob/main/CHANGELOG.md">Changes</a> · <a href="https://github.com/crazyboycjr/gpui-greeter/tree/main/docs">Docs</a></p>
-    <p class="credits">The screenshots and clips show gpui-greeter in an invisible X server, with a test account, alice, on a machine called example-host. Frost's wallpapers are photographs by Sergei Akulich, Robert Magnusson, Peter Winckler, adrian and Ales Krivec, released into the public domain (CC0) on Wikimedia Commons; alice's avatar was drawn for them. The looks set their text in Inter, Fraunces and JetBrains Mono, and Dial in Noto Serif Display; this page is set in Literata, Noto Sans and JetBrains Mono, all under the SIL Open Font License.</p>
+    <p>gpui-greeter 1.0. Its licence is yet to be chosen. <a href="https://github.com/crazyboycjr/gpui-greeter">Source</a> · <a href="https://github.com/crazyboycjr/gpui-greeter/blob/main/CHANGELOG.md">Changes</a> · <a href="https://github.com/crazyboycjr/gpui-greeter/tree/main/docs">Docs</a></p>
+    <p class="credits">The screenshots and clips show gpui-greeter in an invisible X server, with a test account, alice, on a machine called example-host. Frost's wallpapers, and the slides in XMonad Tall's, are photographs by Sergei Akulich, Robert Magnusson, Peter Winckler, adrian and Ales Krivec, released into the public domain (CC0) on Wikimedia Commons; alice's avatar was drawn for them. XMonad Bind, XMonad Tall and Arch Linux Console show the xmonad and Arch Linux logos, which belong to their projects: xmonad's current logo is by Hans Heintze under CC BY-SA 4.0, as are the screenshots that show it, and Arch Linux's is a trademark of its project, shown under its trademark policy (<a href="https://github.com/crazyboycjr/gpui-greeter/blob/main/docs/images/SOURCES.md">sources</a>). gpui-greeter is not affiliated with either project. The looks set their text in Inter, Fraunces and JetBrains Mono, and Dial in Noto Serif Display; this page is set in Literata, Noto Sans and JetBrains Mono, all under the SIL Open Font License.</p>
   </div>
 </footer>
 

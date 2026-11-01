@@ -77,6 +77,11 @@ next time, until the settings' `theme` changes.
 
 ## Designing a theme with an agent
 
+The idea is borrowed from [Omarchy](https://omarchy.org), where a theme is a
+folder on your own machine that restyles the whole desktop, and Omarchy ships
+skills that help your coding agent make new ones. Here it is the login screen
+and the lock screen.
+
 The package comes with a skill, `gpui-greeter-theme`, that walks an agent
 such as Claude Code through designing a theme with you: drawing out the
 idea, gathering fonts and pictures lawfully and recording where each came
@@ -94,4 +99,6 @@ colour scheme or a wallpaper is enough to start from. Your themes stay in
 a folder of your own, such as
 `~/.local/share/gpui-greeter/themes-src/<name>`, and on your machine:
 pictures and logos that are yours to use but not to share never go into
-the package.
+the package. The README's XMonad Bind, XMonad Tall and Arch Linux Console
+were made this way, and stay on their author's machine for that reason:
+they draw the xmonad and Arch Linux logos.
