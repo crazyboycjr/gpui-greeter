@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <title>gpui-greeter</title>
+  <defs>
+    <clipPath id="tile"><rect x="64" y="64" width="896" height="896" rx="200"/></clipPath>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2f4670"/>
+      <stop offset=".5" stop-color="#b8673f"/>
+      <stop offset="1" stop-color="#173843"/>
+    </linearGradient>
+  </defs>
+  <rect x="64" y="64" width="896" height="896" rx="200" fill="url(#sky)"/>
+  <circle cx="512" cy="380" r="150" fill="#ffffff" fill-opacity=".62"/>
+  <rect x="242" y="600" width="540" height="140" rx="70" fill="#ffffff" fill-opacity=".42"/>
+  <circle cx="362" cy="670" r="30" fill="#ffffff"/><circle cx="462" cy="670" r="30" fill="#ffffff"/><circle cx="562" cy="670" r="30" fill="#ffffff"/><circle cx="662" cy="670" r="30" fill="#ffffff"/>
+</svg>
