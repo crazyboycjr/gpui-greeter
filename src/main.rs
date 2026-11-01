@@ -55,6 +55,8 @@ usage: gpui-greeter [--config FILE] [--theme THEME] [--language LANG] [--dry-run
        gpui-greeter fetch-bing [--config FILE]
            keep Bing's picture of the day in the config's Bing folder, as
            the daily gpui-greeter-bing.timer does as the greeter's user
+       gpui-greeter --version
+           say which version this is
 
   --config FILE    settings, /etc/gpui-greeter/config.toml by default
   --theme THEME    paper, paper-night, frost, neon or a theme folder's
@@ -77,6 +79,10 @@ fn main() -> ExitCode {
     let outcome = match args.first().map(String::as_str) {
         Some("--help" | "-h") => {
             print!("{USAGE}");
+            return ExitCode::SUCCESS;
+        }
+        Some("--version" | "-V") => {
+            println!("gpui-greeter {}", env!("CARGO_PKG_VERSION"));
             return ExitCode::SUCCESS;
         }
         Some("sync-wallpapers") => sync_wallpapers(&args[1..]),
