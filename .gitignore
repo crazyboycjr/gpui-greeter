@@ -1,1 +1,9 @@
 /target
+/.claude/worktrees/
+# makepkg's work in packaging/arch, and nix build's links.
+/packaging/arch/src/
+/packaging/arch/pkg/
+/packaging/arch/*.pkg.tar*
+/packaging/arch/*.log
+/result
+/result-*

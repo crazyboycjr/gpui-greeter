@@ -81,7 +81,7 @@ to agreety, a text login on the same VT whose session is the user's
 
 On Arch Linux, build the package from this repository and install it:
 
-    cd pkg/arch
+    cd packaging/arch
     makepkg -si
 
 It installs the greeter as `/usr/bin/gpui-greeter`, its settings as
