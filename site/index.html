@@ -118,7 +118,7 @@
       <h2>A clock on warm paper</h2>
     </div>
     <div class="feature-text">
-      <p>A large Fraunces clock, and beneath it your avatar, the name and an underlined password field, with the session at the bottom left and Sleep, Restart and Shut down at the bottom right. The paper is a sheet on a wooden desk among a pencil, a fountain pen, a cup of coffee and a succulent, all drawn at your monitor's size.</p>
+      <p>Paper sets a large Fraunces clock above your avatar, the name and an underlined password field, with the session at the bottom left and Sleep, Restart and Shut down at the bottom right. The paper is a sheet on a wooden desk among a pencil, a fountain pen, a cup of coffee and a succulent, all drawn at your monitor's size.</p>
       <p>Or ledger paper, a drafting sheet whose title block holds the session and the power actions, or plain paper; Paper Night lays each on a walnut desk or a dark ground, and every one takes an accent.</p>
     </div>
   </div>
@@ -152,7 +152,7 @@
       <h2>macOS's lock screen, point for point</h2>
     </div>
     <div class="feature-text">
-      <p>Your wallpaper, sharp, with a large clock and the date. A key or a click blurs and dims it in 300&nbsp;milliseconds behind a round avatar, the name and a password field, set low on the screen as macOS sets them, above Sleep, Restart and Shut Down.</p>
+      <p>At rest Frost shows your wallpaper, sharp, with a large clock and the date. A key or a click blurs and dims it in 300&nbsp;milliseconds behind a round avatar, the name and a password field, set low on the screen as macOS sets them, above Sleep, Restart and Shut Down.</p>
       <p>Its sizes were measured from Apple's own pictures of Sonoma's and Sequoia's lock screen and login window: the field, the avatar, the name, the round password dots and how close they sit, and the three small swings of a refused password.</p>
     </div>
   </div>
@@ -163,7 +163,7 @@
         <source src="media/frost-form.mp4" type="video/mp4">
       </video>
     </div>
-    <figcaption>The form close up, a pixel to a pixel as a 27-inch 4K monitor shows it: typed, checked and refused.</figcaption>
+    <figcaption>The form close up, pixel for pixel as a 27-inch 4K monitor shows it: typed, checked and refused.</figcaption>
   </figure>
   <dl class="facts">
     <div><dt>160&times;28</dt><dd>points, the password field, as macOS draws it</dd></div>
@@ -180,7 +180,7 @@
       <h2>A terminal at night</h2>
     </div>
     <div class="feature-text">
-      <p>Your machine's name over a terminal panel with corner brackets, scanlines and a slow scan beam, on a drawn city at night, a circuit board with light running along its traces, a synthwave sunset over a moving grid floor, or a faint grid.</p>
+      <p>Neon sets your machine's name over a terminal panel with corner brackets, scanlines and a slow scan beam, on a drawn city at night, a circuit board with light running along its traces, a synthwave sunset over a moving grid floor, or a faint grid.</p>
       <p>A status line goes READY, AUTH, then GRANTED or DENIED, the name glitches on a refusal, and F-keys along the bottom pick the session, the keyboard layout and the power actions.</p>
     </div>
   </div>
@@ -213,7 +213,7 @@
       <h2>F9 to the next look</h2>
     </div>
     <div class="feature-text">
-      <p>At the login screen and the lock screen, <kbd>F9</kbd> shows the next look at once and <kbd>Shift</kbd>+<kbd>F9</kbd> the one before: the built-in looks, then the theme folders you have installed. The greeter starts with the one you picked next time, until the settings name another.</p>
+      <p>At the login screen and the lock screen, <kbd>F9</kbd> shows the next look at once and <span class="keys"><kbd>Shift</kbd>+<kbd>F9</kbd></span> the one before: the built-in looks, then the theme folders you have installed. The greeter starts with the one you picked next time, until the settings name another.</p>
       <p class="keyrow" aria-hidden="true"><kbd>F9</kbd><kbd>Tab</kbd><kbd>F10</kbd><kbd>F11</kbd><kbd>F12</kbd><kbd>Esc</kbd></p>
       <p class="note"><kbd>Tab</kbd> and <kbd>F2</kbd> pick the session, <kbd>F10</kbd> to <kbd>F12</kbd> sleep, restart and shut down after a second press, and <kbd>Esc</kbd> clears the field or goes back to rest.</p>
     </div>
@@ -252,7 +252,7 @@
       <div class="code"><pre><code>gpui-greeter check-theme DIR
 gpui-greeter preview DIR --state error --shot error.png
 sudo gpui-greeter install-theme DIR --select</code></pre></div>
-      <p><code>check-theme</code> names every problem by file and line, and a theme that fails it is never drawn: the greeter shows Paper instead. <code>preview --shot</code> draws each state in an X server of its own, with no display.</p>
+      <p><code>check-theme</code> names every problem by file and line, and a theme that fails it is never drawn: the greeter shows Paper instead. <code>preview --shot</code> draws it in any state, in an X server of its own, with no display.</p>
     </div>
     <div class="card install-item">
       <header><h3>Design one with Claude Code</h3><button class="copy" type="button">Copy</button></header>
@@ -289,13 +289,13 @@ ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
   <div class="install-grid">
     <div class="card install-item">
       <header><h3>From a key</h3><button class="copy" type="button">Copy</button></header>
-      <div class="code"><pre><code>bindsym $mod+Shift+l exec --no-startup-id gpui-greeter lock</code></pre></div>
+      <div class="code"><pre><code>bindsym $mod+Shift+x exec --no-startup-id gpui-greeter lock</code></pre></div>
       <p>That is i3's; any window manager's key bindings, or sxhkd, run the same command.</p>
     </div>
     <div class="card install-item">
       <header><h3>When the screen blanks</h3><button class="copy" type="button">Copy</button></header>
       <div class="code"><pre><code>gpui-greeter lock --when-idle 30 &amp;</code></pre></div>
-      <p>From <code>~/.xinitrc</code>: it locks once the screen saver has kept the screen blank for 30 seconds, and at once on <code>loginctl lock-session</code>, so whoever wakes the screen finds the lock at rest.</p>
+      <p>From <code>~/.xinitrc</code>: it locks once the screen saver has kept the screen blank for 30 seconds, so whoever wakes the screen finds the lock at rest, and at once on <code>loginctl lock-session</code>.</p>
     </div>
   </div>
 </section>
@@ -307,7 +307,7 @@ ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
       <h2>A window for the everyday settings</h2>
     </div>
     <div class="feature-text">
-      <p><code>gpui-greeter settings</code> picks the look to start with, each look's background and accent, Frost's wallpapers or Bing's picture of the day, your avatar, the size and the language, and shows the look as the greeter draws it, small, as you change it.</p>
+      <p><code>gpui-greeter settings</code> opens a window for the look to start with, each look's background and accent, Frost's wallpapers or Bing's picture of the day, your avatar, the size and the language. It shows the look as the greeter draws it, small, as you change it.</p>
       <p>Nothing changes until Apply. Your avatar goes to AccountsService; what root keeps goes through one narrow helper under pkexec, which takes only the settings the window offers and checks them all first.</p>
     </div>
   </div>
@@ -336,12 +336,12 @@ ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
     <p>The things you notice only when they are wrong.</p>
   </div>
   <dl class="details">
-    <div><dt>Native density</dt><dd>The looks are laid out in points, as a Mac lays out a display, from each monitor's own pixels per inch: as large on a 27-inch 4K monitor as on a 24-inch 1080p one, and as large as macOS's lock screen. <code>scale</code> makes them larger or denser.</dd></div>
-    <div><dt>Every monitor</dt><dd>A window over each one, and the form on the primary one, following the pointer to another. Nothing is tied to a monitor, a port or a mode.</dd></div>
+    <div><dt>Native density</dt><dd>The looks are laid out in points, as a Mac lays out a display, from each monitor's own pixels per inch: about as large on a 27-inch 4K monitor as on a 24-inch 1080p one, and as large as macOS's lock screen. <code>scale</code> makes them larger or denser.</dd></div>
+    <div><dt>Every monitor</dt><dd>Each monitor gets a window of its own, and the form shows on the primary one and follows the pointer to another. Nothing is tied to a monitor, a port or a mode.</dd></div>
     <div><dt>Smooth</dt><dd>Each window draws at its own monitor's refresh rate, 240&nbsp;Hz included, and follows it as monitors sleep, wake and change modes. Nothing is drawn while another VT is in front.</dd></div>
-    <div><dt>Instant</dt><dd>The session starts the moment PAM accepts the password, with no welcome to wait through, and starts as tuigreet starts it, through <code>startx</code>, so your own <code>~/.xinitrc</code> applies.</dd></div>
+    <div><dt>Instant</dt><dd>The session starts the moment PAM accepts the password, with no welcome to wait through. It runs through <code>startx</code>, as tuigreet starts it, so your own <code>~/.xinitrc</code> applies.</dd></div>
     <div><dt>Quiet</dt><dd>No look tells you how to log in or how to wake the screen. The line under the field says nothing until there is something to say.</dd></div>
-    <div><dt>English and 中文</dt><dd><code>language = "zh-CN"</code> for Chinese, in every look, the lock screen and the settings window.</dd></div>
+    <div><dt>English and 中文</dt><dd><code>language = "zh-CN"</code> puts every look, the lock screen and the settings window in Chinese.</dd></div>
   </dl>
   <div class="tiles">
     <figure class="tile">
@@ -368,16 +368,15 @@ ln -s /usr/share/gpui-greeter/skills/gpui-greeter-theme \
       <p>From the AUR. To build what is on <code>main</code> instead, run <code>makepkg -si</code> in a clone's <code>packaging/arch</code>.</p>
     </div>
     <div class="card install-item">
-      <!-- TODO: check against the packaging branch's flake.nix and module.nix. -->
       <header><h3>NixOS</h3><button class="copy" type="button">Copy</button></header>
       <div class="code"><pre><code>imports = [ gpui-greeter.nixosModules.default ];
 services.gpui-greeter.enable = true;</code></pre></div>
-      <p>With the flake <code>github:crazyboycjr/gpui-greeter</code> among your inputs. The module sets up greetd with the greeter, its lock screen's PAM service and its settings.</p>
+      <p>Add the flake <code>github:crazyboycjr/gpui-greeter</code> to your inputs, and the module sets up greetd with the greeter, its lock screen's PAM service and its settings.</p>
     </div>
     <div class="card install-item switch">
       <header><h3>Then switch to greetd</h3><button class="copy" type="button">Copy</button></header>
       <div class="code"><pre><code>sudo gpui-greeter-switch greetd</code></pre></div>
-      <p>greetd becomes the display manager from the next boot, and <code>gpui-greeter-switch lightdm</code> goes back; nothing starts or stops before then. Run one display manager at a time: starting greetd beside another's session can end that session. The session greetd starts lives on VT 1, so <kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>F1</kbd> returns to it.</p>
+      <p>greetd becomes the display manager from the next boot, and <code>sudo gpui-greeter-switch lightdm</code> goes back; nothing starts or stops before then. Run one display manager at a time: starting greetd beside another's session can end that session. The session greetd starts lives on VT 1, so <span class="keys"><kbd>Ctrl</kbd>+<kbd>Alt</kbd>+<kbd>F1</kbd></span> returns to it, and stopping or restarting greetd ends it.</p>
     </div>
   </div>
   <p class="note">The <a href="https://github.com/crazyboycjr/gpui-greeter/blob/main/docs/install.md">install guide</a> has what the package installs, the switch done at once, and what to do when something goes wrong.</p>

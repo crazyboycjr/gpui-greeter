@@ -159,6 +159,8 @@ kbd {
   border-bottom-width: 2px;
   border-radius: 6px;
 }
+/* A chord, such as Ctrl+Alt+F1, stays on one line. */
+.keys { white-space: nowrap; }
 
 .wrap { width: min(var(--wrap), 100% - 2 * var(--gutter)); margin-inline: auto; }
 
@@ -431,8 +433,9 @@ figure { margin: 0; }
   .keyrow kbd { min-width: 34px; }
   .stack div { grid-template-columns: 1fr; gap: 2px; }
   .install-item { padding: 20px 18px 22px; }
-  .code pre { padding: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .code pre code { white-space: pre-wrap; }
+  /* Commands keep their lines and scroll sideways: wrapped, they would
+     break after any hyphen, as in "-" and "-select". */
+  .code pre { padding: 14px; }
   /* Long inline code in running text wraps rather than widening the page. */
   .feature-text code, .install-item p code, .details code, .section-head code { white-space: normal; overflow-wrap: anywhere; }
 }
