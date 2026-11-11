@@ -1,8 +1,6 @@
 # Changelog
 
-<!-- TODO: the date of the release, once it is tagged. -->
-
-## 1.0.0 (unreleased)
+## 1.0.0 (2026-11-11)
 
 The first release. gpui-greeter is a login screen for greetd on X11, a lock
 screen for any X session, and a settings window for both, built with GPUI and
