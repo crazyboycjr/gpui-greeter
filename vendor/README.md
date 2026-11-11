@@ -70,8 +70,8 @@ Apache License 2.0, whose text is beside each.
 - **Pop-ups stay composited** (`x11/window.rs`). The greeter's only
   pop-ups are the lock's windows, over whole monitors, and before they are
   mapped they ask a compositor never to unredirect them
-  (`_NET_WM_BYPASS_COMPOSITOR` set to 2), for the reason the README's lock
-  section gives.
+  (`_NET_WM_BYPASS_COMPOSITOR` set to 2), for the reason
+  [docs/lock-screen.md](../docs/lock-screen.md) gives.
 
 To take a newer gpui, copy its crates over these, drop their `Cargo.lock`
 and benchmarks, and carry the changes over.
