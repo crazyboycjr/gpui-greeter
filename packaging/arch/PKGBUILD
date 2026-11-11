@@ -19,6 +19,7 @@ depends=(
     glibc
     greetd
     greetd-agreety
+    hicolor-icon-theme
     libgcc
     libxcb
     libxkbcommon
