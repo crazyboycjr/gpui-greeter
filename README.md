@@ -229,6 +229,10 @@ cd gpui-greeter/packaging/arch
 makepkg -si
 ```
 
+Installing the package takes greetd over at once: a drop-in for
+`greetd.service` has greetd run gpui-greeter from its next start, in place of
+the greeter in `/etc/greetd/config.toml`, which stays as it was.
+
 On NixOS, the flake's module sets up greetd with the greeter
 ([docs/install.md](docs/install.md#nixos)):
 
