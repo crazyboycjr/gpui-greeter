@@ -42,6 +42,7 @@ The package installs:
 | `/etc/pam.d/gpui-greeter-lock` | the PAM service the lock screen checks passwords with |
 | `/usr/lib/systemd/system/gpui-greeter-bing.timer` | fetches Bing's picture of the day, when the settings ask for it |
 | `/usr/share/applications/gpui-greeter-settings.desktop` | the settings window among the applications |
+| `/usr/share/icons/hicolor/*/apps/gpui-greeter.*` | its icon, from 16 to 512 pixels and as SVG |
 | `/usr/share/gpui-greeter/skills/gpui-greeter-theme/` | the skill for designing themes with an agent, and its example |
 | `/var/lib/gpui-greeter` | the home of greetd's `greeter` user: the X cookie, Xorg's log, the last login |
 

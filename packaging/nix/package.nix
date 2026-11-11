@@ -70,6 +70,9 @@ rustPlatform.buildRustPackage {
       --replace-fail /usr/share/doc $out/share/doc
     install -Dm644 dist/tmpfiles.conf $out/lib/tmpfiles.d/gpui-greeter.conf
     install -Dm644 -t $out/share/applications dist/gpui-greeter-settings.desktop
+    # The icon the desktop file names, in every size it is drawn at.
+    mkdir -p $out/share/icons
+    cp -r assets/icon/linux/hicolor $out/share/icons/
     # Every setting with its default, for reference: the NixOS module
     # writes /etc/gpui-greeter/config.toml from its own settings.
     install -Dm644 dist/config.toml $out/share/gpui-greeter/config.toml

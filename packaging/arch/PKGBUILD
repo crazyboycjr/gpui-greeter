@@ -86,10 +86,14 @@ package() {
     install -Dm644 dist/tmpfiles.conf "$pkgdir/usr/lib/tmpfiles.d/$pkgname.conf"
     install -Dm644 "dist/$pkgname-settings.desktop" \
         "$pkgdir/usr/share/applications/$pkgname-settings.desktop"
+    # The icon the desktop file names, in every size it is drawn at.
+    local file
+    while IFS= read -r -d '' file; do
+        install -Dm644 "$file" "$pkgdir/usr/share/icons/${file#assets/icon/linux/}"
+    done < <(find assets/icon/linux/hicolor -type f -print0)
     install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
     install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" assets/fonts/OFL-*.txt
     # The skill for designing themes with an agent, and its example theme.
-    local file
     while IFS= read -r -d '' file; do
         install -Dm644 "$file" "$pkgdir/usr/share/$pkgname/$file"
     done < <(find skills -type f -print0)
