@@ -4,6 +4,7 @@ version = "1.0.0"
 edition = "2024"
 rust-version = "1.88"
 description = "A greeter for greetd on X11, drawn with GPUI"
+license = "Apache-2.0"
 publish = false
 
 [dependencies]

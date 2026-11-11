@@ -287,9 +287,8 @@ invisible X server with `scripts/try`, and the tests are in
 
 ## License
 
-<!-- TODO: the licence is the author's to choose. -->
-
-The licence is not chosen yet.
+gpui-greeter is licensed under the Apache License, Version 2.0; see
+[LICENSE](LICENSE).
 
 The fonts built in, Inter, Fraunces and JetBrains Mono, and the example
 theme's Noto Serif Display are under the SIL Open Font License. The

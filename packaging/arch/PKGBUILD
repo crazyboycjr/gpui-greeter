@@ -10,9 +10,9 @@ pkgrel=1
 pkgdesc='A greeter for greetd on X11, drawn with GPUI'
 arch=(x86_64)
 url='https://github.com/crazyboycjr/gpui-greeter'
-# TODO(release): the licence of gpui-greeter's own code is still to be
-# chosen; Apache-2.0 is gpui's, whose backends are vendored. The bundled
-# fonts are under the SIL Open Font License, whose texts are installed.
+# gpui-greeter's code is under Apache-2.0, as is gpui's, whose backends are
+# vendored. The bundled fonts are under the SIL Open Font License, whose
+# texts are installed.
 license=(Apache-2.0 OFL-1.1)
 depends=(
     bash

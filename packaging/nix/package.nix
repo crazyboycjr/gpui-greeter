@@ -95,8 +95,8 @@ rustPlatform.buildRustPackage {
   meta = {
     description = "Greeter for greetd on X11, drawn with GPUI, with a lock screen";
     homepage = "https://github.com/crazyboycjr/gpui-greeter";
-    # TODO(release): the licence of gpui-greeter's own code is still to be
-    # chosen; the bundled fonts are under the SIL Open Font License.
+    # gpui-greeter's code is under Apache-2.0; the bundled fonts are under
+    # the SIL Open Font License.
     license = with lib.licenses; [
       asl20
       ofl
